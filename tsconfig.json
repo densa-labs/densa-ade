@@ -1,7 +1,10 @@
 {
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "noEmit": true
+    "noEmit": true,
+    "paths": {
+      "@densa/protocol": ["./packages/protocol/src/index.ts"]
+    }
   },
   "include": ["packages/*/src/**/*.ts"]
 }

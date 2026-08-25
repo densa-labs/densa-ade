@@ -4,6 +4,9 @@
   "private": true,
   "description": "Headless client boundary for Densa Core.",
   "type": "module",
+  "bin": {
+    "densa": "./dist/bin.js"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -12,5 +15,8 @@
   },
   "files": [
     "dist"
-  ]
+  ],
+  "dependencies": {
+    "@densa/protocol": "0.0.0"
+  }
 }

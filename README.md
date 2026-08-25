@@ -37,6 +37,25 @@ are replaceable adapters, and Core remains independent of Code - OSS and VS Code
 Dependency flow points inward: clients may depend on protocol contracts, Core may depend on the
 protocol and agent SDK, and no Core package may depend on an app or editor API.
 
+The protocol package documents its JSON wire rules and post-v0.1 compatibility policy in
+[`packages/protocol/README.md`](packages/protocol/README.md).
+
+## Headless CLI
+
+Phase 0 provides a deliberately small `densa` client shell. `doctor`, `version`, project lifecycle,
+and event commands are available; project and event commands report an explicit unavailable-Core
+placeholder until local IPC exists. The CLI never becomes an alternate source of project truth.
+
+```sh
+npm run build
+node packages/cli/dist/bin.js --help
+node packages/cli/dist/bin.js doctor
+node packages/cli/dist/bin.js --json version
+```
+
+The stable JSON output contract and injected service boundaries are documented in
+[`packages/cli/README.md`](packages/cli/README.md).
+
 ## Development
 
 Use Node.js 22.13 or newer and the npm version recorded in `packageManager`.

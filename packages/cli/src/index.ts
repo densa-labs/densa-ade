@@ -1,2 +1,3 @@
-/** CLI commands and IPC integration are intentionally deferred to later milestones. */
-export {};
+export * from "./cli.js";
+export * from "./contracts.js";
+export * from "./services.js";
