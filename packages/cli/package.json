@@ -1,0 +1,16 @@
+{
+  "name": "@densa/cli",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Headless client boundary for Densa Core.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ]
+}

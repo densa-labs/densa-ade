@@ -1,0 +1,16 @@
+{
+  "name": "@densa/testing",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Reusable fakes, fixtures, and helpers for deterministic Densa tests.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ]
+}

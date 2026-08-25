@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+
+# Compiled output and tool caches
+dist/
+coverage/
+*.tsbuildinfo
+.eslintcache
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+
+# Local SQLite runtime data
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.sqlite3
+*.sqlite3-shm
+*.sqlite3-wal
+
+# Temporary local-process artifacts
+*.pid
+*.sock
+tmp/
+.tmp/
+
+# macOS and editor metadata
+.DS_Store
+*.swp
+
+# The portable .densa/ representation is intentionally not ignored.
