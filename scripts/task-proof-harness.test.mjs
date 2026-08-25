@@ -371,6 +371,101 @@ test("unconfirmed cancellation quarantines the workspace from post-run inspectio
   );
 });
 
+test("an iterator failure requires confirmed cancellation before inspection", async (t) => {
+  let delayedMutation;
+  let cancelCalled = false;
+  const adapter = {
+    adapterId: "throwing-stream-fake",
+    async detect() {
+      throw new Error("not used");
+    },
+    async getStatus() {
+      throw new Error("not used");
+    },
+    execute({ cwd }) {
+      delayedMutation = new Promise((resolve, reject) => {
+        setTimeout(() => {
+          writeFile(path.join(cwd, "late.txt"), "late\n", "utf8").then(resolve, reject);
+        }, 30);
+      });
+      return {
+        [Symbol.asyncIterator]() {
+          return {
+            next: async () => {
+              throw new Error("adapter stream failed");
+            },
+            return: async () => await new Promise(() => undefined),
+          };
+        },
+      };
+    },
+    async cancel() {
+      cancelCalled = true;
+      await new Promise(() => undefined);
+    },
+    async getUsageState() {
+      throw new Error("not used");
+    },
+  };
+
+  const result = await runTemporaryRepoTaskProof({
+    adapter,
+    runId: "proof-iterator-failure",
+    cancellationTimeoutMs: 20,
+  });
+  await delayedMutation;
+  t.after(async () => await cleanupResult(result));
+
+  assert.equal(cancelCalled, true);
+  assert.equal(result.workerTerminationConfirmed, false);
+  assert.deepEqual(result.changes.added, []);
+  assert.match(result.failureReasons.join("\n"), /adapter stream failed/u);
+  assert.match(result.changes.workspaceObservationError, /observation skipped/iu);
+});
+
+test("execute setup failures also require confirmed adapter cancellation", async (t) => {
+  let delayedMutation;
+  let cancelCalled = false;
+  const adapter = {
+    adapterId: "throwing-execute-fake",
+    async detect() {
+      throw new Error("not used");
+    },
+    async getStatus() {
+      throw new Error("not used");
+    },
+    execute({ cwd }) {
+      delayedMutation = new Promise((resolve, reject) => {
+        setTimeout(() => {
+          writeFile(path.join(cwd, "late.txt"), "late\n", "utf8").then(resolve, reject);
+        }, 10);
+      });
+      throw new Error("adapter execute failed");
+    },
+    async cancel() {
+      cancelCalled = true;
+      await new Promise(() => undefined);
+    },
+    async getUsageState() {
+      throw new Error("not used");
+    },
+  };
+
+  const result = await runTemporaryRepoTaskProof({
+    adapter,
+    runId: "proof-execute-failure",
+    cancellationTimeoutMs: 20,
+  });
+  await delayedMutation;
+  t.after(async () => await cleanupResult(result));
+
+  assert.equal(cancelCalled, true);
+  assert.equal(result.workerTerminationConfirmed, false);
+  assert.deepEqual(result.changes.added, []);
+  assert.match(result.failureReasons.join("\n"), /adapter execute failed/u);
+  assert.match(result.changes.workspaceObservationError, /observation skipped/iu);
+});
+
 test("worker-planted diagnostic paths cannot redirect the secure attempt write", async (t) => {
   let victimPath;
   const adapter = new FakeAgentAdapter({

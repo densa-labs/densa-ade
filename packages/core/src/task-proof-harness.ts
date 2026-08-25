@@ -331,6 +331,39 @@ async function settleWithin<T>(promise: Promise<T>, timeoutMs: number): Promise<
   return result;
 }
 
+interface CancellationConfirmation {
+  confirmed: boolean;
+  failure?: string;
+}
+
+async function requestCancellation(
+  adapter: AgentAdapter,
+  runId: string,
+  timeoutMs: number,
+): Promise<CancellationConfirmation> {
+  const cancellation = await settleWithin(
+    Promise.resolve().then(async () => await adapter.cancel(runId)),
+    timeoutMs,
+  );
+  if (!cancellation.settled) {
+    return {
+      confirmed: false,
+      failure: "Agent cancellation did not settle before the cancellation deadline",
+    };
+  }
+  if (cancellation.status === "rejected") {
+    return {
+      confirmed: false,
+      failure: `Agent cancellation failed: ${redactSecrets(
+        cancellation.reason instanceof Error
+          ? cancellation.reason.message
+          : String(cancellation.reason),
+      )}`,
+    };
+  }
+  return { confirmed: true };
+}
+
 async function collectAgentEvents(input: {
   adapter: AgentAdapter;
   runId: string;
@@ -391,18 +424,20 @@ async function collectAgentEvents(input: {
     retainedBytes += eventBytes;
   };
 
+  const recordFailure = (message: string): void => {
+    const redacted = redactSecrets(message);
+    failure = failure === undefined ? redacted : `${failure}; ${redacted}`;
+  };
+
   const cancelAndConfirmTermination = async (
     pendingNext?: Promise<IteratorResult<AgentEvent>>,
   ): Promise<void> => {
-    const cancellation = await settleWithin(
-      Promise.resolve().then(async () => await input.adapter.cancel(input.runId)),
+    const cancellation = await requestCancellation(
+      input.adapter,
+      input.runId,
       input.cancellationTimeoutMs,
     );
-    if (!cancellation.settled) {
-      failure = "Agent cancellation did not settle before the cancellation deadline";
-    } else if (cancellation.status === "rejected") {
-      failure = `Agent cancellation failed: ${cancellation.reason instanceof Error ? cancellation.reason.message : String(cancellation.reason)}`;
-    }
+    if (cancellation.failure !== undefined) recordFailure(cancellation.failure);
 
     if (pendingNext !== undefined) {
       const next = await settleWithin(pendingNext, input.cancellationTimeoutMs);
@@ -414,12 +449,9 @@ async function collectAgentEvents(input: {
       input.cancellationTimeoutMs,
     );
     workerTerminationConfirmed =
-      cancellation.settled &&
-      cancellation.status === "fulfilled" &&
-      returned.settled &&
-      returned.status === "fulfilled";
-    if (!workerTerminationConfirmed && failure === undefined) {
-      failure = "Agent termination could not be confirmed after cancellation";
+      cancellation.confirmed && returned.settled && returned.status === "fulfilled";
+    if (!workerTerminationConfirmed && cancellation.failure === undefined) {
+      recordFailure("Agent termination could not be confirmed after cancellation");
     }
   };
 
@@ -447,8 +479,8 @@ async function collectAgentEvents(input: {
       retain(next.value.value);
     }
   } catch (error) {
-    failure = redactSecrets(error instanceof Error ? error.message : String(error));
-    workerTerminationConfirmed = true;
+    recordFailure(error instanceof Error ? error.message : String(error));
+    await cancelAndConfirmTermination();
   } finally {
     if (timeoutHandle !== undefined) clearTimeout(timeoutHandle);
   }
@@ -742,13 +774,18 @@ export async function runTemporaryRepoTaskProof(
       retainedEventBytes,
     });
   } catch (error) {
+    const cancellation = await requestCancellation(options.adapter, runId, cancellationTimeoutMs);
+    const executionFailure = redactSecrets(error instanceof Error ? error.message : String(error));
     agent = {
       events: [],
       droppedEventCount: 0,
       individualEventTruncated: false,
       timedOut: false,
-      workerTerminationConfirmed: true,
-      failure: redactSecrets(error instanceof Error ? error.message : String(error)),
+      workerTerminationConfirmed: cancellation.confirmed,
+      failure:
+        cancellation.failure === undefined
+          ? executionFailure
+          : `${executionFailure}; ${cancellation.failure}`,
     };
   }
   const diagnosticDestination = await createDiagnosticDestination();
