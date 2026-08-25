@@ -371,6 +371,103 @@ test("unconfirmed cancellation quarantines the workspace from post-run inspectio
   );
 });
 
+test("cancellation is unconfirmed when the iterator has no return method", async (t) => {
+  let delayedMutation;
+  const adapter = {
+    adapterId: "no-return-fake",
+    async detect() {
+      throw new Error("not used");
+    },
+    async getStatus() {
+      throw new Error("not used");
+    },
+    execute({ cwd }) {
+      delayedMutation = new Promise((resolve, reject) => {
+        setTimeout(() => {
+          writeFile(path.join(cwd, "late.txt"), "late\n", "utf8").then(resolve, reject);
+        }, 50);
+      });
+      return {
+        [Symbol.asyncIterator]() {
+          return { next: async () => await new Promise(() => undefined) };
+        },
+      };
+    },
+    async cancel() {},
+    async getUsageState() {
+      throw new Error("not used");
+    },
+  };
+
+  const result = await runTemporaryRepoTaskProof({
+    adapter,
+    runId: "proof-no-return",
+    agentTimeoutMs: 10,
+    cancellationTimeoutMs: 20,
+  });
+  await delayedMutation;
+  t.after(async () => await cleanupResult(result));
+
+  assert.equal(result.workerTerminationConfirmed, false);
+  assert.deepEqual(result.changes.added, []);
+  assert.match(result.changes.workspaceObservationError, /observation skipped/iu);
+});
+
+test("cancellation is unconfirmed when iterator return is nonterminal", async (t) => {
+  let delayedMutation;
+  const adapter = {
+    adapterId: "nonterminal-return-fake",
+    async detect() {
+      throw new Error("not used");
+    },
+    async getStatus() {
+      throw new Error("not used");
+    },
+    execute({ cwd }) {
+      delayedMutation = new Promise((resolve, reject) => {
+        setTimeout(() => {
+          writeFile(path.join(cwd, "late.txt"), "late\n", "utf8").then(resolve, reject);
+        }, 50);
+      });
+      return {
+        [Symbol.asyncIterator]() {
+          return {
+            next: async () => await new Promise(() => undefined),
+            return: async () => ({
+              done: false,
+              value: {
+                type: "diagnostic",
+                runId: "proof-nonterminal-return",
+                occurredAt: new Date(0).toISOString(),
+                stream: "adapter",
+                text: "still active",
+                truncated: false,
+              },
+            }),
+          };
+        },
+      };
+    },
+    async cancel() {},
+    async getUsageState() {
+      throw new Error("not used");
+    },
+  };
+
+  const result = await runTemporaryRepoTaskProof({
+    adapter,
+    runId: "proof-nonterminal-return",
+    agentTimeoutMs: 10,
+    cancellationTimeoutMs: 20,
+  });
+  await delayedMutation;
+  t.after(async () => await cleanupResult(result));
+
+  assert.equal(result.workerTerminationConfirmed, false);
+  assert.deepEqual(result.changes.added, []);
+  assert.match(result.changes.workspaceObservationError, /observation skipped/iu);
+});
+
 test("an iterator failure requires confirmed cancellation before inspection", async (t) => {
   let delayedMutation;
   let cancelCalled = false;
