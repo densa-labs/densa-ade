@@ -655,8 +655,9 @@ When implementing a roadmap milestone:
 7. Run the acceptance checks.
 8. Fix failures before declaring completion.
 9. If the milestone is complete, create its milestone commit according to §20.1.
-10. If this completes the phase, create its phase checkpoint/tag according to §20.1.
-11. Summarize:
+10. Push the milestone commit to the configured private origin according to §20.2.
+11. If this completes the phase, create and push its phase checkpoint/tag according to §20.1 and §20.2.
+12. Summarize:
    - what changed;
    - files/modules added;
    - tests/commands run;
@@ -664,7 +665,7 @@ When implementing a roadmap milestone:
    - phase tag, if created;
    - unresolved risks;
    - any roadmap deviation.
-12. Do not begin the next milestone unless explicitly asked.
+13. Do not begin the next milestone unless explicitly asked.
 
 ### 20.1 Milestone Git discipline
 
@@ -678,7 +679,22 @@ Rules:
 - If a milestone is PARTIAL or BLOCKED, do not create a normal completion commit; report the state and preserve the work for explicit user direction.
 - At the completion of the final milestone in a phase, create the phase checkpoint/tag `densa-phase-<phase>-complete` only after all milestones in that phase are complete and their acceptance checks pass.
 - Never rewrite, squash, or amend completed milestone commits unless explicitly instructed by the user.
-- Never push commits or tags to a remote automatically.
+- Remote synchronization is governed by §20.2; outside that rule, never push commits or tags automatically.
+
+### 20.2 Milestone remote synchronization
+
+For development of Densa itself, every successfully completed milestone MUST be pushed to the configured private `origin` repository after its milestone commit is created.
+
+Rules:
+- Push only after all milestone acceptance checks pass and the milestone commit exists.
+- Push the current Densa development branch to its configured upstream on `origin`.
+- If no upstream exists yet, establish it with the first normal push.
+- Verify that the remote branch reaches the same milestone commit SHA before declaring the milestone complete.
+- If this milestone completes a phase, push the `densa-phase-<phase>-complete` tag after creating it.
+- Never force-push.
+- Never push a PARTIAL or BLOCKED milestone as if it were complete.
+- A push failure does not invalidate the completed local work, but the milestone handoff must report that remote synchronization failed.
+- Do not automatically push user projects built *by Densa*. This rule applies specifically to development of the Densa codebase unless a user project explicitly opts into remote pushes.
 
 ## 21. Forbidden shortcuts
 
