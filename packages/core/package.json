@@ -12,5 +12,8 @@
   },
   "files": [
     "dist"
-  ]
+  ],
+  "dependencies": {
+    "@densa/agent-sdk": "0.0.0"
+  }
 }

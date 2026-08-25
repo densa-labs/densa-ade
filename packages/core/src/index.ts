@@ -1,2 +1,1 @@
-/** Densa Core implementation begins after its contracts are defined. */
-export {};
+export * from "./task-proof-harness.js";

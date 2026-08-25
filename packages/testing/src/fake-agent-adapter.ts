@@ -29,6 +29,7 @@ export interface FakeAgentAdapterOptions {
   finalMessage?: string;
   exitCode?: number;
   holdOpen?: boolean;
+  onExecute?: (request: AgentRunRequest) => void | Promise<void>;
   now?: () => string;
 }
 
@@ -79,6 +80,7 @@ export class FakeAgentAdapter implements AgentAdapter {
 
     try {
       yield { type: "run.started", runId: request.runId, occurredAt: this.now() };
+      await this.options.onExecute?.(request);
       for (const event of this.options.events ?? []) {
         if (control.cancelled) {
           yield this.cancelledEvent(request.runId);
