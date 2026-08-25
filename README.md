@@ -67,11 +67,13 @@ deterministic acceptance checks; agent prose never affects the verdict.
 
 Each run retains a redacted, bounded, mode-0600 `attempt.json` in a separately randomized temporary
 diagnostics directory created after the worker exits. The caller owns cleanup of both returned
-temporary roots. Runs time out and request adapter cancellation, unexpected symlinks fail closed,
-and post-run inspection errors still produce a FAIL diagnostic. This keeps attempt evidence
-inspectable without introducing SQLite or a long-lived runtime source of truth. Routine tests
-cover passing, failing, deliberately lying, stalled, and workspace-tampering fake agents. The
-authenticated Codex demonstration is opt-in because live agents are not used for routine tests:
+temporary roots. Runs time out and require confirmed adapter cancellation before workspace
+inspection; unconfirmed workers leave their workspace quarantined for escalation. Unexpected
+symlinks fail closed, oversized retained events are labeled as truncated, and post-run inspection
+errors still produce a FAIL diagnostic. This keeps attempt evidence inspectable without introducing
+SQLite or a long-lived runtime source of truth. Routine tests cover passing, failing, deliberately
+lying, stalled, and workspace-tampering fake agents. The authenticated Codex demonstration is
+opt-in because live agents are not used for routine tests:
 
 ```sh
 npm run test:live:task-proof

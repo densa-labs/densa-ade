@@ -1,8 +1,20 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { lstat, mkdir, readFile, rm, symlink, unlink, writeFile } from "node:fs/promises";
+import {
+  lstat,
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  rm,
+  symlink,
+  unlink,
+  writeFile,
+} from "node:fs/promises";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
+import { setTimeout } from "node:timers";
 import { promisify } from "node:util";
 
 import { runTemporaryRepoTaskProof } from "../packages/core/dist/index.js";
@@ -184,6 +196,7 @@ test("a stalled adapter is cancelled and produces retained FAIL diagnostics", as
   t.after(async () => await cleanupResult(result));
 
   assert.equal(result.verdict, "FAIL");
+  assert.equal(result.workerTerminationConfirmed, true);
   assert.deepEqual(adapter.cancelledRunIds, ["proof-timeout"]);
   assert.ok(result.failureReasons.includes("Agent run timed out and cancellation was requested"));
   assert.equal(JSON.parse(await readFile(result.diagnosticsPath, "utf8")).verdict, "FAIL");
@@ -257,6 +270,105 @@ test("retained agent events are bounded while preserving the terminal event", as
   assert.equal(result.agentEvents.at(-1).type, "run.terminal");
   assert.equal(result.agentEventsTruncated, true);
   assert.ok(result.droppedAgentEventCount > 0);
+});
+
+test("oversized terminal evidence is explicitly reported as truncated", async (t) => {
+  const adapter = new FakeAgentAdapter({
+    finalMessage: "x".repeat(70 * 1024),
+    onExecute: async ({ cwd }) => {
+      await writeFile(
+        path.join(cwd, "src", "sum.js"),
+        "export function sum(a, b) { return a + b; }\n",
+        "utf8",
+      );
+    },
+  });
+  const result = await runTemporaryRepoTaskProof({
+    adapter,
+    runId: "proof-oversized-terminal",
+  });
+  t.after(async () => await cleanupResult(result));
+
+  assert.equal(result.verdict, "PASS");
+  assert.equal(result.agentEventsTruncated, true);
+  assert.equal(result.droppedAgentEventCount, 0);
+  assert.ok(result.agentEvents.at(-1).finalMessage.length < 70 * 1024);
+});
+
+test("invalid options are rejected before a temporary fixture is allocated", async (t) => {
+  const temporaryBaseDirectory = await mkdtemp(
+    path.join(tmpdir(), "densa-task-proof-invalid-options-"),
+  );
+  t.after(async () => await rm(temporaryBaseDirectory, { recursive: true, force: true }));
+
+  await assert.rejects(
+    runTemporaryRepoTaskProof({
+      adapter: new FakeAgentAdapter(),
+      temporaryBaseDirectory,
+      agentTimeoutMs: 0,
+    }),
+    /agentTimeoutMs must be positive/u,
+  );
+  assert.deepEqual(await readdir(temporaryBaseDirectory), []);
+});
+
+test("unconfirmed cancellation quarantines the workspace from post-run inspection", async (t) => {
+  let delayedMutation;
+  const adapter = {
+    adapterId: "non-terminating-fake",
+    async detect() {
+      throw new Error("not used");
+    },
+    async getStatus() {
+      throw new Error("not used");
+    },
+    execute({ cwd }) {
+      delayedMutation = new Promise((resolve, reject) => {
+        setTimeout(() => {
+          writeFile(
+            path.join(cwd, "src", "sum.js"),
+            "export function sum(a, b) { return a + b; }\n",
+            "utf8",
+          ).then(resolve, reject);
+        }, 30);
+      });
+      return {
+        [Symbol.asyncIterator]() {
+          return {
+            next: async () => await new Promise(() => undefined),
+            return: async () => await new Promise(() => undefined),
+          };
+        },
+      };
+    },
+    async cancel() {
+      await new Promise(() => undefined);
+    },
+    async getUsageState() {
+      throw new Error("not used");
+    },
+  };
+
+  const result = await runTemporaryRepoTaskProof({
+    adapter,
+    runId: "proof-unconfirmed-cancellation",
+    agentTimeoutMs: 10,
+    cancellationTimeoutMs: 20,
+  });
+  await delayedMutation;
+  t.after(async () => await cleanupResult(result));
+
+  assert.equal(result.verdict, "FAIL");
+  assert.equal(result.workerTerminationConfirmed, false);
+  assert.deepEqual(result.changes.modified, []);
+  assert.equal(result.acceptanceResults[0].passed, false);
+  assert.equal(result.acceptanceResults[0].command.error.code, "AGENT_TERMINATION_UNCONFIRMED");
+  assert.match(result.changes.workspaceObservationError, /observation skipped/iu);
+  assert.ok(
+    result.failureReasons.includes(
+      "Agent termination was not confirmed; inspection requires escalation",
+    ),
+  );
 });
 
 test("worker-planted diagnostic paths cannot redirect the secure attempt write", async (t) => {

@@ -104,6 +104,7 @@ export interface TaskProofResult {
   agentEvents: AgentEvent[];
   agentEventsTruncated: boolean;
   droppedAgentEventCount: number;
+  workerTerminationConfirmed: boolean;
   changes: WorkspaceChanges;
   acceptanceResults: AcceptanceResult[];
 }
@@ -171,10 +172,15 @@ function truncateText(value: string, limitBytes: number): { text: string; trunca
   return { text: bytes.subarray(0, limitBytes).toString("utf8"), truncated: true };
 }
 
-function boundedAgentEvent(event: AgentEvent): AgentEvent {
+interface BoundedAgentEvent {
+  event: AgentEvent;
+  truncated: boolean;
+}
+
+function boundedAgentEvent(event: AgentEvent): BoundedAgentEvent {
   const redacted = redactValue(event) as AgentEvent;
   if (Buffer.byteLength(JSON.stringify(redacted)) <= INDIVIDUAL_AGENT_EVENT_LIMIT_BYTES) {
-    return redacted;
+    return { event: redacted, truncated: false };
   }
   if (redacted.type === "run.terminal") {
     const finalMessage =
@@ -189,21 +195,27 @@ function boundedAgentEvent(event: AgentEvent): AgentEvent {
             message: truncateText(redacted.error.message, 16 * 1024).text,
           };
     return {
-      type: "run.terminal",
-      runId: redacted.runId,
-      occurredAt: redacted.occurredAt,
-      outcome: redacted.outcome,
-      ...(redacted.exitCode === undefined ? {} : { exitCode: redacted.exitCode }),
-      ...(finalMessage === undefined ? {} : { finalMessage }),
-      ...(error === undefined ? {} : { error }),
+      event: {
+        type: "run.terminal",
+        runId: redacted.runId,
+        occurredAt: redacted.occurredAt,
+        outcome: redacted.outcome,
+        ...(redacted.exitCode === undefined ? {} : { exitCode: redacted.exitCode }),
+        ...(finalMessage === undefined ? {} : { finalMessage }),
+        ...(error === undefined ? {} : { error }),
+      },
+      truncated: true,
     };
   }
   return {
-    type: "diagnostic",
-    runId: redacted.runId,
-    occurredAt: redacted.occurredAt,
-    stream: "adapter",
-    text: `Oversized ${redacted.type} event omitted from retained diagnostics`,
+    event: {
+      type: "diagnostic",
+      runId: redacted.runId,
+      occurredAt: redacted.occurredAt,
+      stream: "adapter",
+      text: `Oversized ${redacted.type} event omitted from retained diagnostics`,
+      truncated: true,
+    },
     truncated: true,
   };
 }
@@ -294,8 +306,29 @@ interface AgentCollection {
   events: AgentEvent[];
   terminal?: Extract<AgentEvent, { type: "run.terminal" }>;
   droppedEventCount: number;
+  individualEventTruncated: boolean;
   timedOut: boolean;
+  workerTerminationConfirmed: boolean;
   failure?: string;
+}
+
+type SettledWithin<T> =
+  | { settled: true; status: "fulfilled"; value: T }
+  | { settled: true; status: "rejected"; reason: unknown }
+  | { settled: false };
+
+async function settleWithin<T>(promise: Promise<T>, timeoutMs: number): Promise<SettledWithin<T>> {
+  let timeoutHandle: NodeJS.Timeout | undefined;
+  const timeout = new Promise<SettledWithin<T>>((resolve) => {
+    timeoutHandle = setTimeout(() => resolve({ settled: false }), timeoutMs);
+  });
+  const settlement: Promise<SettledWithin<T>> = promise.then(
+    (value): SettledWithin<T> => ({ settled: true, status: "fulfilled", value }),
+    (reason: unknown): SettledWithin<T> => ({ settled: true, status: "rejected", reason }),
+  );
+  const result = await Promise.race([settlement, timeout]);
+  if (timeoutHandle !== undefined) clearTimeout(timeoutHandle);
+  return result;
 }
 
 async function collectAgentEvents(input: {
@@ -317,8 +350,10 @@ async function collectAgentEvents(input: {
   const events: AgentEvent[] = [];
   let retainedBytes = 0;
   let droppedEventCount = 0;
+  let individualEventTruncated = false;
   let terminal: AgentCollection["terminal"];
   let timedOut = false;
+  let workerTerminationConfirmed = false;
   let failure: string | undefined;
   let timeoutHandle: NodeJS.Timeout | undefined;
   const deadline = Date.now() + input.timeoutMs;
@@ -327,7 +362,9 @@ async function collectAgentEvents(input: {
   });
 
   const retain = (rawEvent: AgentEvent): void => {
-    const event = boundedAgentEvent(rawEvent);
+    const bounded = boundedAgentEvent(rawEvent);
+    const event = bounded.event;
+    if (bounded.truncated) individualEventTruncated = true;
     if (isTerminalAgentEvent(event)) terminal = event;
     const eventBytes = Buffer.byteLength(JSON.stringify(event));
     const mustRetain = isTerminalAgentEvent(event);
@@ -354,18 +391,43 @@ async function collectAgentEvents(input: {
     retainedBytes += eventBytes;
   };
 
+  const cancelAndConfirmTermination = async (
+    pendingNext?: Promise<IteratorResult<AgentEvent>>,
+  ): Promise<void> => {
+    const cancellation = await settleWithin(
+      Promise.resolve().then(async () => await input.adapter.cancel(input.runId)),
+      input.cancellationTimeoutMs,
+    );
+    if (!cancellation.settled) {
+      failure = "Agent cancellation did not settle before the cancellation deadline";
+    } else if (cancellation.status === "rejected") {
+      failure = `Agent cancellation failed: ${cancellation.reason instanceof Error ? cancellation.reason.message : String(cancellation.reason)}`;
+    }
+
+    if (pendingNext !== undefined) {
+      const next = await settleWithin(pendingNext, input.cancellationTimeoutMs);
+      if (next.settled && next.status === "fulfilled" && !next.value.done) retain(next.value.value);
+    }
+
+    const returned = await settleWithin(
+      Promise.resolve().then(async () => await iterator.return?.()),
+      input.cancellationTimeoutMs,
+    );
+    workerTerminationConfirmed =
+      cancellation.settled &&
+      cancellation.status === "fulfilled" &&
+      returned.settled &&
+      returned.status === "fulfilled";
+    if (!workerTerminationConfirmed && failure === undefined) {
+      failure = "Agent termination could not be confirmed after cancellation";
+    }
+  };
+
   try {
     for (;;) {
       if (Date.now() >= deadline) {
         timedOut = true;
-        await Promise.race([
-          Promise.resolve(input.adapter.cancel(input.runId)).catch((error: unknown) => {
-            failure = `Agent cancellation failed: ${error instanceof Error ? error.message : String(error)}`;
-          }),
-          new Promise<void>((resolve) => {
-            setTimeout(resolve, input.cancellationTimeoutMs);
-          }),
-        ]);
+        await cancelAndConfirmTermination();
         break;
       }
       const nextPromise = iterator.next();
@@ -375,54 +437,29 @@ async function collectAgentEvents(input: {
       ]);
       if (next.kind === "timeout") {
         timedOut = true;
-        const cancellation = Promise.resolve(input.adapter.cancel(input.runId)).catch(
-          (error: unknown) => {
-            failure = `Agent cancellation failed: ${error instanceof Error ? error.message : String(error)}`;
-          },
-        );
-        await Promise.race([
-          cancellation,
-          new Promise<void>((resolve) => {
-            setTimeout(resolve, input.cancellationTimeoutMs);
-          }),
-        ]);
-        const cancelledNext = await Promise.race([
-          nextPromise.then((value) => ({ kind: "next" as const, value })),
-          new Promise<{ kind: "timeout" }>((resolve) => {
-            setTimeout(() => resolve({ kind: "timeout" }), input.cancellationTimeoutMs);
-          }),
-        ]);
-        if (cancelledNext.kind === "next" && !cancelledNext.value.done) {
-          retain(cancelledNext.value.value);
-        }
+        await cancelAndConfirmTermination(nextPromise);
         break;
       }
-      if (next.value.done) break;
+      if (next.value.done) {
+        workerTerminationConfirmed = true;
+        break;
+      }
       retain(next.value.value);
     }
   } catch (error) {
     failure = redactSecrets(error instanceof Error ? error.message : String(error));
+    workerTerminationConfirmed = true;
   } finally {
     if (timeoutHandle !== undefined) clearTimeout(timeoutHandle);
-    if (timedOut) {
-      try {
-        await Promise.race([
-          Promise.resolve(iterator.return?.()),
-          new Promise<void>((resolve) => {
-            setTimeout(resolve, input.cancellationTimeoutMs);
-          }),
-        ]);
-      } catch {
-        // Cancellation diagnostics above are sufficient for this non-resumable proof harness.
-      }
-    }
   }
 
   return {
     events,
     ...(terminal === undefined ? {} : { terminal }),
     droppedEventCount,
+    individualEventTruncated,
     timedOut,
+    workerTerminationConfirmed,
     ...(failure === undefined ? {} : { failure }),
   };
 }
@@ -480,6 +517,25 @@ async function runCommand(
       });
     });
   });
+}
+
+function skippedCommandDiagnostic(
+  command: string,
+  args: string[],
+  reason: string,
+): CommandDiagnostic {
+  return {
+    command,
+    args,
+    exitCode: null,
+    signal: null,
+    stdout: "",
+    stderr: "",
+    stdoutTruncated: false,
+    stderrTruncated: false,
+    timedOut: false,
+    error: { code: "AGENT_TERMINATION_UNCONFIRMED", message: reason },
+  };
 }
 
 async function requireSuccessfulCommand(
@@ -628,11 +684,28 @@ async function writeDiagnosticExclusive(diagnosticsPath: string, value: unknown)
 
 /**
  * Non-persistent P1M2 proof loop. The returned workspace and bounded-diagnostics directories are
- * intentionally retained for inspection; callers own their eventual cleanup.
+ * intentionally retained for inspection. Callers own eventual cleanup, but must quarantine an
+ * unconfirmed worker instead of inspecting or removing its workspace.
  */
 export async function runTemporaryRepoTaskProof(
   options: TemporaryTaskProofOptions,
 ): Promise<TaskProofResult> {
+  const agentTimeoutMs = positiveInteger(
+    options.agentTimeoutMs ?? DEFAULT_AGENT_TIMEOUT_MS,
+    "agentTimeoutMs",
+  );
+  const cancellationTimeoutMs = positiveInteger(
+    options.cancellationTimeoutMs ?? DEFAULT_CANCELLATION_TIMEOUT_MS,
+    "cancellationTimeoutMs",
+  );
+  const retainedEventLimit = positiveInteger(
+    options.retainedAgentEventLimit ?? DEFAULT_RETAINED_AGENT_EVENT_LIMIT,
+    "retainedAgentEventLimit",
+  );
+  const retainedEventBytes = positiveInteger(
+    options.retainedAgentEventBytes ?? DEFAULT_RETAINED_AGENT_EVENT_BYTES,
+    "retainedAgentEventBytes",
+  );
   const fixture = await createFixture(options.temporaryBaseDirectory);
   const checkpointFiles = await workspaceFiles(fixture.workspacePath);
   const checkpointStatus = await requireSuccessfulCommand(
@@ -656,22 +729,6 @@ export async function runTemporaryRepoTaskProof(
 
   const prompt = buildTaskPacketPrompt(fixture.taskPacket);
   const runId = options.runId ?? `proof-${Date.now().toString(36)}`;
-  const agentTimeoutMs = positiveInteger(
-    options.agentTimeoutMs ?? DEFAULT_AGENT_TIMEOUT_MS,
-    "agentTimeoutMs",
-  );
-  const cancellationTimeoutMs = positiveInteger(
-    options.cancellationTimeoutMs ?? DEFAULT_CANCELLATION_TIMEOUT_MS,
-    "cancellationTimeoutMs",
-  );
-  const retainedEventLimit = positiveInteger(
-    options.retainedAgentEventLimit ?? DEFAULT_RETAINED_AGENT_EVENT_LIMIT,
-    "retainedAgentEventLimit",
-  );
-  const retainedEventBytes = positiveInteger(
-    options.retainedAgentEventBytes ?? DEFAULT_RETAINED_AGENT_EVENT_BYTES,
-    "retainedAgentEventBytes",
-  );
   let agent: AgentCollection;
   try {
     agent = await collectAgentEvents({
@@ -688,59 +745,109 @@ export async function runTemporaryRepoTaskProof(
     agent = {
       events: [],
       droppedEventCount: 0,
+      individualEventTruncated: false,
       timedOut: false,
+      workerTerminationConfirmed: true,
       failure: redactSecrets(error instanceof Error ? error.message : String(error)),
     };
   }
   const diagnosticDestination = await createDiagnosticDestination();
 
-  let afterFiles: WorkspaceFile[] = [];
   let workspaceObservationError: string | undefined;
-  try {
-    afterFiles = await workspaceFiles(fixture.workspacePath);
-  } catch (error) {
-    workspaceObservationError = redactSecrets(
-      error instanceof Error ? error.message : String(error),
+  let changes: WorkspaceChanges;
+  let acceptanceResults: AcceptanceResult[];
+  if (!agent.workerTerminationConfirmed) {
+    const skippedObservationReason =
+      "Workspace observation skipped because agent termination was not confirmed";
+    workspaceObservationError = skippedObservationReason;
+    const gitStatus = skippedCommandDiagnostic(
+      "git",
+      ["status", "--porcelain=v1"],
+      skippedObservationReason,
     );
-  }
-  const gitStatus = await runCommand("git", ["status", "--porcelain=v1"], fixture.workspacePath);
-  const gitHead = await runCommand("git", ["rev-parse", "HEAD"], fixture.workspacePath);
-  const gitDiff = await runCommand(
-    "git",
-    ["diff", "--no-ext-diff", "--binary", checkpoint.head, "--"],
-    fixture.workspacePath,
-  );
-  const changes: WorkspaceChanges = {
-    ...changedFiles(checkpointFiles, afterFiles),
-    outOfScope: [],
-    unsafeSymlinks: afterFiles.filter((file) => file.kind === "symlink").map((file) => file.path),
-    head: gitHead.stdout.trim(),
-    gitStatus: gitStatus.stdout,
-    gitDiff: gitDiff.stdout,
-    gitHeadCommand: gitHead,
-    gitStatusCommand: gitStatus,
-    gitDiffCommand: gitDiff,
-    before: checkpointFiles,
-    after: afterFiles,
-    ...(workspaceObservationError === undefined ? {} : { workspaceObservationError }),
-  };
-  const changedPaths = [...changes.added, ...changes.modified, ...changes.deleted];
-  changes.outOfScope = changedPaths.filter(
-    (changedPath) => !fixture.taskPacket.editablePaths.includes(changedPath),
-  );
-
-  const acceptanceResults: AcceptanceResult[] = [];
-  for (const criterion of fixture.taskPacket.acceptanceCriteria) {
-    const command = await runCommand(
-      criterion.validation.command,
-      criterion.validation.args,
+    const gitHead = skippedCommandDiagnostic(
+      "git",
+      ["rev-parse", "HEAD"],
+      skippedObservationReason,
+    );
+    const gitDiff = skippedCommandDiagnostic(
+      "git",
+      ["diff", "--no-ext-diff", "--binary", checkpoint.head, "--"],
+      skippedObservationReason,
+    );
+    changes = {
+      added: [],
+      modified: [],
+      deleted: [],
+      outOfScope: [],
+      unsafeSymlinks: [],
+      head: checkpoint.head,
+      gitStatus: "",
+      gitDiff: "",
+      gitHeadCommand: gitHead,
+      gitStatusCommand: gitStatus,
+      gitDiffCommand: gitDiff,
+      before: checkpointFiles,
+      after: [],
+      workspaceObservationError: skippedObservationReason,
+    };
+    acceptanceResults = fixture.taskPacket.acceptanceCriteria.map((criterion) => ({
+      criterion,
+      passed: false,
+      command: skippedCommandDiagnostic(
+        criterion.validation.command,
+        criterion.validation.args,
+        skippedObservationReason,
+      ),
+    }));
+  } else {
+    let afterFiles: WorkspaceFile[] = [];
+    try {
+      afterFiles = await workspaceFiles(fixture.workspacePath);
+    } catch (error) {
+      workspaceObservationError = redactSecrets(
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+    const gitStatus = await runCommand("git", ["status", "--porcelain=v1"], fixture.workspacePath);
+    const gitHead = await runCommand("git", ["rev-parse", "HEAD"], fixture.workspacePath);
+    const gitDiff = await runCommand(
+      "git",
+      ["diff", "--no-ext-diff", "--binary", checkpoint.head, "--"],
       fixture.workspacePath,
     );
-    acceptanceResults.push({
-      criterion,
-      passed: command.exitCode === 0 && !command.timedOut,
-      command,
-    });
+    changes = {
+      ...changedFiles(checkpointFiles, afterFiles),
+      outOfScope: [],
+      unsafeSymlinks: afterFiles.filter((file) => file.kind === "symlink").map((file) => file.path),
+      head: gitHead.stdout.trim(),
+      gitStatus: gitStatus.stdout,
+      gitDiff: gitDiff.stdout,
+      gitHeadCommand: gitHead,
+      gitStatusCommand: gitStatus,
+      gitDiffCommand: gitDiff,
+      before: checkpointFiles,
+      after: afterFiles,
+      ...(workspaceObservationError === undefined ? {} : { workspaceObservationError }),
+    };
+    const changedPaths = [...changes.added, ...changes.modified, ...changes.deleted];
+    changes.outOfScope = changedPaths.filter(
+      (changedPath) => !fixture.taskPacket.editablePaths.includes(changedPath),
+    );
+
+    acceptanceResults = [];
+    for (const criterion of fixture.taskPacket.acceptanceCriteria) {
+      const command = await runCommand(
+        criterion.validation.command,
+        criterion.validation.args,
+        fixture.workspacePath,
+      );
+      acceptanceResults.push({
+        criterion,
+        passed: command.exitCode === 0 && !command.timedOut,
+        command,
+      });
+    }
   }
 
   const terminal = agent.terminal;
@@ -759,27 +866,33 @@ export async function runTemporaryRepoTaskProof(
   if (workspaceObservationError !== undefined) {
     failureReasons.push(`Workspace observation failed: ${workspaceObservationError}`);
   }
-  if (changedPathCount === 0) failureReasons.push("Agent run made no workspace file changes");
-  if (
-    changes.gitHeadCommand.exitCode !== 0 ||
-    changes.gitStatusCommand.exitCode !== 0 ||
-    changes.gitDiffCommand.exitCode !== 0
-  ) {
-    failureReasons.push("Workspace Git observation failed");
-  } else if (changes.head !== checkpoint.head) {
-    failureReasons.push("Agent run changed the fixture checkpoint");
+  if (!agent.workerTerminationConfirmed) {
+    failureReasons.push("Agent termination was not confirmed; inspection requires escalation");
+  } else if (changedPathCount === 0) {
+    failureReasons.push("Agent run made no workspace file changes");
   }
-  if (changes.outOfScope.length > 0) {
-    failureReasons.push(`Out-of-scope workspace changes: ${changes.outOfScope.join(", ")}`);
-  }
-  if (changes.unsafeSymlinks.length > 0) {
-    failureReasons.push(
-      `Symbolic links are not valid task changes: ${changes.unsafeSymlinks.join(", ")}`,
-    );
-  }
-  for (const acceptanceResult of acceptanceResults) {
-    if (!acceptanceResult.passed) {
-      failureReasons.push(`Acceptance criterion failed: ${acceptanceResult.criterion.id}`);
+  if (agent.workerTerminationConfirmed) {
+    if (
+      changes.gitHeadCommand.exitCode !== 0 ||
+      changes.gitStatusCommand.exitCode !== 0 ||
+      changes.gitDiffCommand.exitCode !== 0
+    ) {
+      failureReasons.push("Workspace Git observation failed");
+    } else if (changes.head !== checkpoint.head) {
+      failureReasons.push("Agent run changed the fixture checkpoint");
+    }
+    if (changes.outOfScope.length > 0) {
+      failureReasons.push(`Out-of-scope workspace changes: ${changes.outOfScope.join(", ")}`);
+    }
+    if (changes.unsafeSymlinks.length > 0) {
+      failureReasons.push(
+        `Symbolic links are not valid task changes: ${changes.unsafeSymlinks.join(", ")}`,
+      );
+    }
+    for (const acceptanceResult of acceptanceResults) {
+      if (!acceptanceResult.passed) {
+        failureReasons.push(`Acceptance criterion failed: ${acceptanceResult.criterion.id}`);
+      }
     }
   }
 
@@ -795,8 +908,9 @@ export async function runTemporaryRepoTaskProof(
     prompt,
     checkpoint,
     agentEvents: agent.events,
-    agentEventsTruncated: agent.droppedEventCount > 0,
+    agentEventsTruncated: agent.droppedEventCount > 0 || agent.individualEventTruncated,
     droppedAgentEventCount: agent.droppedEventCount,
+    workerTerminationConfirmed: agent.workerTerminationConfirmed,
     changes,
     acceptanceResults,
   };
