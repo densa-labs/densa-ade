@@ -20,7 +20,12 @@ test(
       adapter: new CodexAdapter(),
       runId: "live-codex-task-proof",
     });
-    t.after(async () => await rm(result.temporaryRoot, { recursive: true, force: true }));
+    t.after(async () => {
+      await Promise.all([
+        rm(result.temporaryRoot, { recursive: true, force: true }),
+        rm(result.diagnosticsRoot, { recursive: true, force: true }),
+      ]);
+    });
 
     assert.equal(result.verdict, "PASS", JSON.stringify(result.failureReasons));
     assert.equal(result.acceptanceResults[0].passed, true);

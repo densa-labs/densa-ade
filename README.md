@@ -65,11 +65,13 @@ an `AgentAdapter`, records file changes, and runs the fixture's Node test direct
 successful terminal agent event, an in-scope workspace change, no test tampering, and passing
 deterministic acceptance checks; agent prose never affects the verdict.
 
-Each run retains a mode-0600 `diagnostics/attempt.json` beside the temporary workspace. The caller
-owns eventual cleanup, which keeps attempt evidence inspectable without introducing SQLite or a
-long-lived runtime source of truth. Routine tests cover passing, failing, and deliberately lying
-fake agents. The authenticated Codex demonstration is opt-in because live agents are not used for
-routine tests:
+Each run retains a redacted, bounded, mode-0600 `attempt.json` in a separately randomized temporary
+diagnostics directory created after the worker exits. The caller owns cleanup of both returned
+temporary roots. Runs time out and request adapter cancellation, unexpected symlinks fail closed,
+and post-run inspection errors still produce a FAIL diagnostic. This keeps attempt evidence
+inspectable without introducing SQLite or a long-lived runtime source of truth. Routine tests
+cover passing, failing, deliberately lying, stalled, and workspace-tampering fake agents. The
+authenticated Codex demonstration is opt-in because live agents are not used for routine tests:
 
 ```sh
 npm run test:live:task-proof
