@@ -1,6 +1,8 @@
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { lstat, mkdir, mkdtemp, readFile, readdir, readlink, writeFile } from "node:fs/promises";
+import { constants as fileConstants, createReadStream } from "node:fs";
+import { lstat, mkdir, mkdtemp, readdir, readlink, writeFile } from "node:fs/promises";
+import { open } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import process from "node:process";
@@ -10,6 +12,13 @@ import { isTerminalAgentEvent, type AgentAdapter, type AgentEvent } from "@densa
 const DIAGNOSTIC_SCHEMA_VERSION = 1;
 const COMMAND_OUTPUT_LIMIT_BYTES = 1024 * 1024;
 const COMMAND_TIMEOUT_MS = 15_000;
+const DEFAULT_AGENT_TIMEOUT_MS = 90_000;
+const DEFAULT_CANCELLATION_TIMEOUT_MS = 5_000;
+const DEFAULT_RETAINED_AGENT_EVENT_LIMIT = 2_048;
+const DEFAULT_RETAINED_AGENT_EVENT_BYTES = 2 * 1024 * 1024;
+const INDIVIDUAL_AGENT_EVENT_LIMIT_BYTES = 64 * 1024;
+const WORKSPACE_SCAN_ENTRY_LIMIT = 10_000;
+const WORKSPACE_SCAN_BYTE_LIMIT = 256 * 1024 * 1024;
 const COMMAND_ENV = {
   PATH: process.env["PATH"] ?? "/usr/bin:/bin",
   LC_ALL: "C",
@@ -47,6 +56,7 @@ export interface WorkspaceChanges {
   modified: string[];
   deleted: string[];
   outOfScope: string[];
+  unsafeSymlinks: string[];
   head: string;
   gitStatus: string;
   gitDiff: string;
@@ -55,6 +65,7 @@ export interface WorkspaceChanges {
   gitDiffCommand: CommandDiagnostic;
   before: WorkspaceFile[];
   after: WorkspaceFile[];
+  workspaceObservationError?: string;
 }
 
 export interface CommandDiagnostic {
@@ -82,6 +93,7 @@ export interface TaskProofResult {
   temporaryRoot: string;
   workspacePath: string;
   diagnosticsPath: string;
+  diagnosticsRoot: string;
   taskPacket: TaskPacket;
   prompt: string;
   checkpoint: {
@@ -90,6 +102,8 @@ export interface TaskProofResult {
     files: WorkspaceFile[];
   };
   agentEvents: AgentEvent[];
+  agentEventsTruncated: boolean;
+  droppedAgentEventCount: number;
   changes: WorkspaceChanges;
   acceptanceResults: AcceptanceResult[];
 }
@@ -98,6 +112,10 @@ export interface TemporaryTaskProofOptions {
   adapter: AgentAdapter;
   runId?: string;
   temporaryBaseDirectory?: string;
+  agentTimeoutMs?: number;
+  cancellationTimeoutMs?: number;
+  retainedAgentEventLimit?: number;
+  retainedAgentEventBytes?: number;
 }
 
 interface CapturedText {
@@ -123,28 +141,115 @@ class OutputCapture {
   }
 
   value(): CapturedText {
-    return { value: Buffer.concat(this.chunks).toString("utf8"), truncated: this.wasTruncated };
+    return {
+      value: redactSecrets(Buffer.concat(this.chunks).toString("utf8")),
+      truncated: this.wasTruncated,
+    };
   }
+}
+
+function redactSecrets(value: string): string {
+  return value
+    .replace(/(Bearer\s+)[A-Za-z0-9._~-]+/giu, "$1[REDACTED]")
+    .replace(/\bsk-[A-Za-z0-9_-]{8,}\b/gu, "[REDACTED]")
+    .replace(
+      /(["']?(?:api[_-]?key|access[_-]?token|refresh[_-]?token|password)["']?\s*[:=]\s*["']?)[^"',\s}]+/giu,
+      "$1[REDACTED]",
+    );
+}
+
+function redactValue(value: unknown): unknown {
+  if (typeof value === "string") return redactSecrets(value);
+  if (Array.isArray(value)) return value.map((entry) => redactValue(entry));
+  if (typeof value !== "object" || value === null) return value;
+  return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, redactValue(entry)]));
+}
+
+function truncateText(value: string, limitBytes: number): { text: string; truncated: boolean } {
+  const bytes = Buffer.from(value);
+  if (bytes.length <= limitBytes) return { text: value, truncated: false };
+  return { text: bytes.subarray(0, limitBytes).toString("utf8"), truncated: true };
+}
+
+function boundedAgentEvent(event: AgentEvent): AgentEvent {
+  const redacted = redactValue(event) as AgentEvent;
+  if (Buffer.byteLength(JSON.stringify(redacted)) <= INDIVIDUAL_AGENT_EVENT_LIMIT_BYTES) {
+    return redacted;
+  }
+  if (redacted.type === "run.terminal") {
+    const finalMessage =
+      redacted.finalMessage === undefined
+        ? undefined
+        : truncateText(redacted.finalMessage, 16 * 1024).text;
+    const error =
+      redacted.error === undefined
+        ? undefined
+        : {
+            code: redacted.error.code,
+            message: truncateText(redacted.error.message, 16 * 1024).text,
+          };
+    return {
+      type: "run.terminal",
+      runId: redacted.runId,
+      occurredAt: redacted.occurredAt,
+      outcome: redacted.outcome,
+      ...(redacted.exitCode === undefined ? {} : { exitCode: redacted.exitCode }),
+      ...(finalMessage === undefined ? {} : { finalMessage }),
+      ...(error === undefined ? {} : { error }),
+    };
+  }
+  return {
+    type: "diagnostic",
+    runId: redacted.runId,
+    occurredAt: redacted.occurredAt,
+    stream: "adapter",
+    text: `Oversized ${redacted.type} event omitted from retained diagnostics`,
+    truncated: true,
+  };
+}
+
+function positiveInteger(value: number, name: string): number {
+  if (!Number.isInteger(value) || value <= 0) throw new RangeError(`${name} must be positive`);
+  return value;
 }
 
 function sha256(value: Buffer | string): string {
   return createHash("sha256").update(value).digest("hex");
 }
 
-async function workspaceFiles(root: string, relativeDirectory = ""): Promise<WorkspaceFile[]> {
+async function sha256File(filePath: string): Promise<string> {
+  const hash = createHash("sha256");
+  for await (const chunk of createReadStream(filePath)) hash.update(chunk as Buffer);
+  return hash.digest("hex");
+}
+
+interface WorkspaceScanState {
+  entries: number;
+  bytes: number;
+}
+
+async function workspaceFiles(
+  root: string,
+  relativeDirectory = "",
+  state: WorkspaceScanState = { entries: 0, bytes: 0 },
+): Promise<WorkspaceFile[]> {
   const directory = path.join(root, relativeDirectory);
   const entries = await readdir(directory, { withFileTypes: true });
   const files: WorkspaceFile[] = [];
 
   for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
     if (relativeDirectory.length === 0 && entry.name === ".git") continue;
+    state.entries += 1;
+    if (state.entries > WORKSPACE_SCAN_ENTRY_LIMIT) {
+      throw new Error(`Workspace scan exceeded ${WORKSPACE_SCAN_ENTRY_LIMIT} entries`);
+    }
     const relativePath = path.posix.join(
       relativeDirectory.split(path.sep).join(path.posix.sep),
       entry.name,
     );
     const absolutePath = path.join(root, relativePath);
     if (entry.isDirectory()) {
-      files.push(...(await workspaceFiles(root, relativePath)));
+      files.push(...(await workspaceFiles(root, relativePath, state)));
       continue;
     }
     const metadata = await lstat(absolutePath);
@@ -155,10 +260,14 @@ async function workspaceFiles(root: string, relativeDirectory = ""): Promise<Wor
         sha256: sha256(await readlink(absolutePath)),
       });
     } else if (metadata.isFile()) {
+      state.bytes += metadata.size;
+      if (state.bytes > WORKSPACE_SCAN_BYTE_LIMIT) {
+        throw new Error(`Workspace scan exceeded ${WORKSPACE_SCAN_BYTE_LIMIT} bytes`);
+      }
       files.push({
         path: relativePath,
         kind: "file",
-        sha256: sha256(await readFile(absolutePath)),
+        sha256: await sha256File(absolutePath),
       });
     }
   }
@@ -178,6 +287,143 @@ function changedFiles(
       .filter((file) => beforeMap.has(file) && beforeMap.get(file) !== afterMap.get(file))
       .sort(),
     deleted: [...beforeMap.keys()].filter((file) => !afterMap.has(file)).sort(),
+  };
+}
+
+interface AgentCollection {
+  events: AgentEvent[];
+  terminal?: Extract<AgentEvent, { type: "run.terminal" }>;
+  droppedEventCount: number;
+  timedOut: boolean;
+  failure?: string;
+}
+
+async function collectAgentEvents(input: {
+  adapter: AgentAdapter;
+  runId: string;
+  cwd: string;
+  prompt: string;
+  timeoutMs: number;
+  cancellationTimeoutMs: number;
+  retainedEventLimit: number;
+  retainedEventBytes: number;
+}): Promise<AgentCollection> {
+  const iterable = input.adapter.execute({
+    runId: input.runId,
+    cwd: input.cwd,
+    prompt: input.prompt,
+  });
+  const iterator = iterable[Symbol.asyncIterator]();
+  const events: AgentEvent[] = [];
+  let retainedBytes = 0;
+  let droppedEventCount = 0;
+  let terminal: AgentCollection["terminal"];
+  let timedOut = false;
+  let failure: string | undefined;
+  let timeoutHandle: NodeJS.Timeout | undefined;
+  const deadline = Date.now() + input.timeoutMs;
+  const timeout = new Promise<{ kind: "timeout" }>((resolve) => {
+    timeoutHandle = setTimeout(() => resolve({ kind: "timeout" }), input.timeoutMs);
+  });
+
+  const retain = (rawEvent: AgentEvent): void => {
+    const event = boundedAgentEvent(rawEvent);
+    if (isTerminalAgentEvent(event)) terminal = event;
+    const eventBytes = Buffer.byteLength(JSON.stringify(event));
+    const mustRetain = isTerminalAgentEvent(event);
+    if (
+      !mustRetain &&
+      (events.length >= input.retainedEventLimit ||
+        retainedBytes + eventBytes > input.retainedEventBytes)
+    ) {
+      droppedEventCount += 1;
+      return;
+    }
+    if (mustRetain) {
+      while (
+        events.length > 0 &&
+        (events.length >= input.retainedEventLimit ||
+          retainedBytes + eventBytes > input.retainedEventBytes)
+      ) {
+        const removed = events.pop();
+        if (removed !== undefined) retainedBytes -= Buffer.byteLength(JSON.stringify(removed));
+        droppedEventCount += 1;
+      }
+    }
+    events.push(event);
+    retainedBytes += eventBytes;
+  };
+
+  try {
+    for (;;) {
+      if (Date.now() >= deadline) {
+        timedOut = true;
+        await Promise.race([
+          Promise.resolve(input.adapter.cancel(input.runId)).catch((error: unknown) => {
+            failure = `Agent cancellation failed: ${error instanceof Error ? error.message : String(error)}`;
+          }),
+          new Promise<void>((resolve) => {
+            setTimeout(resolve, input.cancellationTimeoutMs);
+          }),
+        ]);
+        break;
+      }
+      const nextPromise = iterator.next();
+      const next = await Promise.race([
+        nextPromise.then((value) => ({ kind: "next" as const, value })),
+        timeout,
+      ]);
+      if (next.kind === "timeout") {
+        timedOut = true;
+        const cancellation = Promise.resolve(input.adapter.cancel(input.runId)).catch(
+          (error: unknown) => {
+            failure = `Agent cancellation failed: ${error instanceof Error ? error.message : String(error)}`;
+          },
+        );
+        await Promise.race([
+          cancellation,
+          new Promise<void>((resolve) => {
+            setTimeout(resolve, input.cancellationTimeoutMs);
+          }),
+        ]);
+        const cancelledNext = await Promise.race([
+          nextPromise.then((value) => ({ kind: "next" as const, value })),
+          new Promise<{ kind: "timeout" }>((resolve) => {
+            setTimeout(() => resolve({ kind: "timeout" }), input.cancellationTimeoutMs);
+          }),
+        ]);
+        if (cancelledNext.kind === "next" && !cancelledNext.value.done) {
+          retain(cancelledNext.value.value);
+        }
+        break;
+      }
+      if (next.value.done) break;
+      retain(next.value.value);
+    }
+  } catch (error) {
+    failure = redactSecrets(error instanceof Error ? error.message : String(error));
+  } finally {
+    if (timeoutHandle !== undefined) clearTimeout(timeoutHandle);
+    if (timedOut) {
+      try {
+        await Promise.race([
+          Promise.resolve(iterator.return?.()),
+          new Promise<void>((resolve) => {
+            setTimeout(resolve, input.cancellationTimeoutMs);
+          }),
+        ]);
+      } catch {
+        // Cancellation diagnostics above are sufficient for this non-resumable proof harness.
+      }
+    }
+  }
+
+  return {
+    events,
+    ...(terminal === undefined ? {} : { terminal }),
+    droppedEventCount,
+    timedOut,
+    ...(failure === undefined ? {} : { failure }),
   };
 }
 
@@ -289,16 +535,13 @@ export function buildTaskPacketPrompt(packet: TaskPacket): string {
 async function createFixture(temporaryBaseDirectory?: string): Promise<{
   temporaryRoot: string;
   workspacePath: string;
-  diagnosticsPath: string;
   taskPacket: TaskPacket;
 }> {
   const baseDirectory = temporaryBaseDirectory ?? tmpdir();
   await mkdir(baseDirectory, { recursive: true });
   const temporaryRoot = await mkdtemp(path.join(baseDirectory, "densa-task-proof-"));
   const workspacePath = path.join(temporaryRoot, "workspace");
-  const diagnosticsPath = path.join(temporaryRoot, "diagnostics", "attempt.json");
   await mkdir(path.join(workspacePath, "src"), { recursive: true });
-  await mkdir(path.dirname(diagnosticsPath), { recursive: true });
 
   await writeFile(
     path.join(workspacePath, "package.json"),
@@ -351,14 +594,41 @@ async function createFixture(temporaryBaseDirectory?: string): Promise<{
   return {
     temporaryRoot,
     workspacePath,
-    diagnosticsPath,
     taskPacket: buildDefaultTaskPacket(),
   };
 }
 
+async function createDiagnosticDestination(): Promise<{
+  diagnosticsRoot: string;
+  diagnosticsPath: string;
+}> {
+  const diagnosticsRoot = await mkdtemp(path.join(tmpdir(), "densa-task-proof-diagnostics-"));
+  return { diagnosticsRoot, diagnosticsPath: path.join(diagnosticsRoot, "attempt.json") };
+}
+
+async function writeDiagnosticExclusive(diagnosticsPath: string, value: unknown): Promise<void> {
+  const handle = await open(
+    diagnosticsPath,
+    fileConstants.O_WRONLY |
+      fileConstants.O_CREAT |
+      fileConstants.O_EXCL |
+      fileConstants.O_NOFOLLOW,
+    0o600,
+  );
+  try {
+    const metadata = await handle.stat();
+    if (!metadata.isFile()) throw new Error("Attempt diagnostic target is not a regular file");
+    await handle.chmod(0o600);
+    await handle.writeFile(`${JSON.stringify(redactValue(value), null, 2)}\n`, "utf8");
+    await handle.sync();
+  } finally {
+    await handle.close();
+  }
+}
+
 /**
- * Non-persistent P1M2 proof loop. The returned temporary directory is intentionally retained so
- * callers can inspect the complete attempt diagnostic; callers own its eventual cleanup.
+ * Non-persistent P1M2 proof loop. The returned workspace and bounded-diagnostics directories are
+ * intentionally retained for inspection; callers own their eventual cleanup.
  */
 export async function runTemporaryRepoTaskProof(
   options: TemporaryTaskProofOptions,
@@ -386,21 +656,53 @@ export async function runTemporaryRepoTaskProof(
 
   const prompt = buildTaskPacketPrompt(fixture.taskPacket);
   const runId = options.runId ?? `proof-${Date.now().toString(36)}`;
-  const agentEvents: AgentEvent[] = [];
-  let adapterFailure: string | undefined;
+  const agentTimeoutMs = positiveInteger(
+    options.agentTimeoutMs ?? DEFAULT_AGENT_TIMEOUT_MS,
+    "agentTimeoutMs",
+  );
+  const cancellationTimeoutMs = positiveInteger(
+    options.cancellationTimeoutMs ?? DEFAULT_CANCELLATION_TIMEOUT_MS,
+    "cancellationTimeoutMs",
+  );
+  const retainedEventLimit = positiveInteger(
+    options.retainedAgentEventLimit ?? DEFAULT_RETAINED_AGENT_EVENT_LIMIT,
+    "retainedAgentEventLimit",
+  );
+  const retainedEventBytes = positiveInteger(
+    options.retainedAgentEventBytes ?? DEFAULT_RETAINED_AGENT_EVENT_BYTES,
+    "retainedAgentEventBytes",
+  );
+  let agent: AgentCollection;
   try {
-    for await (const event of options.adapter.execute({
+    agent = await collectAgentEvents({
+      adapter: options.adapter,
       runId,
       cwd: fixture.workspacePath,
       prompt,
-    })) {
-      agentEvents.push(event);
-    }
+      timeoutMs: agentTimeoutMs,
+      cancellationTimeoutMs,
+      retainedEventLimit,
+      retainedEventBytes,
+    });
   } catch (error) {
-    adapterFailure = error instanceof Error ? error.message : String(error);
+    agent = {
+      events: [],
+      droppedEventCount: 0,
+      timedOut: false,
+      failure: redactSecrets(error instanceof Error ? error.message : String(error)),
+    };
   }
+  const diagnosticDestination = await createDiagnosticDestination();
 
-  const afterFiles = await workspaceFiles(fixture.workspacePath);
+  let afterFiles: WorkspaceFile[] = [];
+  let workspaceObservationError: string | undefined;
+  try {
+    afterFiles = await workspaceFiles(fixture.workspacePath);
+  } catch (error) {
+    workspaceObservationError = redactSecrets(
+      error instanceof Error ? error.message : String(error),
+    );
+  }
   const gitStatus = await runCommand("git", ["status", "--porcelain=v1"], fixture.workspacePath);
   const gitHead = await runCommand("git", ["rev-parse", "HEAD"], fixture.workspacePath);
   const gitDiff = await runCommand(
@@ -411,6 +713,7 @@ export async function runTemporaryRepoTaskProof(
   const changes: WorkspaceChanges = {
     ...changedFiles(checkpointFiles, afterFiles),
     outOfScope: [],
+    unsafeSymlinks: afterFiles.filter((file) => file.kind === "symlink").map((file) => file.path),
     head: gitHead.stdout.trim(),
     gitStatus: gitStatus.stdout,
     gitDiff: gitDiff.stdout,
@@ -419,6 +722,7 @@ export async function runTemporaryRepoTaskProof(
     gitDiffCommand: gitDiff,
     before: checkpointFiles,
     after: afterFiles,
+    ...(workspaceObservationError === undefined ? {} : { workspaceObservationError }),
   };
   const changedPaths = [...changes.added, ...changes.modified, ...changes.deleted];
   changes.outOfScope = changedPaths.filter(
@@ -439,16 +743,21 @@ export async function runTemporaryRepoTaskProof(
     });
   }
 
-  const terminal = agentEvents.findLast(isTerminalAgentEvent);
+  const terminal = agent.terminal;
   const changedPathCount = changes.added.length + changes.modified.length + changes.deleted.length;
   const failureReasons: string[] = [];
-  if (adapterFailure !== undefined) failureReasons.push(`AgentAdapter threw: ${adapterFailure}`);
-  if (terminal?.outcome !== "succeeded") {
+  if (agent.failure !== undefined) failureReasons.push(`AgentAdapter failed: ${agent.failure}`);
+  if (agent.timedOut) {
+    failureReasons.push("Agent run timed out and cancellation was requested");
+  } else if (terminal?.outcome !== "succeeded") {
     failureReasons.push(
       terminal === undefined
         ? "Agent run emitted no terminal event"
         : `Agent run ended ${terminal.outcome}`,
     );
+  }
+  if (workspaceObservationError !== undefined) {
+    failureReasons.push(`Workspace observation failed: ${workspaceObservationError}`);
   }
   if (changedPathCount === 0) failureReasons.push("Agent run made no workspace file changes");
   if (
@@ -463,6 +772,11 @@ export async function runTemporaryRepoTaskProof(
   if (changes.outOfScope.length > 0) {
     failureReasons.push(`Out-of-scope workspace changes: ${changes.outOfScope.join(", ")}`);
   }
+  if (changes.unsafeSymlinks.length > 0) {
+    failureReasons.push(
+      `Symbolic links are not valid task changes: ${changes.unsafeSymlinks.join(", ")}`,
+    );
+  }
   for (const acceptanceResult of acceptanceResults) {
     if (!acceptanceResult.passed) {
       failureReasons.push(`Acceptance criterion failed: ${acceptanceResult.criterion.id}`);
@@ -475,19 +789,21 @@ export async function runTemporaryRepoTaskProof(
     failureReasons,
     temporaryRoot: fixture.temporaryRoot,
     workspacePath: fixture.workspacePath,
-    diagnosticsPath: fixture.diagnosticsPath,
+    diagnosticsPath: diagnosticDestination.diagnosticsPath,
+    diagnosticsRoot: diagnosticDestination.diagnosticsRoot,
     taskPacket: fixture.taskPacket,
     prompt,
     checkpoint,
-    agentEvents,
+    agentEvents: agent.events,
+    agentEventsTruncated: agent.droppedEventCount > 0,
+    droppedAgentEventCount: agent.droppedEventCount,
     changes,
     acceptanceResults,
   };
 
-  await writeFile(
-    fixture.diagnosticsPath,
-    `${JSON.stringify({ schemaVersion: DIAGNOSTIC_SCHEMA_VERSION, ...result }, null, 2)}\n`,
-    { encoding: "utf8", mode: 0o600 },
-  );
+  await writeDiagnosticExclusive(result.diagnosticsPath, {
+    schemaVersion: DIAGNOSTIC_SCHEMA_VERSION,
+    ...result,
+  });
   return result;
 }
