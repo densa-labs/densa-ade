@@ -1,0 +1,16 @@
+{
+  "name": "@densa/core",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Editor-independent authoritative runtime for Densa projects.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ]
+}
