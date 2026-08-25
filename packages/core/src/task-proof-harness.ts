@@ -444,12 +444,16 @@ async function collectAgentEvents(input: {
       if (next.settled && next.status === "fulfilled" && !next.value.done) retain(next.value.value);
     }
 
-    const returned = await settleWithin(
-      Promise.resolve().then(async () => await iterator.return?.()),
-      input.cancellationTimeoutMs,
-    );
-    workerTerminationConfirmed =
-      cancellation.confirmed && returned.settled && returned.status === "fulfilled";
+    const returned =
+      iterator.return === undefined
+        ? ({ settled: false } as const)
+        : await settleWithin(
+            Promise.resolve().then(async () => await iterator.return?.()),
+            input.cancellationTimeoutMs,
+          );
+    const iteratorCloseConfirmed =
+      returned.settled && returned.status === "fulfilled" && returned.value?.done === true;
+    workerTerminationConfirmed = cancellation.confirmed && iteratorCloseConfirmed;
     if (!workerTerminationConfirmed && cancellation.failure === undefined) {
       recordFailure("Agent termination could not be confirmed after cancellation");
     }
@@ -781,10 +785,10 @@ export async function runTemporaryRepoTaskProof(
       droppedEventCount: 0,
       individualEventTruncated: false,
       timedOut: false,
-      workerTerminationConfirmed: cancellation.confirmed,
+      workerTerminationConfirmed: false,
       failure:
         cancellation.failure === undefined
-          ? executionFailure
+          ? `${executionFailure}; Agent iterator setup failed, so termination could not be confirmed`
           : `${executionFailure}; ${cancellation.failure}`,
     };
   }
