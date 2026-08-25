@@ -654,13 +654,31 @@ When implementing a roadmap milestone:
 6. Add/adjust tests.
 7. Run the acceptance checks.
 8. Fix failures before declaring completion.
-9. Summarize:
+9. If the milestone is complete, create its milestone commit according to §20.1.
+10. If this completes the phase, create its phase checkpoint/tag according to §20.1.
+11. Summarize:
    - what changed;
    - files/modules added;
    - tests/commands run;
+   - commit SHA;
+   - phase tag, if created;
    - unresolved risks;
    - any roadmap deviation.
-10. Do not begin the next milestone unless explicitly asked.
+12. Do not begin the next milestone unless explicitly asked.
+
+### 20.1 Milestone Git discipline
+
+Each successfully completed roadmap milestone MUST end with its own Git commit.
+
+Rules:
+- Run and pass the milestone's required acceptance checks before committing.
+- One milestone = one logical commit. Do not combine multiple roadmap milestones into a single commit.
+- Use the commit message format: `densa: P<phase>M<milestone> <short description>`.
+- Do not begin the next milestone before the current milestone has been committed.
+- If a milestone is PARTIAL or BLOCKED, do not create a normal completion commit; report the state and preserve the work for explicit user direction.
+- At the completion of the final milestone in a phase, create the phase checkpoint/tag `densa-phase-<phase>-complete` only after all milestones in that phase are complete and their acceptance checks pass.
+- Never rewrite, squash, or amend completed milestone commits unless explicitly instructed by the user.
+- Never push commits or tags to a remote automatically.
 
 ## 21. Forbidden shortcuts
 
