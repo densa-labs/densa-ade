@@ -439,13 +439,17 @@ async function collectAgentEvents(input: {
     );
     if (cancellation.failure !== undefined) recordFailure(cancellation.failure);
 
+    let pendingNextCompleted = false;
     if (pendingNext !== undefined) {
       const next = await settleWithin(pendingNext, input.cancellationTimeoutMs);
-      if (next.settled && next.status === "fulfilled" && !next.value.done) retain(next.value.value);
+      if (next.settled && next.status === "fulfilled") {
+        if (next.value.done) pendingNextCompleted = true;
+        else retain(next.value.value);
+      }
     }
 
     const returned =
-      iterator.return === undefined
+      pendingNextCompleted || iterator.return === undefined
         ? ({ settled: false } as const)
         : await settleWithin(
             Promise.resolve().then(async () => await iterator.return?.()),
@@ -453,7 +457,8 @@ async function collectAgentEvents(input: {
           );
     const iteratorCloseConfirmed =
       returned.settled && returned.status === "fulfilled" && returned.value?.done === true;
-    workerTerminationConfirmed = cancellation.confirmed && iteratorCloseConfirmed;
+    workerTerminationConfirmed =
+      cancellation.confirmed && (pendingNextCompleted || iteratorCloseConfirmed);
     if (!workerTerminationConfirmed && cancellation.failure === undefined) {
       recordFailure("Agent termination could not be confirmed after cancellation");
     }
