@@ -413,6 +413,49 @@ test("cancellation is unconfirmed when the iterator has no return method", async
   assert.match(result.changes.workspaceObservationError, /observation skipped/iu);
 });
 
+test("a pending next result can confirm natural iterator completion", async (t) => {
+  let resolveNext;
+  const adapter = {
+    adapterId: "natural-close-fake",
+    async detect() {
+      throw new Error("not used");
+    },
+    async getStatus() {
+      throw new Error("not used");
+    },
+    execute() {
+      return {
+        [Symbol.asyncIterator]() {
+          return {
+            next: async () =>
+              await new Promise((resolve) => {
+                resolveNext = resolve;
+              }),
+          };
+        },
+      };
+    },
+    async cancel() {
+      resolveNext({ done: true, value: undefined });
+    },
+    async getUsageState() {
+      throw new Error("not used");
+    },
+  };
+
+  const result = await runTemporaryRepoTaskProof({
+    adapter,
+    runId: "proof-natural-close",
+    agentTimeoutMs: 10,
+    cancellationTimeoutMs: 20,
+  });
+  t.after(async () => await cleanupResult(result));
+
+  assert.equal(result.workerTerminationConfirmed, true);
+  assert.equal(result.changes.workspaceObservationError, undefined);
+  assert.equal(result.changes.gitStatusCommand.exitCode, 0);
+});
+
 test("cancellation is unconfirmed when iterator return is nonterminal", async (t) => {
   let delayedMutation;
   const adapter = {
