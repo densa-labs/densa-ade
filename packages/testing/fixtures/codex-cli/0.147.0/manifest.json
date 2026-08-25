@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "codexVersion": "0.147.0",
+  "observedAt": "2026-08-25",
+  "platform": "macos-aarch64",
+  "fixturePolicy": "minimal-sanitized-observed-signals",
+  "probes": {
+    "version": {
+      "exitCode": 0,
+      "stdoutFixture": "version.txt"
+    },
+    "loginAuthenticated": {
+      "exitCode": 0,
+      "stdoutFixture": "login-status-authenticated.txt"
+    },
+    "loginUnauthenticated": {
+      "exitCode": 1,
+      "stdoutFixture": "login-status-unauthenticated.txt"
+    }
+  },
+  "cases": [
+    {
+      "name": "success",
+      "exitCode": 0,
+      "stdoutFixture": "success.jsonl",
+      "terminalEvent": "turn.completed"
+    },
+    {
+      "name": "command-failure-handled",
+      "exitCode": 0,
+      "stdoutFixture": "command-failure-handled.jsonl",
+      "terminalEvent": "turn.completed"
+    },
+    {
+      "name": "unsupported-model",
+      "exitCode": 1,
+      "stdoutFixture": "unsupported-model.jsonl",
+      "terminalEvent": "turn.failed"
+    },
+    {
+      "name": "authentication-required",
+      "exitCode": 1,
+      "stdoutFixture": "authentication-required.jsonl",
+      "terminalEvent": "turn.failed"
+    },
+    {
+      "name": "parent-sigint",
+      "exitCode": 1,
+      "stdoutFixture": "parent-sigint.jsonl",
+      "terminalEvent": null,
+      "childProcessObservedAfterExit": false
+    },
+    {
+      "name": "invalid-argument-placement",
+      "exitCode": 2,
+      "stderrFixture": "invalid-argument-placement.txt",
+      "terminalEvent": null
+    }
+  ]
+}

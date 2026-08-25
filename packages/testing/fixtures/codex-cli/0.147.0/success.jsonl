@@ -1,0 +1,5 @@
+{"type":"thread.started","thread_id":"<thread-id>"}
+{"type":"item.completed","item":{"id":"<item-id-0>","type":"error","message":"clamping SessionEnd hook timeout to 3s in <codex-home>/hooks.json"}}
+{"type":"turn.started"}
+{"type":"item.completed","item":{"id":"<item-id-1>","type":"agent_message","text":"DENSA_CODEX_SPIKE_OK"}}
+{"type":"turn.completed","usage":{"input_tokens":0,"cached_input_tokens":0,"cache_write_input_tokens":0,"output_tokens":0,"reasoning_output_tokens":0}}
