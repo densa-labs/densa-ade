@@ -1,0 +1,172 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+
+import {
+  CLI_OUTPUT_SCHEMA_VERSION,
+  EXIT_SUCCESS,
+  EXIT_UNAVAILABLE,
+  EXIT_USAGE,
+  cliHelpText,
+  runCli,
+} from "../packages/cli/dist/index.js";
+import { PROTOCOL_VERSION } from "../packages/protocol/dist/index.js";
+
+function captureIo() {
+  const output = { stdout: "", stderr: "" };
+  return {
+    output,
+    io: {
+      stdout(value) {
+        output.stdout += value;
+      },
+      stderr(value) {
+        output.stderr += value;
+      },
+    },
+  };
+}
+
+function createServices(overrides = {}) {
+  return {
+    coreClient: {
+      async request(request) {
+        return { method: request.method, accepted: true };
+      },
+    },
+    doctorService: {
+      async inspect() {
+        return [
+          { name: "node", status: "available", detail: "v22.13.0" },
+          { name: "git", status: "available", detail: "git version 2.50.0" },
+          { name: "platform", status: "available", detail: "darwin (arm64)" },
+          { name: "agent", status: "placeholder", detail: "Phase 1" },
+          { name: "core", status: "placeholder", detail: "Phase 2" },
+        ];
+      },
+    },
+    createRequestId() {
+      return "request-test-1";
+    },
+    ...overrides,
+  };
+}
+
+test("top-level help coherently lists every milestone command", async () => {
+  const { io, output } = captureIo();
+  const exitCode = await runCli(["--help"], { io, services: createServices() });
+
+  assert.equal(exitCode, EXIT_SUCCESS);
+  assert.equal(output.stderr, "");
+  assert.equal(output.stdout, `${cliHelpText}\n`);
+  for (const command of [
+    "doctor",
+    "project init",
+    "project status",
+    "project start",
+    "project pause",
+    "project resume",
+    "events",
+    "version",
+  ]) {
+    assert.match(output.stdout, new RegExp(command));
+  }
+});
+
+test("doctor reports host checks and labels agent and Core placeholders", async () => {
+  const { io, output } = captureIo();
+  const exitCode = await runCli(["doctor"], { io, services: createServices() });
+
+  assert.equal(exitCode, EXIT_SUCCESS);
+  assert.equal(output.stderr, "");
+  assert.match(output.stdout, /node\s+ok\s+v22\.13\.0/u);
+  assert.match(output.stdout, /git\s+ok\s+git version 2\.50\.0/u);
+  assert.match(output.stdout, /platform\s+ok\s+darwin \(arm64\)/u);
+  assert.match(output.stdout, /agent\s+placeholder\s+Phase 1/u);
+  assert.match(output.stdout, /core\s+placeholder\s+Phase 2/u);
+});
+
+test("JSON mode has a stable versioned shape", async () => {
+  const { io, output } = captureIo();
+  const exitCode = await runCli(["version", "--json"], { io, services: createServices() });
+
+  assert.equal(exitCode, EXIT_SUCCESS);
+  assert.equal(output.stderr, "");
+  assert.deepEqual(JSON.parse(output.stdout), {
+    schemaVersion: CLI_OUTPUT_SCHEMA_VERSION,
+    command: "version",
+    ok: true,
+    data: {
+      cliVersion: "0.0.0",
+      protocolVersion: PROTOCOL_VERSION,
+    },
+  });
+});
+
+test("every Core command uses a versioned shared-protocol request", async () => {
+  const commands = [
+    { arguments: ["project", "init"], command: "project init", method: "project.init" },
+    { arguments: ["project", "status"], command: "project status", method: "project.status" },
+    { arguments: ["project", "start"], command: "project start", method: "project.start" },
+    { arguments: ["project", "pause"], command: "project pause", method: "project.pause" },
+    { arguments: ["project", "resume"], command: "project resume", method: "project.resume" },
+    { arguments: ["events"], command: "events", method: "events.list" },
+  ];
+
+  for (const expected of commands) {
+    const { io, output } = captureIo();
+    let receivedRequest;
+    const services = createServices({
+      coreClient: {
+        async request(request) {
+          receivedRequest = request;
+          return { accepted: true };
+        },
+      },
+    });
+
+    const exitCode = await runCli(["--json", ...expected.arguments], { io, services });
+
+    assert.equal(exitCode, EXIT_SUCCESS);
+    assert.deepEqual(receivedRequest, {
+      protocolVersion: PROTOCOL_VERSION,
+      kind: "request",
+      requestId: "request-test-1",
+      method: expected.method,
+      payload: {},
+    });
+    assert.deepEqual(JSON.parse(output.stdout), {
+      schemaVersion: CLI_OUTPUT_SCHEMA_VERSION,
+      command: expected.command,
+      ok: true,
+      data: { accepted: true },
+    });
+  }
+});
+
+test("the default Core placeholder fails clearly without starting an agent", async () => {
+  const { io, output } = captureIo();
+  const exitCode = await runCli(["events", "--json"], { io });
+  const json = JSON.parse(output.stdout);
+
+  assert.equal(exitCode, EXIT_UNAVAILABLE);
+  assert.equal(output.stderr, "");
+  assert.equal(json.ok, false);
+  assert.equal(json.error.code, "PROCESS_FAILURE");
+  assert.match(json.error.message, /Core is not available/u);
+  assert.deepEqual(json.error.details, { method: "events.list" });
+});
+
+test("invalid commands use a stable usage error and nonzero exit", async () => {
+  const { io, output } = captureIo();
+  const exitCode = await runCli(["project", "launch", "--json"], {
+    io,
+    services: createServices(),
+  });
+  const json = JSON.parse(output.stdout);
+
+  assert.equal(exitCode, EXIT_USAGE);
+  assert.equal(output.stderr, "");
+  assert.equal(json.ok, false);
+  assert.equal(json.error.code, "USER_CONFIGURATION_ERROR");
+  assert.match(json.error.message, /Unknown project command/u);
+});
