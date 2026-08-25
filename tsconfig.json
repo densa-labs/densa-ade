@@ -4,6 +4,7 @@
     "noEmit": true,
     "paths": {
       "@densa/agent-sdk": ["./packages/agent-sdk/src/index.ts"],
+      "@densa/core": ["./packages/core/src/index.ts"],
       "@densa/protocol": ["./packages/protocol/src/index.ts"]
     }
   },

@@ -1,8 +1,9 @@
 # Densa
 
-Densa is a local-first orchestration layer for an AI development IDE. This repository begins
-with the editor-independent TypeScript/Node foundation for Densa Core; it does not yet contain
-agent execution, persistence, or editor integration.
+Densa is a local-first orchestration layer for an AI development IDE. This repository contains
+the editor-independent TypeScript/Node foundation, a provider-neutral agent boundary, and the
+first non-persistent single-task proof loop. It does not yet contain authoritative persistence or
+editor integration.
 
 ## Process boundary
 
@@ -55,6 +56,24 @@ node packages/cli/dist/bin.js --json version
 
 The stable JSON output contract and injected service boundaries are documented in
 [`packages/cli/README.md`](packages/cli/README.md).
+
+## Single-task proof harness
+
+Phase 1 includes a deliberately small temporary-Git-repository harness in `@densa/core`. It creates
+an initially failing fixture, records a clean Git checkpoint, builds a scoped Task Packet, invokes
+an `AgentAdapter`, records file changes, and runs the fixture's Node test directly. PASS requires a
+successful terminal agent event, an in-scope workspace change, no test tampering, and passing
+deterministic acceptance checks; agent prose never affects the verdict.
+
+Each run retains a mode-0600 `diagnostics/attempt.json` beside the temporary workspace. The caller
+owns eventual cleanup, which keeps attempt evidence inspectable without introducing SQLite or a
+long-lived runtime source of truth. Routine tests cover passing, failing, and deliberately lying
+fake agents. The authenticated Codex demonstration is opt-in because live agents are not used for
+routine tests:
+
+```sh
+npm run test:live:task-proof
+```
 
 ## Development
 
