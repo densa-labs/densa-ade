@@ -1,0 +1,4 @@
+{"type":"thread.started","thread_id":"<thread-id>"}
+{"type":"turn.started"}
+{"type":"item.completed","item":{"id":"<item-id-1>","type":"agent_message","text":"Starting the requested 120-second command now. I'll wait for it to finish before replying."}}
+{"type":"item.started","item":{"id":"<item-id-2>","type":"command_execution","command":"/bin/zsh -lc 'sleep 120'","aggregated_output":"","exit_code":null,"status":"in_progress"}}

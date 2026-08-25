@@ -1,0 +1,6 @@
+{"type":"thread.started","thread_id":"<thread-id>"}
+{"type":"turn.started"}
+{"type":"item.started","item":{"id":"<item-id>","type":"command_execution","command":"/bin/zsh -lc false","aggregated_output":"","exit_code":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"<item-id>","type":"command_execution","command":"/bin/zsh -lc false","aggregated_output":"","exit_code":1,"status":"failed"}}
+{"type":"item.completed","item":{"id":"<item-id-2>","type":"agent_message","text":"DENSA_COMMAND_FAILURE_OBSERVED"}}
+{"type":"turn.completed","usage":{"input_tokens":0,"cached_input_tokens":0,"cache_write_input_tokens":0,"output_tokens":0,"reasoning_output_tokens":0}}
