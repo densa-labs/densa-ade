@@ -12,5 +12,8 @@
   },
   "files": [
     "dist"
-  ]
+  ],
+  "dependencies": {
+    "@densa/protocol": "0.0.0"
+  }
 }

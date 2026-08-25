@@ -19,8 +19,9 @@
     "lint": "eslint . --max-warnings 0",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "pretest": "tsc -b packages/protocol packages/cli",
+    "pretest": "tsc -b packages/protocol packages/agent-sdk packages/cli packages/testing",
     "test": "node --test scripts/*.test.mjs",
+    "test:live:codex": "DENSA_LIVE_CODEX=1 node --test scripts/codex-adapter-live.test.mjs",
     "check": "npm run format:check && npm run build && npm run typecheck && npm run lint && npm test"
   },
   "devDependencies": {
