@@ -41,6 +41,18 @@ protocol and agent SDK, and no Core package may depend on an app or editor API.
 The protocol package documents its JSON wire rules and post-v0.1 compatibility policy in
 [`packages/protocol/README.md`](packages/protocol/README.md).
 
+## Authoritative state transitions
+
+Core exposes one `StateTransitionService` for project, phase, and task lifecycle changes. The
+canonical transition tables are explicit, terminal states have no outgoing edges, and invalid
+jumps fail with `INVALID_STATE_TRANSITION`. Project, phase, and task records parsed by the protocol
+are immutable snapshots: callers request a transition instead of assigning `state` directly.
+
+An accepted transition returns a new immutable snapshot plus a versioned event draft containing
+the actor, timestamp, prior state, next state, optional reason, and relevant project/phase/task
+identifiers. Phase 2 Milestone 0 does not persist either value; the SQLite repository added in the
+next milestone will consume both in one transaction.
+
 ## Headless CLI
 
 Phase 0 provides a deliberately small `densa` client shell. `doctor`, `version`, project lifecycle,

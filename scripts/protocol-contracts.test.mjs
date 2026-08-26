@@ -70,6 +70,7 @@ test("exports every canonical state and policy value", () => {
     "GIT_FAILURE",
     "PERSISTENCE_FAILURE",
     "PROTOCOL_VERSION_MISMATCH",
+    "INVALID_STATE_TRANSITION",
     "INTERNAL_INVARIANT_VIOLATION",
   ]);
 });
@@ -188,6 +189,11 @@ test("domain schemas enforce acceptance criteria, ISO timestamps, and JSON event
   };
 
   assert.equal(taskSchema.safeParse(validTask).success, true);
+  const task = taskSchema.parse(validTask);
+  assert.equal(Object.isFrozen(task), true);
+  assert.throws(() => {
+    task.state = "COMPLETED";
+  }, TypeError);
   assert.equal(taskSchema.safeParse({ ...validTask, acceptanceCriteria: [] }).success, false);
   assert.equal(
     taskSchema.safeParse({ ...validTask, createdAt: new Date(timestamp) }).success,
