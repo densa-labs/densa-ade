@@ -11,9 +11,10 @@ unborn HEAD, staged changes, unstaged changes, untracked files, and active merge
 cherry-pick state. It also reports ignored Densa-named database, PID, socket, and
 `.densa/runtime/` artifacts without treating them as user changes.
 
-The `densa/run/` branch namespace is reserved for Densa-owned run branches. P3M0 only recognizes
-and reports current or existing branches in that namespace. Branch creation, reuse, and persisted
-checkpoint ownership belong to P3M1.
+The `densa/run/` branch namespace is reserved for Densa-owned run branches. Preflight recognizes
+and reports current or existing branches in that namespace without treating the name alone as
+authoritative ownership. P3M1 validates ownership against SQLite before creating or reusing a run
+branch; see [run-branches-and-checkpoints.md](./run-branches-and-checkpoints.md).
 
 ## Decisions
 
@@ -37,3 +38,7 @@ Inspection disables optional Git locks and interactive prompts. It does not invo
 `reset`, `clean`, `checkout`, `switch`, `commit`, or any ref-writing command. The returned
 `automaticActionsPerformed` value is always `false`. Later milestones may act on the result, but
 they must preserve user changes and persist checkpoint ownership before doing so.
+
+`RunCheckpointService` is the P3M1 mutation boundary. It consumes a proceed decision, persists run
+intent before branch creation, repeats preflight after switching, and records a task/attempt Git
+snapshot only while the workspace remains clean. It never adopts an unowned colliding branch.

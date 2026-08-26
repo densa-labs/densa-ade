@@ -129,10 +129,39 @@ export interface RoadmapRevisionRepository {
   listByProjectId(projectId: Project["id"]): readonly RoadmapRevision[];
 }
 
+export type DensaRunBranchStatus = "CREATING" | "ACTIVE" | "FAILED";
+
+export interface DensaRunBranchRecord {
+  readonly projectId: Project["id"];
+  readonly workspacePath: string;
+  readonly branchName: string;
+  readonly sourceBranch: string;
+  readonly startingCommit: string;
+  readonly status: DensaRunBranchStatus;
+  readonly createdAt: string;
+  readonly activatedAt?: string;
+  readonly failureReason?: string;
+}
+
+export type NewDensaRunBranchRecord = Omit<
+  DensaRunBranchRecord,
+  "status" | "activatedAt" | "failureReason"
+>;
+
+export interface DensaRunBranchRepository {
+  createCreating(run: NewDensaRunBranchRecord): DensaRunBranchRecord;
+  findByProjectId(projectId: Project["id"]): DensaRunBranchRecord | undefined;
+  findByBranchName(branchName: string): DensaRunBranchRecord | undefined;
+  activate(projectId: Project["id"], activatedAt: string): DensaRunBranchRecord;
+  fail(projectId: Project["id"], failureReason: string): DensaRunBranchRecord;
+}
+
 export interface CheckpointRepository {
   create(checkpoint: Checkpoint): Checkpoint;
   findById(id: Checkpoint["id"]): Checkpoint | undefined;
+  findByAttemptId(attemptId: Attempt["id"]): Checkpoint | undefined;
   listByProjectId(projectId: Project["id"]): readonly Checkpoint[];
+  listByTaskId(taskId: Task["id"]): readonly Checkpoint[];
 }
 
 export interface EventRepository {
@@ -159,6 +188,7 @@ export interface DensaRepositories {
   readonly validationRuns: ValidationRunRepository;
   readonly decisions: DecisionRepository;
   readonly roadmapRevisions: RoadmapRevisionRepository;
+  readonly densaRunBranches: DensaRunBranchRepository;
   readonly checkpoints: CheckpointRepository;
   readonly events: EventRepository;
   readonly projectSettings: ProjectSettingsRepository;
@@ -695,10 +725,14 @@ class SqliteCheckpointRepository implements CheckpointRepository {
     const checkpoint = checkpointSchema.parse(input);
     this.connection.run(
       `INSERT INTO checkpoints
-       (id, project_id, created_at, description, git_head, git_status, workspace_fingerprint)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+       (id, project_id, task_id, attempt_id, run_branch, created_at, description,
+        git_head, git_status, workspace_fingerprint)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       checkpoint.id,
       checkpoint.projectId,
+      checkpoint.taskId ?? null,
+      checkpoint.attemptId ?? null,
+      checkpoint.runBranch ?? null,
       checkpoint.createdAt,
       checkpoint.description ?? null,
       checkpoint.gitHead ?? null,
@@ -713,6 +747,11 @@ class SqliteCheckpointRepository implements CheckpointRepository {
     return row === undefined ? undefined : this.parse(row);
   }
 
+  findByAttemptId(attemptId: Attempt["id"]): Checkpoint | undefined {
+    const row = this.connection.get("SELECT * FROM checkpoints WHERE attempt_id = ?", attemptId);
+    return row === undefined ? undefined : this.parse(row);
+  }
+
   listByProjectId(projectId: Project["id"]): readonly Checkpoint[] {
     return Object.freeze(
       this.connection
@@ -721,7 +760,18 @@ class SqliteCheckpointRepository implements CheckpointRepository {
     );
   }
 
+  listByTaskId(taskId: Task["id"]): readonly Checkpoint[] {
+    return Object.freeze(
+      this.connection
+        .all("SELECT * FROM checkpoints WHERE task_id = ? ORDER BY created_at, id", taskId)
+        .map((row) => this.parse(row)),
+    );
+  }
+
   private parse(row: SqliteRow): Checkpoint {
+    const taskId = optionalString(row, "task_id");
+    const attemptId = optionalString(row, "attempt_id");
+    const runBranch = optionalString(row, "run_branch");
     const description = optionalString(row, "description");
     const gitHead = optionalString(row, "git_head");
     const gitStatus = optionalString(row, "git_status");
@@ -729,11 +779,123 @@ class SqliteCheckpointRepository implements CheckpointRepository {
     return checkpointSchema.parse({
       id: requiredString(row, "id"),
       projectId: requiredString(row, "project_id"),
+      ...(taskId === undefined ? {} : { taskId }),
+      ...(attemptId === undefined ? {} : { attemptId }),
+      ...(runBranch === undefined ? {} : { runBranch }),
       createdAt: requiredString(row, "created_at"),
       ...(description === undefined ? {} : { description }),
       ...(gitHead === undefined ? {} : { gitHead }),
       ...(gitStatus === undefined ? {} : { gitStatus }),
       ...(workspaceFingerprint === undefined ? {} : { workspaceFingerprint }),
+    });
+  }
+}
+
+function validateRunBranch(input: DensaRunBranchRecord): DensaRunBranchRecord {
+  requireNonEmpty(input.projectId, "Densa run projectId");
+  requireNonEmpty(input.workspacePath, "Densa run workspacePath");
+  requireNonEmpty(input.branchName, "Densa run branchName");
+  requireNonEmpty(input.sourceBranch, "Densa run sourceBranch");
+  requireNonEmpty(input.startingCommit, "Densa run startingCommit");
+  isoTimestampSchema.parse(input.createdAt);
+  if (!input.branchName.startsWith("densa/run/")) {
+    throw new PersistenceError("Densa run branch must use the reserved namespace");
+  }
+  if (!(["CREATING", "ACTIVE", "FAILED"] as const).includes(input.status)) {
+    throw new PersistenceError("Densa run branch has an invalid status");
+  }
+  if (input.activatedAt !== undefined) isoTimestampSchema.parse(input.activatedAt);
+  if (input.failureReason !== undefined) requireNonEmpty(input.failureReason, "failureReason");
+  if ((input.status === "ACTIVE") !== (input.activatedAt !== undefined)) {
+    throw new PersistenceError("Only active Densa runs have an activation timestamp");
+  }
+  if ((input.status === "FAILED") !== (input.failureReason !== undefined)) {
+    throw new PersistenceError("Only failed Densa runs have a failure reason");
+  }
+  return Object.freeze({ ...input });
+}
+
+class SqliteDensaRunBranchRepository implements DensaRunBranchRepository {
+  constructor(private readonly connection: SqliteConnection) {}
+
+  createCreating(input: NewDensaRunBranchRecord): DensaRunBranchRecord {
+    const run = validateRunBranch({ ...input, status: "CREATING" });
+    this.connection.run(
+      `INSERT INTO densa_run_branches
+       (project_id, workspace_path, branch_name, source_branch, starting_commit, status, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      run.projectId,
+      run.workspacePath,
+      run.branchName,
+      run.sourceBranch,
+      run.startingCommit,
+      run.status,
+      run.createdAt,
+    );
+    return run;
+  }
+
+  findByProjectId(projectId: Project["id"]): DensaRunBranchRecord | undefined {
+    const row = this.connection.get(
+      "SELECT * FROM densa_run_branches WHERE project_id = ?",
+      projectId,
+    );
+    return row === undefined ? undefined : this.parse(row);
+  }
+
+  findByBranchName(branchName: string): DensaRunBranchRecord | undefined {
+    const row = this.connection.get(
+      "SELECT * FROM densa_run_branches WHERE branch_name = ?",
+      branchName,
+    );
+    return row === undefined ? undefined : this.parse(row);
+  }
+
+  activate(projectId: Project["id"], activatedAt: string): DensaRunBranchRecord {
+    isoTimestampSchema.parse(activatedAt);
+    const changes = this.connection.run(
+      `UPDATE densa_run_branches SET status = 'ACTIVE', activated_at = ?
+       WHERE project_id = ? AND status = 'CREATING'`,
+      activatedAt,
+      projectId,
+    );
+    if (changes !== 1) {
+      throw new PersistenceError("Densa run branch could not transition from CREATING to ACTIVE");
+    }
+    const stored = this.findByProjectId(projectId);
+    if (stored === undefined) throw new PersistenceError("Activated Densa run branch is missing");
+    return stored;
+  }
+
+  fail(projectId: Project["id"], failureReason: string): DensaRunBranchRecord {
+    requireNonEmpty(failureReason, "Densa run failure reason");
+    const changes = this.connection.run(
+      `UPDATE densa_run_branches SET status = 'FAILED', failure_reason = ?
+       WHERE project_id = ? AND status = 'CREATING'`,
+      failureReason,
+      projectId,
+    );
+    if (changes !== 1) {
+      throw new PersistenceError("Densa run branch could not transition from CREATING to FAILED");
+    }
+    const stored = this.findByProjectId(projectId);
+    if (stored === undefined) throw new PersistenceError("Failed Densa run branch is missing");
+    return stored;
+  }
+
+  private parse(row: SqliteRow): DensaRunBranchRecord {
+    const activatedAt = optionalString(row, "activated_at");
+    const failureReason = optionalString(row, "failure_reason");
+    return validateRunBranch({
+      projectId: requiredString(row, "project_id") as Project["id"],
+      workspacePath: requiredString(row, "workspace_path"),
+      branchName: requiredString(row, "branch_name"),
+      sourceBranch: requiredString(row, "source_branch"),
+      startingCommit: requiredString(row, "starting_commit"),
+      status: requiredString(row, "status") as DensaRunBranchStatus,
+      createdAt: requiredString(row, "created_at"),
+      ...(activatedAt === undefined ? {} : { activatedAt }),
+      ...(failureReason === undefined ? {} : { failureReason }),
     });
   }
 }
@@ -916,6 +1078,7 @@ export function createRepositories(
     validationRuns: new SqliteValidationRunRepository(connection),
     decisions: new SqliteDecisionRepository(connection),
     roadmapRevisions: new SqliteRoadmapRevisionRepository(connection),
+    densaRunBranches: new SqliteDensaRunBranchRepository(connection),
     checkpoints: new SqliteCheckpointRepository(connection),
     events: new SqliteEventRepository(connection, publishEvent),
     projectSettings: new SqliteProjectSettingsRepository(connection),

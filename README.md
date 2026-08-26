@@ -84,6 +84,12 @@ P3M0 never stashes, resets, checks out, creates branches, or otherwise alters us
 evidence and policy are documented in
 [`docs/workspace-preflight.md`](docs/workspace-preflight.md).
 
+`RunCheckpointService` then creates or reuses a predictably named, SQLite-owned `densa/run/*`
+branch and records the verified starting commit against the task and attempt. Branch intent and
+checkpoint metadata survive Core restart, collisions fail closed, user work remains untouched,
+and the service never pushes. The model and safety boundary are documented in
+[`docs/run-branches-and-checkpoints.md`](docs/run-branches-and-checkpoints.md).
+
 ## Portable project representation
 
 `PortableProjectSynchronizer` exports important SQLite-backed project intent to deterministic

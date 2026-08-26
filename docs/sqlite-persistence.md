@@ -47,6 +47,12 @@ attempts, agent and validation runs, checkpoints, and the last project event thr
 boundary. Recovery remains read-only and is documented in
 [recovery-inspection.md](./recovery-inspection.md).
 
+Migration 4 adds durable `densa_run_branches` ownership plus task, attempt, and run-branch
+associations on checkpoints. Older project-level checkpoints remain valid with null associations;
+new task checkpoints require all association fields and a Git base together. The run intent,
+activation, one-checkpoint-per-attempt constraint, and audit behavior are documented in
+[run-branches-and-checkpoints.md](./run-branches-and-checkpoints.md).
+
 The project-scoped list queries added for portable export retain repository isolation and stable
 ordering. Phase 2 Milestone 3 uses them to create `.densa/` snapshots without exposing raw SQL or
 making the filesystem authoritative; see [portable-project.md](./portable-project.md).
@@ -58,9 +64,11 @@ ISO-8601 application timestamp. Opening a database applies pending migrations tr
 fails closed if an already-applied migration differs from the current build. Migration files are
 immutable after release: future schema changes append a new version instead of editing migration 1.
 
-The supported paths are zero-to-latest, version-1-to-latest, and version-2-to-version-3. There is no downgrade path;
-a newer database must not be opened by an older Core build. Future destructive or data-transforming
-migrations must document backup, forward, and rollback assumptions alongside their migration tests.
+The supported paths are zero-to-latest and any contiguous older migration to the current schema.
+Migration 4 rebuilds the checkpoint table while preserving legacy rows and leaving its new
+association columns null. There is no downgrade path; a newer database must not be opened by an
+older Core build. Future destructive or data-transforming migrations must document backup,
+forward, and rollback assumptions alongside their migration tests.
 
 ## Data and secret boundary
 

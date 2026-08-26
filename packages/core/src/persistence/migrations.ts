@@ -255,10 +255,65 @@ ALTER TABLE checkpoints ADD COLUMN workspace_fingerprint TEXT
   CHECK (workspace_fingerprint IS NULL OR length(workspace_fingerprint) > 0);
 `;
 
+const runBranchesAndTaskCheckpoints = `
+CREATE TABLE densa_run_branches (
+  project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
+  workspace_path TEXT NOT NULL CHECK (length(workspace_path) > 0),
+  branch_name TEXT NOT NULL UNIQUE CHECK (branch_name GLOB 'densa/run/*'),
+  source_branch TEXT NOT NULL CHECK (length(source_branch) > 0),
+  starting_commit TEXT NOT NULL CHECK (length(starting_commit) > 0),
+  status TEXT NOT NULL CHECK (status IN ('CREATING', 'ACTIVE', 'FAILED')),
+  created_at TEXT NOT NULL CHECK (length(created_at) >= 20),
+  activated_at TEXT CHECK (activated_at IS NULL OR length(activated_at) >= 20),
+  failure_reason TEXT CHECK (failure_reason IS NULL OR length(failure_reason) > 0),
+  CHECK ((status = 'ACTIVE') = (activated_at IS NOT NULL)),
+  CHECK ((status = 'FAILED') = (failure_reason IS NOT NULL))
+) STRICT;
+
+CREATE TABLE checkpoints_v4 (
+  id TEXT PRIMARY KEY CHECK (length(id) > 0),
+  project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  task_id TEXT,
+  attempt_id TEXT UNIQUE,
+  run_branch TEXT,
+  created_at TEXT NOT NULL CHECK (length(created_at) >= 20),
+  description TEXT CHECK (description IS NULL OR length(description) > 0),
+  git_head TEXT CHECK (git_head IS NULL OR length(git_head) > 0),
+  git_status TEXT,
+  workspace_fingerprint TEXT CHECK (
+    workspace_fingerprint IS NULL OR length(workspace_fingerprint) > 0
+  ),
+  FOREIGN KEY (project_id, task_id) REFERENCES tasks(project_id, id) ON DELETE CASCADE,
+  FOREIGN KEY (task_id, attempt_id) REFERENCES attempts(task_id, id) ON DELETE CASCADE,
+  FOREIGN KEY (run_branch) REFERENCES densa_run_branches(branch_name) ON DELETE RESTRICT,
+  CHECK (
+    (task_id IS NULL AND attempt_id IS NULL AND run_branch IS NULL)
+    OR
+    (task_id IS NOT NULL AND attempt_id IS NOT NULL AND run_branch IS NOT NULL AND git_head IS NOT NULL)
+  )
+) STRICT;
+
+INSERT INTO checkpoints_v4
+  (id, project_id, created_at, description, git_head, git_status, workspace_fingerprint)
+SELECT id, project_id, created_at, description, git_head, git_status, workspace_fingerprint
+FROM checkpoints;
+
+DROP TABLE checkpoints;
+ALTER TABLE checkpoints_v4 RENAME TO checkpoints;
+
+CREATE INDEX checkpoints_project_created ON checkpoints (project_id, created_at, id);
+CREATE INDEX checkpoints_task_created ON checkpoints (task_id, created_at, id);
+`;
+
 export const schemaMigrations: readonly SchemaMigration[] = Object.freeze([
   Object.freeze({ version: 1, name: "authoritative_runtime_schema", sql: initialSchema }),
   Object.freeze({ version: 2, name: "ordered_event_journal", sql: orderedEventJournal }),
   Object.freeze({ version: 3, name: "recovery_metadata", sql: recoveryMetadata }),
+  Object.freeze({
+    version: 4,
+    name: "run_branches_and_task_checkpoints",
+    sql: runBranchesAndTaskCheckpoints,
+  }),
 ]);
 
 export const latestSchemaVersion = schemaMigrations.at(-1)?.version ?? 0;
