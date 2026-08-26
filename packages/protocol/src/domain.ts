@@ -24,39 +24,45 @@ import {
 const nonEmptyText = z.string().min(1);
 const position = z.number().int().nonnegative();
 
-export const projectSchema = z.strictObject({
-  id: projectIdSchema,
-  name: nonEmptyText,
-  state: projectStateSchema,
-  executionMode: executionModeSchema,
-  createdAt: isoTimestampSchema,
-  updatedAt: isoTimestampSchema,
-});
+export const projectSchema = z
+  .strictObject({
+    id: projectIdSchema,
+    name: nonEmptyText,
+    state: projectStateSchema,
+    executionMode: executionModeSchema,
+    createdAt: isoTimestampSchema,
+    updatedAt: isoTimestampSchema,
+  })
+  .readonly();
 export type Project = z.infer<typeof projectSchema>;
 
-export const phaseSchema = z.strictObject({
-  id: phaseIdSchema,
-  projectId: projectIdSchema,
-  title: nonEmptyText,
-  state: phaseStateSchema,
-  position,
-  createdAt: isoTimestampSchema,
-  updatedAt: isoTimestampSchema,
-});
+export const phaseSchema = z
+  .strictObject({
+    id: phaseIdSchema,
+    projectId: projectIdSchema,
+    title: nonEmptyText,
+    state: phaseStateSchema,
+    position,
+    createdAt: isoTimestampSchema,
+    updatedAt: isoTimestampSchema,
+  })
+  .readonly();
 export type Phase = z.infer<typeof phaseSchema>;
 
-export const taskSchema = z.strictObject({
-  id: taskIdSchema,
-  projectId: projectIdSchema,
-  phaseId: phaseIdSchema,
-  title: nonEmptyText,
-  state: taskStateSchema,
-  position,
-  acceptanceCriteria: z.array(nonEmptyText).min(1),
-  dependencyIds: z.array(taskIdSchema),
-  createdAt: isoTimestampSchema,
-  updatedAt: isoTimestampSchema,
-});
+export const taskSchema = z
+  .strictObject({
+    id: taskIdSchema,
+    projectId: projectIdSchema,
+    phaseId: phaseIdSchema,
+    title: nonEmptyText,
+    state: taskStateSchema,
+    position,
+    acceptanceCriteria: z.array(nonEmptyText).min(1),
+    dependencyIds: z.array(taskIdSchema),
+    createdAt: isoTimestampSchema,
+    updatedAt: isoTimestampSchema,
+  })
+  .readonly();
 export type Task = z.infer<typeof taskSchema>;
 
 export const attemptSchema = z.strictObject({

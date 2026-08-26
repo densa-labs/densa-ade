@@ -14,6 +14,7 @@ export const densaErrorCodeSchema = z.enum([
   "GIT_FAILURE",
   "PERSISTENCE_FAILURE",
   "PROTOCOL_VERSION_MISMATCH",
+  "INVALID_STATE_TRANSITION",
   "INTERNAL_INVARIANT_VIOLATION",
 ]);
 export type DensaErrorCode = z.infer<typeof densaErrorCodeSchema>;
