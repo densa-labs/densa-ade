@@ -135,8 +135,10 @@ test("project, phase, and aggregate task repositories preserve protocol records"
 
     assert.deepEqual(repositories.projects.findById(project.id), project);
     assert.deepEqual(repositories.phases.findById(phase.id), phase);
+    assert.deepEqual(repositories.phases.listByProjectId(project.id), [phase]);
     assert.deepEqual(repositories.tasks.findById(dependency.id), dependency);
     assert.deepEqual(repositories.tasks.findById(task.id), task);
+    assert.deepEqual(repositories.tasks.listByProjectId(project.id), [dependency, task]);
     assert.deepEqual(repositories.acceptanceCriteria.listForTask(task.id), [
       { taskId: task.id, position: 0, description: "The record round-trips" },
       { taskId: task.id, position: 1, description: "Foreign keys remain valid" },
@@ -256,7 +258,9 @@ test("all remaining P2M1 repositories round-trip their runtime records", () => {
     assert.deepEqual(repositories.agentRuns.findById(agentRun.id), agentRun);
     assert.deepEqual(repositories.validationRuns.findById(validationRun.id), validationRun);
     assert.deepEqual(repositories.decisions.findById(decision.id), decision);
+    assert.deepEqual(repositories.decisions.listByProjectId(project.id), [decision]);
     assert.deepEqual(repositories.roadmapRevisions.findById(revision.id), revision);
+    assert.deepEqual(repositories.roadmapRevisions.listByProjectId(project.id), [revision]);
     assert.deepEqual(repositories.checkpoints.findById(checkpoint.id), checkpoint);
     assert.deepEqual(repositories.events.findById(event.id), { ...event, sequenceNumber: 1 });
     assert.deepEqual(repositories.projectSettings.findByProjectId(project.id), settings);

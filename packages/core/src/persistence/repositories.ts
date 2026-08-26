@@ -35,6 +35,7 @@ import {
 import {
   PersistenceError,
   type SqliteConnection,
+  type SqliteRow,
   optionalBoolean,
   optionalString,
   requiredNumber,
@@ -78,11 +79,13 @@ export interface SpecificationRepository {
 export interface PhaseRepository {
   create(phase: Phase): Phase;
   findById(id: Phase["id"]): Phase | undefined;
+  listByProjectId(projectId: Project["id"]): readonly Phase[];
 }
 
 export interface TaskRepository {
   create(task: Task): Task;
   findById(id: Task["id"]): Task | undefined;
+  listByProjectId(projectId: Project["id"]): readonly Task[];
 }
 
 export interface TaskDependencyRepository {
@@ -113,11 +116,13 @@ export interface ValidationRunRepository {
 export interface DecisionRepository {
   create(decision: Decision): Decision;
   findById(id: Decision["id"]): Decision | undefined;
+  listByProjectId(projectId: Project["id"]): readonly Decision[];
 }
 
 export interface RoadmapRevisionRepository {
   create(revision: RoadmapRevision): RoadmapRevision;
   findById(id: RoadmapRevision["id"]): RoadmapRevision | undefined;
+  listByProjectId(projectId: Project["id"]): readonly RoadmapRevision[];
 }
 
 export interface CheckpointRepository {
@@ -276,17 +281,27 @@ class SqlitePhaseRepository implements PhaseRepository {
 
   findById(id: Phase["id"]): Phase | undefined {
     const row = this.connection.get("SELECT * FROM phases WHERE id = ?", id);
-    return row === undefined
-      ? undefined
-      : phaseSchema.parse({
-          id: requiredString(row, "id"),
-          projectId: requiredString(row, "project_id"),
-          title: requiredString(row, "title"),
-          state: requiredString(row, "state"),
-          position: requiredNumber(row, "position"),
-          createdAt: requiredString(row, "created_at"),
-          updatedAt: requiredString(row, "updated_at"),
-        });
+    return row === undefined ? undefined : this.parse(row);
+  }
+
+  listByProjectId(projectId: Project["id"]): readonly Phase[] {
+    return Object.freeze(
+      this.connection
+        .all("SELECT * FROM phases WHERE project_id = ? ORDER BY position, id", projectId)
+        .map((row) => this.parse(row)),
+    );
+  }
+
+  private parse(row: SqliteRow): Phase {
+    return phaseSchema.parse({
+      id: requiredString(row, "id"),
+      projectId: requiredString(row, "project_id"),
+      title: requiredString(row, "title"),
+      state: requiredString(row, "state"),
+      position: requiredNumber(row, "position"),
+      createdAt: requiredString(row, "created_at"),
+      updatedAt: requiredString(row, "updated_at"),
+    });
   }
 }
 
@@ -384,11 +399,21 @@ class SqliteTaskRepository implements TaskRepository {
 
   findById(id: Task["id"]): Task | undefined {
     const row = this.connection.get("SELECT * FROM tasks WHERE id = ?", id);
-    if (row === undefined) {
-      return undefined;
-    }
+    return row === undefined ? undefined : this.parse(row);
+  }
+
+  listByProjectId(projectId: Project["id"]): readonly Task[] {
+    return Object.freeze(
+      this.connection
+        .all("SELECT * FROM tasks WHERE project_id = ? ORDER BY phase_id, position, id", projectId)
+        .map((row) => this.parse(row)),
+    );
+  }
+
+  private parse(row: SqliteRow): Task {
+    const id = requiredString(row, "id") as Task["id"];
     return taskSchema.parse({
-      id: requiredString(row, "id"),
+      id,
       projectId: requiredString(row, "project_id"),
       phaseId: requiredString(row, "phase_id"),
       title: requiredString(row, "title"),
@@ -543,15 +568,25 @@ class SqliteDecisionRepository implements DecisionRepository {
 
   findById(id: Decision["id"]): Decision | undefined {
     const row = this.connection.get("SELECT * FROM decisions WHERE id = ?", id);
-    return row === undefined
-      ? undefined
-      : decisionSchema.parse({
-          id: requiredString(row, "id"),
-          projectId: requiredString(row, "project_id"),
-          title: requiredString(row, "title"),
-          rationale: requiredString(row, "rationale"),
-          createdAt: requiredString(row, "created_at"),
-        });
+    return row === undefined ? undefined : this.parse(row);
+  }
+
+  listByProjectId(projectId: Project["id"]): readonly Decision[] {
+    return Object.freeze(
+      this.connection
+        .all("SELECT * FROM decisions WHERE project_id = ? ORDER BY created_at, id", projectId)
+        .map((row) => this.parse(row)),
+    );
+  }
+
+  private parse(row: SqliteRow): Decision {
+    return decisionSchema.parse({
+      id: requiredString(row, "id"),
+      projectId: requiredString(row, "project_id"),
+      title: requiredString(row, "title"),
+      rationale: requiredString(row, "rationale"),
+      createdAt: requiredString(row, "created_at"),
+    });
   }
 }
 
@@ -581,20 +616,33 @@ class SqliteRoadmapRevisionRepository implements RoadmapRevisionRepository {
 
   findById(id: RoadmapRevision["id"]): RoadmapRevision | undefined {
     const row = this.connection.get("SELECT * FROM roadmap_revisions WHERE id = ?", id);
-    return row === undefined
-      ? undefined
-      : roadmapRevisionSchema.parse({
-          id: requiredString(row, "id"),
-          projectId: requiredString(row, "project_id"),
-          classification: requiredString(row, "classification"),
-          reason: requiredString(row, "reason"),
-          actor: requiredString(row, "actor"),
-          createdAt: requiredString(row, "created_at"),
-          affectedPhaseIds: parseJson(requiredString(row, "affected_phase_ids_json")),
-          affectedTaskIds: parseJson(requiredString(row, "affected_task_ids_json")),
-          oldValue: parseJson(requiredString(row, "old_value_json")),
-          newValue: parseJson(requiredString(row, "new_value_json")),
-        });
+    return row === undefined ? undefined : this.parse(row);
+  }
+
+  listByProjectId(projectId: Project["id"]): readonly RoadmapRevision[] {
+    return Object.freeze(
+      this.connection
+        .all(
+          "SELECT * FROM roadmap_revisions WHERE project_id = ? ORDER BY created_at, id",
+          projectId,
+        )
+        .map((row) => this.parse(row)),
+    );
+  }
+
+  private parse(row: SqliteRow): RoadmapRevision {
+    return roadmapRevisionSchema.parse({
+      id: requiredString(row, "id"),
+      projectId: requiredString(row, "project_id"),
+      classification: requiredString(row, "classification"),
+      reason: requiredString(row, "reason"),
+      actor: requiredString(row, "actor"),
+      createdAt: requiredString(row, "created_at"),
+      affectedPhaseIds: parseJson(requiredString(row, "affected_phase_ids_json")),
+      affectedTaskIds: parseJson(requiredString(row, "affected_task_ids_json")),
+      oldValue: parseJson(requiredString(row, "old_value_json")),
+      newValue: parseJson(requiredString(row, "new_value_json")),
+    });
   }
 }
 
