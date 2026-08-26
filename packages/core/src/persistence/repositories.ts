@@ -37,6 +37,7 @@ import {
   type SqliteConnection,
   type SqliteRow,
   optionalBoolean,
+  optionalNumber,
   optionalString,
   requiredNumber,
   requiredString,
@@ -101,16 +102,19 @@ export type NewAttempt = Omit<Attempt, "agentRunId"> & { readonly agentRunId?: n
 export interface AttemptRepository {
   create(attempt: NewAttempt): Attempt;
   findById(id: Attempt["id"]): Attempt | undefined;
+  listByTaskId(taskId: Task["id"]): readonly Attempt[];
 }
 
 export interface AgentRunRepository {
   create(run: AgentRun): AgentRun;
   findById(id: AgentRun["id"]): AgentRun | undefined;
+  findByAttemptId(attemptId: Attempt["id"]): AgentRun | undefined;
 }
 
 export interface ValidationRunRepository {
   create(run: ValidationRun): ValidationRun;
   findById(id: ValidationRun["id"]): ValidationRun | undefined;
+  listByTaskId(taskId: Task["id"]): readonly ValidationRun[];
 }
 
 export interface DecisionRepository {
@@ -128,11 +132,13 @@ export interface RoadmapRevisionRepository {
 export interface CheckpointRepository {
   create(checkpoint: Checkpoint): Checkpoint;
   findById(id: Checkpoint["id"]): Checkpoint | undefined;
+  listByProjectId(projectId: Project["id"]): readonly Checkpoint[];
 }
 
 export interface EventRepository {
   append(event: Event): PersistedEvent;
   findById(id: Event["id"]): PersistedEvent | undefined;
+  latest(projectId: Project["id"]): PersistedEvent | undefined;
   replay(filter?: EventReplayFilter): readonly PersistedEvent[];
 }
 
@@ -456,9 +462,23 @@ class SqliteAttemptRepository implements AttemptRepository {
        WHERE attempts.id = ?`,
       id,
     );
-    if (row === undefined) {
-      return undefined;
-    }
+    return row === undefined ? undefined : this.parse(row);
+  }
+
+  listByTaskId(taskId: Task["id"]): readonly Attempt[] {
+    return Object.freeze(
+      this.connection
+        .all(
+          `SELECT attempts.*, agent_runs.id AS agent_run_id
+           FROM attempts LEFT JOIN agent_runs ON agent_runs.attempt_id = attempts.id
+           WHERE attempts.task_id = ? ORDER BY attempts.number, attempts.id`,
+          taskId,
+        )
+        .map((row) => this.parse(row)),
+    );
+  }
+
+  private parse(row: SqliteRow): Attempt {
     const completedAt = optionalString(row, "completed_at");
     const agentRunId = optionalString(row, "agent_run_id");
     return attemptSchema.parse({
@@ -479,25 +499,36 @@ class SqliteAgentRunRepository implements AgentRunRepository {
     const run = agentRunSchema.parse(input);
     this.connection.run(
       `INSERT INTO agent_runs
-       (id, attempt_id, adapter_id, started_at, completed_at, adapter_run_id)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+       (id, attempt_id, adapter_id, started_at, completed_at, adapter_run_id, process_id,
+        process_identity)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       run.id,
       run.attemptId,
       run.adapterId,
       run.startedAt,
       run.completedAt ?? null,
       run.adapterRunId ?? null,
+      run.processId ?? null,
+      run.processIdentity ?? null,
     );
     return run;
   }
 
   findById(id: AgentRun["id"]): AgentRun | undefined {
     const row = this.connection.get("SELECT * FROM agent_runs WHERE id = ?", id);
-    if (row === undefined) {
-      return undefined;
-    }
+    return row === undefined ? undefined : this.parse(row);
+  }
+
+  findByAttemptId(attemptId: Attempt["id"]): AgentRun | undefined {
+    const row = this.connection.get("SELECT * FROM agent_runs WHERE attempt_id = ?", attemptId);
+    return row === undefined ? undefined : this.parse(row);
+  }
+
+  private parse(row: SqliteRow): AgentRun {
     const completedAt = optionalString(row, "completed_at");
     const adapterRunId = optionalString(row, "adapter_run_id");
+    const processId = optionalNumber(row, "process_id");
+    const processIdentity = optionalString(row, "process_identity");
     return agentRunSchema.parse({
       id: requiredString(row, "id"),
       attemptId: requiredString(row, "attempt_id"),
@@ -505,6 +536,8 @@ class SqliteAgentRunRepository implements AgentRunRepository {
       startedAt: requiredString(row, "started_at"),
       ...(completedAt === undefined ? {} : { completedAt }),
       ...(adapterRunId === undefined ? {} : { adapterRunId }),
+      ...(processId === undefined ? {} : { processId }),
+      ...(processIdentity === undefined ? {} : { processIdentity }),
     });
   }
 }
@@ -531,9 +564,18 @@ class SqliteValidationRunRepository implements ValidationRunRepository {
 
   findById(id: ValidationRun["id"]): ValidationRun | undefined {
     const row = this.connection.get("SELECT * FROM validation_runs WHERE id = ?", id);
-    if (row === undefined) {
-      return undefined;
-    }
+    return row === undefined ? undefined : this.parse(row);
+  }
+
+  listByTaskId(taskId: Task["id"]): readonly ValidationRun[] {
+    return Object.freeze(
+      this.connection
+        .all("SELECT * FROM validation_runs WHERE task_id = ? ORDER BY started_at, id", taskId)
+        .map((row) => this.parse(row)),
+    );
+  }
+
+  private parse(row: SqliteRow): ValidationRun {
     const attemptId = optionalString(row, "attempt_id");
     const completedAt = optionalString(row, "completed_at");
     const passed = optionalBoolean(row, "passed");
@@ -652,26 +694,46 @@ class SqliteCheckpointRepository implements CheckpointRepository {
   create(input: Checkpoint): Checkpoint {
     const checkpoint = checkpointSchema.parse(input);
     this.connection.run(
-      `INSERT INTO checkpoints (id, project_id, created_at, description) VALUES (?, ?, ?, ?)`,
+      `INSERT INTO checkpoints
+       (id, project_id, created_at, description, git_head, git_status, workspace_fingerprint)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
       checkpoint.id,
       checkpoint.projectId,
       checkpoint.createdAt,
       checkpoint.description ?? null,
+      checkpoint.gitHead ?? null,
+      checkpoint.gitStatus ?? null,
+      checkpoint.workspaceFingerprint ?? null,
     );
     return checkpoint;
   }
 
   findById(id: Checkpoint["id"]): Checkpoint | undefined {
     const row = this.connection.get("SELECT * FROM checkpoints WHERE id = ?", id);
-    if (row === undefined) {
-      return undefined;
-    }
+    return row === undefined ? undefined : this.parse(row);
+  }
+
+  listByProjectId(projectId: Project["id"]): readonly Checkpoint[] {
+    return Object.freeze(
+      this.connection
+        .all("SELECT * FROM checkpoints WHERE project_id = ? ORDER BY created_at, id", projectId)
+        .map((row) => this.parse(row)),
+    );
+  }
+
+  private parse(row: SqliteRow): Checkpoint {
     const description = optionalString(row, "description");
+    const gitHead = optionalString(row, "git_head");
+    const gitStatus = optionalString(row, "git_status");
+    const workspaceFingerprint = optionalString(row, "workspace_fingerprint");
     return checkpointSchema.parse({
       id: requiredString(row, "id"),
       projectId: requiredString(row, "project_id"),
       createdAt: requiredString(row, "created_at"),
       ...(description === undefined ? {} : { description }),
+      ...(gitHead === undefined ? {} : { gitHead }),
+      ...(gitStatus === undefined ? {} : { gitStatus }),
+      ...(workspaceFingerprint === undefined ? {} : { workspaceFingerprint }),
     });
   }
 }
@@ -717,6 +779,14 @@ class SqliteEventRepository implements EventRepository {
 
   findById(id: Event["id"]): PersistedEvent | undefined {
     const row = this.connection.get("SELECT * FROM events WHERE id = ?", id);
+    return row === undefined ? undefined : this.parseRow(row);
+  }
+
+  latest(projectId: Project["id"]): PersistedEvent | undefined {
+    const row = this.connection.get(
+      "SELECT * FROM events WHERE project_id = ? ORDER BY sequence_number DESC LIMIT 1",
+      projectId,
+    );
     return row === undefined ? undefined : this.parseRow(row);
   }
 

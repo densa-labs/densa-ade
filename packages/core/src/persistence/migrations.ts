@@ -243,9 +243,22 @@ BEGIN
 END;
 `;
 
+const recoveryMetadata = `
+ALTER TABLE agent_runs ADD COLUMN process_id INTEGER
+  CHECK (process_id IS NULL OR (process_id > 0 AND process_id <= 2147483647));
+ALTER TABLE agent_runs ADD COLUMN process_identity TEXT
+  CHECK (process_identity IS NULL OR length(process_identity) > 0);
+ALTER TABLE checkpoints ADD COLUMN git_head TEXT
+  CHECK (git_head IS NULL OR length(git_head) > 0);
+ALTER TABLE checkpoints ADD COLUMN git_status TEXT;
+ALTER TABLE checkpoints ADD COLUMN workspace_fingerprint TEXT
+  CHECK (workspace_fingerprint IS NULL OR length(workspace_fingerprint) > 0);
+`;
+
 export const schemaMigrations: readonly SchemaMigration[] = Object.freeze([
   Object.freeze({ version: 1, name: "authoritative_runtime_schema", sql: initialSchema }),
   Object.freeze({ version: 2, name: "ordered_event_journal", sql: orderedEventJournal }),
+  Object.freeze({ version: 3, name: "recovery_metadata", sql: recoveryMetadata }),
 ]);
 
 export const latestSchemaVersion = schemaMigrations.at(-1)?.version ?? 0;

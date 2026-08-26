@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -7,6 +8,8 @@ import { test } from "node:test";
 
 import { StateTransitionService } from "@densa/core";
 import { DensaDatabase, PersistenceError } from "@densa/core/persistence";
+
+import { schemaMigrations } from "../packages/core/dist/persistence/migrations.js";
 
 const createdAt = "2026-08-26T06:00:00.000Z";
 const updatedAt = "2026-08-26T06:15:00.000Z";
@@ -82,8 +85,8 @@ test("a file database migrates from zero and reopening does not reapply migratio
   const path = join(directory, "runtime.sqlite");
   try {
     const first = DensaDatabase.open(path, { now: fixedMigrationTime });
-    assert.equal(first.schemaVersion, 2);
-    assert.equal(first.expectedSchemaVersion, 2);
+    assert.equal(first.schemaVersion, 3);
+    assert.equal(first.expectedSchemaVersion, 3);
     assert.deepEqual(first.listUserTables(), [
       "acceptance_criteria",
       "agent_runs",
@@ -103,7 +106,7 @@ test("a file database migrates from zero and reopening does not reapply migratio
     first.close();
 
     const reopened = DensaDatabase.open(path, { now: fixedMigrationTime });
-    assert.equal(reopened.schemaVersion, 2);
+    assert.equal(reopened.schemaVersion, 3);
     reopened.close();
   } finally {
     rmSync(directory, { force: true, recursive: true });
@@ -190,6 +193,8 @@ test("all remaining P2M1 repositories round-trip their runtime records", () => {
       startedAt: createdAt,
       completedAt: updatedAt,
       adapterRunId: "fake-run-1",
+      processId: 4242,
+      processIdentity: "worker-identity-4242",
     };
     const validationRun = {
       id: "validation-run-1",
@@ -224,6 +229,9 @@ test("all remaining P2M1 repositories round-trip their runtime records", () => {
       projectId: project.id,
       createdAt,
       description: "Clean Git worktree",
+      gitHead: "0123456789abcdef",
+      gitStatus: "",
+      workspaceFingerprint: "workspace-fingerprint-1",
     };
     const event = {
       id: "event-manual-1",
@@ -255,16 +263,107 @@ test("all remaining P2M1 repositories round-trip their runtime records", () => {
       ...attempt,
       agentRunId: agentRun.id,
     });
+    assert.deepEqual(repositories.attempts.listByTaskId(task.id), [
+      { ...attempt, agentRunId: agentRun.id },
+    ]);
     assert.deepEqual(repositories.agentRuns.findById(agentRun.id), agentRun);
+    assert.deepEqual(repositories.agentRuns.findByAttemptId(attempt.id), agentRun);
     assert.deepEqual(repositories.validationRuns.findById(validationRun.id), validationRun);
+    assert.deepEqual(repositories.validationRuns.listByTaskId(task.id), [validationRun]);
     assert.deepEqual(repositories.decisions.findById(decision.id), decision);
     assert.deepEqual(repositories.decisions.listByProjectId(project.id), [decision]);
     assert.deepEqual(repositories.roadmapRevisions.findById(revision.id), revision);
     assert.deepEqual(repositories.roadmapRevisions.listByProjectId(project.id), [revision]);
     assert.deepEqual(repositories.checkpoints.findById(checkpoint.id), checkpoint);
+    assert.deepEqual(repositories.checkpoints.listByProjectId(project.id), [checkpoint]);
     assert.deepEqual(repositories.events.findById(event.id), { ...event, sequenceNumber: 1 });
     assert.deepEqual(repositories.projectSettings.findByProjectId(project.id), settings);
   });
+});
+
+test("migration 3 preserves version-2 runtime rows and adds nullable recovery metadata", () => {
+  const directory = mkdtempSync(join(tmpdir(), "densa-p2m4-migration-"));
+  const path = join(directory, "runtime.sqlite");
+  try {
+    const raw = new DatabaseSync(path);
+    raw.exec(`
+      CREATE TABLE _densa_migrations (
+        version INTEGER PRIMARY KEY CHECK (version > 0),
+        name TEXT NOT NULL UNIQUE,
+        checksum TEXT NOT NULL CHECK (length(checksum) = 64),
+        applied_at TEXT NOT NULL CHECK (length(applied_at) >= 20)
+      ) STRICT;
+    `);
+    for (const migration of schemaMigrations.slice(0, 2)) {
+      raw.exec(migration.sql);
+      raw
+        .prepare(
+          "INSERT INTO _densa_migrations (version, name, checksum, applied_at) VALUES (?, ?, ?, ?)",
+        )
+        .run(
+          migration.version,
+          migration.name,
+          createHash("sha256").update(migration.sql).digest("hex"),
+          fixedMigrationTime(),
+        );
+    }
+    raw
+      .prepare(
+        `INSERT INTO projects (id, name, state, execution_mode, created_at, updated_at)
+         VALUES ('project-v2', 'Version 2', 'DRAFT', 'guided', ?, ?)`,
+      )
+      .run(createdAt, createdAt);
+    raw
+      .prepare(
+        `INSERT INTO phases (id, project_id, title, state, position, created_at, updated_at)
+         VALUES ('phase-v2', 'project-v2', 'Version 2', 'PENDING', 0, ?, ?)`,
+      )
+      .run(createdAt, createdAt);
+    raw
+      .prepare(
+        `INSERT INTO tasks
+         (id, project_id, phase_id, title, state, position, created_at, updated_at)
+         VALUES ('task-v2', 'project-v2', 'phase-v2', 'Version 2', 'PENDING', 0, ?, ?)`,
+      )
+      .run(createdAt, createdAt);
+    raw
+      .prepare(
+        `INSERT INTO attempts (id, task_id, number, started_at)
+         VALUES ('attempt-v2', 'task-v2', 1, ?)`,
+      )
+      .run(createdAt);
+    raw
+      .prepare(
+        `INSERT INTO agent_runs (id, attempt_id, adapter_id, started_at)
+         VALUES ('agent-run-v2', 'attempt-v2', 'fake', ?)`,
+      )
+      .run(createdAt);
+    raw
+      .prepare(
+        `INSERT INTO checkpoints (id, project_id, created_at, description)
+         VALUES ('checkpoint-v2', 'project-v2', ?, 'pre-recovery metadata')`,
+      )
+      .run(createdAt);
+    raw.close();
+
+    const database = DensaDatabase.open(path, { now: fixedMigrationTime });
+    assert.equal(database.schemaVersion, 3);
+    assert.deepEqual(database.repositories.agentRuns.findById("agent-run-v2"), {
+      id: "agent-run-v2",
+      attemptId: "attempt-v2",
+      adapterId: "fake",
+      startedAt: createdAt,
+    });
+    assert.deepEqual(database.repositories.checkpoints.findById("checkpoint-v2"), {
+      id: "checkpoint-v2",
+      projectId: "project-v2",
+      createdAt,
+      description: "pre-recovery metadata",
+    });
+    database.close();
+  } finally {
+    rmSync(directory, { force: true, recursive: true });
+  }
 });
 
 test("failed multi-record work rolls back every repository write", () => {

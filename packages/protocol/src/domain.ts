@@ -82,6 +82,8 @@ export const agentRunSchema = z.strictObject({
   startedAt: isoTimestampSchema,
   completedAt: isoTimestampSchema.optional(),
   adapterRunId: nonEmptyText.optional(),
+  processId: z.number().int().positive().max(2_147_483_647).optional(),
+  processIdentity: nonEmptyText.optional(),
 });
 export type AgentRun = z.infer<typeof agentRunSchema>;
 
@@ -101,6 +103,9 @@ export const checkpointSchema = z.strictObject({
   projectId: projectIdSchema,
   createdAt: isoTimestampSchema,
   description: nonEmptyText.optional(),
+  gitHead: nonEmptyText.optional(),
+  gitStatus: z.string().optional(),
+  workspaceFingerprint: nonEmptyText.optional(),
 });
 export type Checkpoint = z.infer<typeof checkpointSchema>;
 
