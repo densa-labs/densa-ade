@@ -166,6 +166,17 @@ export function requiredNumber(row: SqliteRow, column: string): number {
   return value;
 }
 
+export function optionalNumber(row: SqliteRow, column: string): number | undefined {
+  const value = row[column];
+  if (value === null) {
+    return undefined;
+  }
+  if (typeof value !== "number") {
+    throw new PersistenceError(`Expected SQLite column ${column} to be nullable numeric`);
+  }
+  return value;
+}
+
 export function optionalBoolean(row: SqliteRow, column: string): boolean | undefined {
   const value = row[column];
   if (value === null) {

@@ -40,6 +40,13 @@ Migration 2 upgrades events with deterministic per-project sequence numbers and 
 `eventVersion` field. Replay, filtering, payload bounds, post-commit publication, and subscriptions
 are documented in [event-journal.md](./event-journal.md).
 
+Migration 3 adds nullable recovery evidence without changing older records: agent runs may record a
+worker PID plus opaque process-identity hash, and checkpoints may record Git `HEAD`, porcelain
+status, and a content-sensitive workspace fingerprint. Repository list/latest queries expose
+attempts, agent and validation runs, checkpoints, and the last project event through the Core
+boundary. Recovery remains read-only and is documented in
+[recovery-inspection.md](./recovery-inspection.md).
+
 The project-scoped list queries added for portable export retain repository isolation and stable
 ordering. Phase 2 Milestone 3 uses them to create `.densa/` snapshots without exposing raw SQL or
 making the filesystem authoritative; see [portable-project.md](./portable-project.md).
@@ -51,7 +58,7 @@ ISO-8601 application timestamp. Opening a database applies pending migrations tr
 fails closed if an already-applied migration differs from the current build. Migration files are
 immutable after release: future schema changes append a new version instead of editing migration 1.
 
-The supported paths are zero-to-latest and version-1-to-version-2. There is no downgrade path;
+The supported paths are zero-to-latest, version-1-to-latest, and version-2-to-version-3. There is no downgrade path;
 a newer database must not be opened by an older Core build. Future destructive or data-transforming
 migrations must document backup, forward, and rollback assumptions alongside their migration tests.
 

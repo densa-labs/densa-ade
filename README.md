@@ -65,6 +65,15 @@ documented in [`docs/sqlite-persistence.md`](docs/sqlite-persistence.md). Event 
 filters, and post-commit subscriptions are documented in
 [`docs/event-journal.md`](docs/event-journal.md).
 
+## Recovery inspection
+
+`RecoveryInspector` compares authoritative project/task/attempt records, verified worker process
+identity, incomplete validation, the latest event/checkpoint, and a content-sensitive Git snapshot
+after restart. It classifies clean idle, live worker, missing worker, interrupted validation,
+workspace divergence, and unknown evidence while returning plans only—P2M4 performs no automatic
+state or workspace mutation. The evidence rules and fail-closed behavior are documented in
+[`docs/recovery-inspection.md`](docs/recovery-inspection.md).
+
 ## Portable project representation
 
 `PortableProjectSynchronizer` exports important SQLite-backed project intent to deterministic

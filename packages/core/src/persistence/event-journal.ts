@@ -24,6 +24,10 @@ export class EventJournal {
     return this.repository.findById(id);
   }
 
+  latest(projectId: Event["projectId"]): PersistedEvent | undefined {
+    return this.repository.latest(projectId);
+  }
+
   replay(filter: EventReplayFilter = {}): readonly PersistedEvent[] {
     return this.repository.replay(filter);
   }
