@@ -40,6 +40,10 @@ Migration 2 upgrades events with deterministic per-project sequence numbers and 
 `eventVersion` field. Replay, filtering, payload bounds, post-commit publication, and subscriptions
 are documented in [event-journal.md](./event-journal.md).
 
+The project-scoped list queries added for portable export retain repository isolation and stable
+ordering. Phase 2 Milestone 3 uses them to create `.densa/` snapshots without exposing raw SQL or
+making the filesystem authoritative; see [portable-project.md](./portable-project.md).
+
 ## Migration compatibility
 
 `_densa_migrations` records each contiguous migration version, stable name, SHA-256 checksum, and

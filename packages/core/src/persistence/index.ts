@@ -1,5 +1,6 @@
 export * from "./database.js";
 export * from "./event-journal.js";
+export * from "./portable-project.js";
 export type {
   EventFilter,
   EventReplayFilter,

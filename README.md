@@ -62,7 +62,17 @@ the initial integrity boundary. In-memory and temporary file databases support d
 
 The schema, migration compatibility rules, transaction behavior, and data/secret boundary are
 documented in [`docs/sqlite-persistence.md`](docs/sqlite-persistence.md). Event sequencing, replay,
-filters, and post-commit subscriptions remain Phase 2 Milestone 2 scope.
+filters, and post-commit subscriptions are documented in
+[`docs/event-journal.md`](docs/event-journal.md).
+
+## Portable project representation
+
+`PortableProjectSynchronizer` exports important SQLite-backed project intent to deterministic
+`.densa/` JSON and Markdown without making those files an alternate runtime database. It preserves
+meaningful human edits as explicit conflicts, atomically replaces generated files, creates the
+portable reports/logs directories, and redacts secret-like values before writing. The authority
+boundary and synchronization protocol are documented in
+[`docs/portable-project.md`](docs/portable-project.md).
 
 ## Headless CLI
 
