@@ -90,6 +90,12 @@ checkpoint metadata survive Core restart, collisions fail closed, user work rema
 and the service never pushes. The model and safety boundary are documented in
 [`docs/run-branches-and-checkpoints.md`](docs/run-branches-and-checkpoints.md).
 
+After a completed passing validation, `TaskCommitService` verifies that same attempt and owned
+branch, records durable commit intent, and commits exactly the explicitly declared changed paths.
+The verified SHA and `VALIDATING` to `COMPLETED` transition persist atomically; interrupted or
+failed persistence remains recoverable without creating a duplicate commit. Unrelated user changes
+stay outside the task commit, and this local project workflow never pushes.
+
 ## Portable project representation
 
 `PortableProjectSynchronizer` exports important SQLite-backed project intent to deterministic

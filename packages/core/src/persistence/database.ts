@@ -4,7 +4,9 @@ import {
   phaseSchema,
   projectSchema,
   taskSchema,
+  type AttemptId,
   type EventId,
+  type ValidationRunId,
 } from "@densa/protocol";
 
 import type {
@@ -28,6 +30,15 @@ export interface DensaDatabaseOptions {
 }
 
 export type StateTransition = ProjectStateTransition | PhaseStateTransition | TaskStateTransition;
+
+export interface PersistTaskCommitCompletionRequest {
+  readonly attemptId: AttemptId;
+  readonly validationRunId: ValidationRunId;
+  readonly commitSha: string;
+  readonly commitRecordedEventId: EventId;
+  readonly completionEventId: EventId;
+  readonly transition: TaskStateTransition;
+}
 
 function assertEventMatchesTransition(transition: StateTransition): void {
   const payload = transition.event.payload;
@@ -152,6 +163,57 @@ export class DensaDatabase {
         );
       }
       return this.repositories.events.append(event);
+    });
+  }
+
+  /** Atomically records a verified Git outcome and the task's terminal state transition. */
+  persistTaskCommitCompletion(request: PersistTaskCommitCompletionRequest): PersistedEvent {
+    const transition = request.transition;
+    if (transition.previousState !== "VALIDATING" || transition.state !== "COMPLETED") {
+      throw new PersistenceError("Task commit completion requires VALIDATING to COMPLETED");
+    }
+    const attempt = this.repositories.attempts.findById(request.attemptId);
+    const validation = this.repositories.validationRuns.findById(request.validationRunId);
+    const intent = this.repositories.taskCommitIntents.findByAttemptId(request.attemptId);
+    if (attempt?.taskId !== transition.entity.id) {
+      throw new PersistenceError("Task commit attempt does not belong to the transitioning task");
+    }
+    if (
+      validation?.taskId !== transition.entity.id ||
+      validation.attemptId !== request.attemptId ||
+      validation.completedAt === undefined ||
+      validation.passed !== true
+    ) {
+      throw new PersistenceError("Task commit completion requires a passing validation outcome");
+    }
+    if (intent?.commitSha !== request.commitSha) {
+      throw new PersistenceError("Task commit intent does not record the verified commit SHA");
+    }
+
+    return this.#connection.transaction(() => {
+      this.repositories.attempts.recordCommit(
+        request.attemptId,
+        transition.entity.id,
+        request.commitSha,
+      );
+      this.repositories.events.append({
+        id: request.commitRecordedEventId,
+        projectId: transition.entity.projectId,
+        phaseId: transition.entity.phaseId,
+        taskId: transition.entity.id,
+        type: "TASK_COMMITTED",
+        eventVersion: 1,
+        occurredAt: transition.event.occurredAt,
+        actor: transition.event.actor,
+        payload: {
+          attemptId: request.attemptId,
+          validationRunId: request.validationRunId,
+          commitSha: request.commitSha,
+          branchName: intent.branchName,
+          intendedPaths: [...intent.intendedPaths],
+        },
+      });
+      return this.persistStateTransition(transition, request.completionEventId);
     });
   }
 }

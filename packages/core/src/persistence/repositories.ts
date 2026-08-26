@@ -97,12 +97,16 @@ export interface AcceptanceCriterionRepository {
   listForTask(taskId: Task["id"]): readonly AcceptanceCriterionRecord[];
 }
 
-export type NewAttempt = Omit<Attempt, "agentRunId"> & { readonly agentRunId?: never };
+export type NewAttempt = Omit<Attempt, "agentRunId" | "commitSha"> & {
+  readonly agentRunId?: never;
+  readonly commitSha?: never;
+};
 
 export interface AttemptRepository {
   create(attempt: NewAttempt): Attempt;
   findById(id: Attempt["id"]): Attempt | undefined;
   listByTaskId(taskId: Task["id"]): readonly Attempt[];
+  recordCommit(id: Attempt["id"], taskId: Task["id"], commitSha: string): Attempt;
 }
 
 export interface AgentRunRepository {
@@ -156,6 +160,32 @@ export interface DensaRunBranchRepository {
   fail(projectId: Project["id"], failureReason: string): DensaRunBranchRecord;
 }
 
+export interface TaskCommitIntentRecord {
+  readonly attemptId: Attempt["id"];
+  readonly projectId: Project["id"];
+  readonly taskId: Task["id"];
+  readonly workspacePath: string;
+  readonly branchName: string;
+  readonly expectedHead: string;
+  readonly commitMessage: string;
+  readonly intendedPaths: readonly string[];
+  readonly createdAt: string;
+  readonly commitSha?: string;
+  readonly committedAt?: string;
+}
+
+export type NewTaskCommitIntentRecord = Omit<TaskCommitIntentRecord, "commitSha" | "committedAt">;
+
+export interface TaskCommitIntentRepository {
+  create(intent: NewTaskCommitIntentRecord): TaskCommitIntentRecord;
+  findByAttemptId(attemptId: Attempt["id"]): TaskCommitIntentRecord | undefined;
+  recordCommit(
+    attemptId: Attempt["id"],
+    commitSha: string,
+    committedAt: string,
+  ): TaskCommitIntentRecord;
+}
+
 export interface CheckpointRepository {
   create(checkpoint: Checkpoint): Checkpoint;
   findById(id: Checkpoint["id"]): Checkpoint | undefined;
@@ -189,6 +219,7 @@ export interface DensaRepositories {
   readonly decisions: DecisionRepository;
   readonly roadmapRevisions: RoadmapRevisionRepository;
   readonly densaRunBranches: DensaRunBranchRepository;
+  readonly taskCommitIntents: TaskCommitIntentRepository;
   readonly checkpoints: CheckpointRepository;
   readonly events: EventRepository;
   readonly projectSettings: ProjectSettingsRepository;
@@ -470,8 +501,8 @@ class SqliteAttemptRepository implements AttemptRepository {
 
   create(input: NewAttempt): Attempt {
     const attempt = attemptSchema.parse(input);
-    if (attempt.agentRunId !== undefined) {
-      throw new PersistenceError("Create an attempt before attaching its agent run");
+    if (attempt.agentRunId !== undefined || attempt.commitSha !== undefined) {
+      throw new PersistenceError("Create an attempt before attaching runtime outcomes");
     }
     this.connection.run(
       `INSERT INTO attempts (id, task_id, number, started_at, completed_at)
@@ -508,9 +539,34 @@ class SqliteAttemptRepository implements AttemptRepository {
     );
   }
 
+  recordCommit(id: Attempt["id"], taskId: Task["id"], commitSha: string): Attempt {
+    requireNonEmpty(commitSha, "Attempt commit SHA");
+    const existing = this.findById(id);
+    if (existing?.taskId !== taskId) {
+      throw new PersistenceError("Commit attempt does not belong to the task");
+    }
+    if (existing.commitSha !== undefined) {
+      if (existing.commitSha !== commitSha) {
+        throw new PersistenceError("Attempt already records a different commit SHA");
+      }
+      return existing;
+    }
+    const changes = this.connection.run(
+      "UPDATE attempts SET commit_sha = ? WHERE id = ? AND task_id = ? AND commit_sha IS NULL",
+      commitSha,
+      id,
+      taskId,
+    );
+    if (changes !== 1) throw new PersistenceError("Could not record the attempt commit SHA");
+    const stored = this.findById(id);
+    if (stored === undefined) throw new PersistenceError("Committed attempt is missing");
+    return stored;
+  }
+
   private parse(row: SqliteRow): Attempt {
     const completedAt = optionalString(row, "completed_at");
     const agentRunId = optionalString(row, "agent_run_id");
+    const commitSha = optionalString(row, "commit_sha");
     return attemptSchema.parse({
       id: requiredString(row, "id"),
       taskId: requiredString(row, "task_id"),
@@ -518,6 +574,7 @@ class SqliteAttemptRepository implements AttemptRepository {
       startedAt: requiredString(row, "started_at"),
       ...(completedAt === undefined ? {} : { completedAt }),
       ...(agentRunId === undefined ? {} : { agentRunId }),
+      ...(commitSha === undefined ? {} : { commitSha }),
     });
   }
 }
@@ -900,6 +957,115 @@ class SqliteDensaRunBranchRepository implements DensaRunBranchRepository {
   }
 }
 
+function validateTaskCommitIntent(
+  input: TaskCommitIntentRecord | NewTaskCommitIntentRecord,
+): TaskCommitIntentRecord {
+  const commitSha = "commitSha" in input ? input.commitSha : undefined;
+  const committedAt = "committedAt" in input ? input.committedAt : undefined;
+  requireNonEmpty(input.attemptId, "Task commit attemptId");
+  requireNonEmpty(input.projectId, "Task commit projectId");
+  requireNonEmpty(input.taskId, "Task commit taskId");
+  requireNonEmpty(input.workspacePath, "Task commit workspacePath");
+  requireNonEmpty(input.branchName, "Task commit branchName");
+  requireNonEmpty(input.expectedHead, "Task commit expectedHead");
+  requireNonEmpty(input.commitMessage, "Task commit message");
+  isoTimestampSchema.parse(input.createdAt);
+  if (input.intendedPaths.length === 0 || input.intendedPaths.some((path) => path.length === 0)) {
+    throw new PersistenceError("Task commit intendedPaths must contain non-empty paths");
+  }
+  if ((commitSha === undefined) !== (committedAt === undefined)) {
+    throw new PersistenceError("Task commit SHA and committedAt must be recorded together");
+  }
+  if (commitSha !== undefined) requireNonEmpty(commitSha, "Task commit SHA");
+  if (committedAt !== undefined) isoTimestampSchema.parse(committedAt);
+  return Object.freeze({ ...input, intendedPaths: Object.freeze([...input.intendedPaths]) });
+}
+
+class SqliteTaskCommitIntentRepository implements TaskCommitIntentRepository {
+  constructor(private readonly connection: SqliteConnection) {}
+
+  create(input: NewTaskCommitIntentRecord): TaskCommitIntentRecord {
+    const intent = validateTaskCommitIntent(input);
+    this.connection.run(
+      `INSERT INTO task_commit_intents
+       (attempt_id, project_id, task_id, workspace_path, branch_name, expected_head,
+        commit_message, intended_paths_json, created_at, commit_sha, committed_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL)`,
+      intent.attemptId,
+      intent.projectId,
+      intent.taskId,
+      intent.workspacePath,
+      intent.branchName,
+      intent.expectedHead,
+      intent.commitMessage,
+      JSON.stringify(intent.intendedPaths),
+      intent.createdAt,
+    );
+    return intent;
+  }
+
+  findByAttemptId(attemptId: Attempt["id"]): TaskCommitIntentRecord | undefined {
+    const row = this.connection.get(
+      "SELECT * FROM task_commit_intents WHERE attempt_id = ?",
+      attemptId,
+    );
+    return row === undefined ? undefined : this.parse(row);
+  }
+
+  recordCommit(
+    attemptId: Attempt["id"],
+    commitSha: string,
+    committedAt: string,
+  ): TaskCommitIntentRecord {
+    requireNonEmpty(commitSha, "Task commit SHA");
+    isoTimestampSchema.parse(committedAt);
+    const existing = this.findByAttemptId(attemptId);
+    if (existing === undefined) throw new PersistenceError("Task commit intent is missing");
+    if (existing.commitSha !== undefined) {
+      if (existing.commitSha !== commitSha) {
+        throw new PersistenceError("Task commit intent already records a different commit SHA");
+      }
+      return existing;
+    }
+    const changes = this.connection.run(
+      `UPDATE task_commit_intents SET commit_sha = ?, committed_at = ?
+       WHERE attempt_id = ? AND commit_sha IS NULL AND committed_at IS NULL`,
+      commitSha,
+      committedAt,
+      attemptId,
+    );
+    if (changes !== 1) throw new PersistenceError("Could not record the task commit outcome");
+    const stored = this.findByAttemptId(attemptId);
+    if (stored === undefined) throw new PersistenceError("Recorded task commit intent is missing");
+    return stored;
+  }
+
+  private parse(row: SqliteRow): TaskCommitIntentRecord {
+    const intendedPaths = parseJson(requiredString(row, "intended_paths_json"));
+    if (
+      !Array.isArray(intendedPaths) ||
+      intendedPaths.some((path): boolean => typeof path !== "string")
+    ) {
+      throw new PersistenceError("Persisted task commit paths are malformed");
+    }
+    const commitSha = optionalString(row, "commit_sha");
+    const committedAt = optionalString(row, "committed_at");
+    return validateTaskCommitIntent({
+      attemptId: requiredString(row, "attempt_id") as Attempt["id"],
+      projectId: requiredString(row, "project_id") as Project["id"],
+      taskId: requiredString(row, "task_id") as Task["id"],
+      workspacePath: requiredString(row, "workspace_path"),
+      branchName: requiredString(row, "branch_name"),
+      expectedHead: requiredString(row, "expected_head"),
+      commitMessage: requiredString(row, "commit_message"),
+      intendedPaths,
+      createdAt: requiredString(row, "created_at"),
+      ...(commitSha === undefined ? {} : { commitSha }),
+      ...(committedAt === undefined ? {} : { committedAt }),
+    });
+  }
+}
+
 class SqliteEventRepository implements EventRepository {
   constructor(
     private readonly connection: SqliteConnection,
@@ -1079,6 +1245,7 @@ export function createRepositories(
     decisions: new SqliteDecisionRepository(connection),
     roadmapRevisions: new SqliteRoadmapRevisionRepository(connection),
     densaRunBranches: new SqliteDensaRunBranchRepository(connection),
+    taskCommitIntents: new SqliteTaskCommitIntentRepository(connection),
     checkpoints: new SqliteCheckpointRepository(connection),
     events: new SqliteEventRepository(connection, publishEvent),
     projectSettings: new SqliteProjectSettingsRepository(connection),

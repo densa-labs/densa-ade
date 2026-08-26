@@ -305,6 +305,31 @@ CREATE INDEX checkpoints_project_created ON checkpoints (project_id, created_at,
 CREATE INDEX checkpoints_task_created ON checkpoints (task_id, created_at, id);
 `;
 
+const atomicTaskCommits = `
+ALTER TABLE attempts ADD COLUMN commit_sha TEXT
+  CHECK (commit_sha IS NULL OR length(commit_sha) > 0);
+
+CREATE TABLE task_commit_intents (
+  attempt_id TEXT PRIMARY KEY REFERENCES attempts(id) ON DELETE CASCADE,
+  project_id TEXT NOT NULL,
+  task_id TEXT NOT NULL,
+  workspace_path TEXT NOT NULL CHECK (length(workspace_path) > 0),
+  branch_name TEXT NOT NULL REFERENCES densa_run_branches(branch_name) ON DELETE RESTRICT,
+  expected_head TEXT NOT NULL CHECK (length(expected_head) > 0),
+  commit_message TEXT NOT NULL CHECK (length(commit_message) > 0),
+  intended_paths_json TEXT NOT NULL CHECK (json_valid(intended_paths_json)),
+  created_at TEXT NOT NULL CHECK (length(created_at) >= 20),
+  commit_sha TEXT CHECK (commit_sha IS NULL OR length(commit_sha) > 0),
+  committed_at TEXT CHECK (committed_at IS NULL OR length(committed_at) >= 20),
+  FOREIGN KEY (project_id, task_id) REFERENCES tasks(project_id, id) ON DELETE CASCADE,
+  FOREIGN KEY (task_id, attempt_id) REFERENCES attempts(task_id, id) ON DELETE CASCADE,
+  CHECK ((commit_sha IS NULL) = (committed_at IS NULL))
+) STRICT;
+
+CREATE INDEX task_commit_intents_project_created
+  ON task_commit_intents (project_id, created_at, attempt_id);
+`;
+
 export const schemaMigrations: readonly SchemaMigration[] = Object.freeze([
   Object.freeze({ version: 1, name: "authoritative_runtime_schema", sql: initialSchema }),
   Object.freeze({ version: 2, name: "ordered_event_journal", sql: orderedEventJournal }),
@@ -314,6 +339,7 @@ export const schemaMigrations: readonly SchemaMigration[] = Object.freeze([
     name: "run_branches_and_task_checkpoints",
     sql: runBranchesAndTaskCheckpoints,
   }),
+  Object.freeze({ version: 5, name: "atomic_task_commits", sql: atomicTaskCommits }),
 ]);
 
 export const latestSchemaVersion = schemaMigrations.at(-1)?.version ?? 0;

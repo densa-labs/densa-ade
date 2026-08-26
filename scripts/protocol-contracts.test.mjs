@@ -4,6 +4,7 @@ import { test } from "node:test";
 import {
   PROTOCOL_VERSION,
   ProtocolVersionMismatchError,
+  attemptSchema,
   checkpointSchema,
   densaErrorCodeSchema,
   deserializeProtocolEnvelope,
@@ -243,6 +244,18 @@ test("task checkpoints require a complete task-attempt-run association and Git b
     }).success,
     false,
   );
+});
+
+test("attempt commit SHAs are optional but runtime validated when present", () => {
+  const attempt = {
+    id: "attempt-1",
+    taskId: "task-1",
+    number: 1,
+    startedAt: timestamp,
+  };
+  assert.equal(attemptSchema.safeParse(attempt).success, true);
+  assert.equal(attemptSchema.safeParse({ ...attempt, commitSha: "abc123" }).success, true);
+  assert.equal(attemptSchema.safeParse({ ...attempt, commitSha: "" }).success, false);
 });
 
 test("usage state never fabricates a reset time", () => {
