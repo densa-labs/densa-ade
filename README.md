@@ -74,6 +74,16 @@ workspace divergence, and unknown evidence while returning plans only—P2M4 per
 state or workspace mutation. The evidence rules and fail-closed behavior are documented in
 [`docs/recovery-inspection.md`](docs/recovery-inspection.md).
 
+## Workspace preflight
+
+`WorkspacePreflight` captures a read-only, structured Git safety report before Densa-controlled
+work begins. It distinguishes clean repositories, existing `densa/run/*` branches, user changes,
+active merge/rebase/cherry-pick operations, detached or unborn HEADs, bare repositories, and
+non-Git directories. Unsafe or ambiguous states return a classified stop requiring a decision;
+P3M0 never stashes, resets, checks out, creates branches, or otherwise alters user work. The
+evidence and policy are documented in
+[`docs/workspace-preflight.md`](docs/workspace-preflight.md).
+
 ## Portable project representation
 
 `PortableProjectSynchronizer` exports important SQLite-backed project intent to deterministic
