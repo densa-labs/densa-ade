@@ -59,6 +59,12 @@ to bridge the Git/SQLite crash boundary. Intent exists before local Git mutation
 order. The detailed recovery and unrelated-change rules are documented in
 [run-branches-and-checkpoints.md](./run-branches-and-checkpoints.md).
 
+Migration 6 adds one durable `attempt_rollback_plans` record per rollback-eligible attempt. It
+persists the owned-path content snapshot at the worker terminal boundary, later attaches bounded
+structured failure diagnostics, and records an optional applied timestamp only after the scoped
+files have been verified against their checkpoint. The overlap and retry-safety rules are documented in
+[bounded-attempt-rollback.md](./bounded-attempt-rollback.md).
+
 The project-scoped list queries added for portable export retain repository isolation and stable
 ordering. Phase 2 Milestone 3 uses them to create `.densa/` snapshots without exposing raw SQL or
 making the filesystem authoritative; see [portable-project.md](./portable-project.md).
@@ -72,10 +78,11 @@ immutable after release: future schema changes append a new version instead of e
 
 The supported paths are zero-to-latest and any contiguous older migration to the current schema.
 Migration 4 rebuilds the checkpoint table while preserving legacy rows and leaving its new
-association columns null. Migration 5 adds only nullable attempt data and a new intent table, so
-existing attempts remain valid without a commit outcome. There is no downgrade path; a newer database must not be opened by an
-older Core build. Future destructive or data-transforming migrations must document backup,
-forward, and rollback assumptions alongside their migration tests.
+association columns null. Migrations 5 and 6 add only nullable attempt data and new intent/evidence
+tables, so existing attempts remain valid without commit or rollback outcomes. There is no
+downgrade path; a newer database must not be opened by an older Core build. Future destructive or
+data-transforming migrations must document backup, forward, and rollback assumptions alongside
+their migration tests.
 
 ## Data and secret boundary
 

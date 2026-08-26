@@ -113,6 +113,7 @@ export interface AgentRunRepository {
   create(run: AgentRun): AgentRun;
   findById(id: AgentRun["id"]): AgentRun | undefined;
   findByAttemptId(attemptId: Attempt["id"]): AgentRun | undefined;
+  recordCompleted(id: AgentRun["id"], completedAt: string): AgentRun;
 }
 
 export interface ValidationRunRepository {
@@ -186,6 +187,47 @@ export interface TaskCommitIntentRepository {
   ): TaskCommitIntentRecord;
 }
 
+export type RollbackPathKind = "ABSENT" | "FILE" | "SYMLINK";
+
+export interface RollbackPathSnapshot {
+  readonly path: string;
+  readonly kind: RollbackPathKind;
+  readonly contentHash?: string;
+  readonly indexHash?: string;
+  readonly temporary: boolean;
+}
+
+export interface AttemptRollbackPlanRecord {
+  readonly attemptId: Attempt["id"];
+  readonly agentRunId: AgentRun["id"];
+  readonly projectId: Project["id"];
+  readonly taskId: Task["id"];
+  readonly workspacePath: string;
+  readonly branchName: string;
+  readonly checkpointHead: string;
+  readonly ownedPaths: readonly RollbackPathSnapshot[];
+  readonly diagnostics: Readonly<JsonObject>;
+  readonly recordedAt: string;
+  readonly failureRecordedAt?: string;
+  readonly appliedAt?: string;
+}
+
+export type NewAttemptRollbackPlanRecord = Omit<
+  AttemptRollbackPlanRecord,
+  "diagnostics" | "failureRecordedAt" | "appliedAt"
+>;
+
+export interface AttemptRollbackPlanRepository {
+  create(plan: NewAttemptRollbackPlanRecord): AttemptRollbackPlanRecord;
+  findByAttemptId(attemptId: Attempt["id"]): AttemptRollbackPlanRecord | undefined;
+  recordFailure(
+    attemptId: Attempt["id"],
+    diagnostics: Readonly<JsonObject>,
+    failureRecordedAt: string,
+  ): AttemptRollbackPlanRecord;
+  recordApplied(attemptId: Attempt["id"], appliedAt: string): AttemptRollbackPlanRecord;
+}
+
 export interface CheckpointRepository {
   create(checkpoint: Checkpoint): Checkpoint;
   findById(id: Checkpoint["id"]): Checkpoint | undefined;
@@ -220,6 +262,7 @@ export interface DensaRepositories {
   readonly roadmapRevisions: RoadmapRevisionRepository;
   readonly densaRunBranches: DensaRunBranchRepository;
   readonly taskCommitIntents: TaskCommitIntentRepository;
+  readonly attemptRollbackPlans: AttemptRollbackPlanRepository;
   readonly checkpoints: CheckpointRepository;
   readonly events: EventRepository;
   readonly projectSettings: ProjectSettingsRepository;
@@ -609,6 +652,22 @@ class SqliteAgentRunRepository implements AgentRunRepository {
   findByAttemptId(attemptId: Attempt["id"]): AgentRun | undefined {
     const row = this.connection.get("SELECT * FROM agent_runs WHERE attempt_id = ?", attemptId);
     return row === undefined ? undefined : this.parse(row);
+  }
+
+  recordCompleted(id: AgentRun["id"], completedAt: string): AgentRun {
+    isoTimestampSchema.parse(completedAt);
+    const changes = this.connection.run(
+      `UPDATE agent_runs SET completed_at = ?
+       WHERE id = ? AND completed_at IS NULL`,
+      completedAt,
+      id,
+    );
+    if (changes !== 1) {
+      throw new PersistenceError("Agent run is missing or already completed");
+    }
+    const stored = this.findById(id);
+    if (stored === undefined) throw new PersistenceError("Completed agent run is missing");
+    return stored;
   }
 
   private parse(row: SqliteRow): AgentRun {
@@ -1066,6 +1125,161 @@ class SqliteTaskCommitIntentRepository implements TaskCommitIntentRepository {
   }
 }
 
+function validateRollbackPathSnapshot(input: RollbackPathSnapshot): RollbackPathSnapshot {
+  requireNonEmpty(input.path, "Rollback path");
+  if (!(input.kind === "ABSENT" || input.kind === "FILE" || input.kind === "SYMLINK")) {
+    throw new PersistenceError("Rollback path has an invalid kind");
+  }
+  if ((input.kind === "ABSENT") !== (input.contentHash === undefined)) {
+    throw new PersistenceError("Only present rollback paths have a content hash");
+  }
+  if (input.contentHash !== undefined && !/^[a-f0-9]{64}$/u.test(input.contentHash)) {
+    throw new PersistenceError("Rollback path content hash must be SHA-256");
+  }
+  if (input.indexHash !== undefined && !/^[a-f0-9]{64}$/u.test(input.indexHash)) {
+    throw new PersistenceError("Rollback path index hash must be SHA-256");
+  }
+  return Object.freeze({ ...input });
+}
+
+function validateAttemptRollbackPlan(
+  input: AttemptRollbackPlanRecord | NewAttemptRollbackPlanRecord,
+): AttemptRollbackPlanRecord {
+  const appliedAt = "appliedAt" in input ? input.appliedAt : undefined;
+  const failureRecordedAt = "failureRecordedAt" in input ? input.failureRecordedAt : undefined;
+  requireNonEmpty(input.attemptId, "Rollback attemptId");
+  requireNonEmpty(input.agentRunId, "Rollback agentRunId");
+  requireNonEmpty(input.projectId, "Rollback projectId");
+  requireNonEmpty(input.taskId, "Rollback taskId");
+  requireNonEmpty(input.workspacePath, "Rollback workspacePath");
+  requireNonEmpty(input.branchName, "Rollback branchName");
+  requireNonEmpty(input.checkpointHead, "Rollback checkpointHead");
+  isoTimestampSchema.parse(input.recordedAt);
+  if (failureRecordedAt !== undefined) isoTimestampSchema.parse(failureRecordedAt);
+  if (appliedAt !== undefined) isoTimestampSchema.parse(appliedAt);
+  if (input.ownedPaths.length === 0) {
+    throw new PersistenceError("Rollback plan must contain at least one owned path");
+  }
+  const ownedPaths = Object.freeze(input.ownedPaths.map(validateRollbackPathSnapshot));
+  if (new Set(ownedPaths.map((entry) => entry.path)).size !== ownedPaths.length) {
+    throw new PersistenceError("Rollback plan paths must be unique");
+  }
+  const diagnostics = Object.freeze(
+    jsonObjectSchema.parse("diagnostics" in input ? input.diagnostics : {}),
+  );
+  if (failureRecordedAt === undefined && Object.keys(diagnostics).length !== 0) {
+    throw new PersistenceError("Rollback diagnostics require a recorded failure boundary");
+  }
+  if (appliedAt !== undefined && failureRecordedAt === undefined) {
+    throw new PersistenceError("Rollback cannot be applied before failure is recorded");
+  }
+  return Object.freeze({ ...input, ownedPaths, diagnostics });
+}
+
+class SqliteAttemptRollbackPlanRepository implements AttemptRollbackPlanRepository {
+  constructor(private readonly connection: SqliteConnection) {}
+
+  create(input: NewAttemptRollbackPlanRecord): AttemptRollbackPlanRecord {
+    const plan = validateAttemptRollbackPlan(input);
+    this.connection.run(
+      `INSERT INTO attempt_rollback_plans
+       (attempt_id, agent_run_id, project_id, task_id, workspace_path, branch_name, checkpoint_head,
+        owned_paths_json, diagnostics_json, recorded_at, failure_recorded_at, applied_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, '{}', ?, NULL, NULL)`,
+      plan.attemptId,
+      plan.agentRunId,
+      plan.projectId,
+      plan.taskId,
+      plan.workspacePath,
+      plan.branchName,
+      plan.checkpointHead,
+      JSON.stringify(plan.ownedPaths),
+      plan.recordedAt,
+    );
+    return plan;
+  }
+
+  findByAttemptId(attemptId: Attempt["id"]): AttemptRollbackPlanRecord | undefined {
+    const row = this.connection.get(
+      "SELECT * FROM attempt_rollback_plans WHERE attempt_id = ?",
+      attemptId,
+    );
+    if (row === undefined) return undefined;
+    const ownedPaths = parseJson(requiredString(row, "owned_paths_json"));
+    if (!Array.isArray(ownedPaths)) {
+      throw new PersistenceError("Persisted rollback paths are malformed");
+    }
+    const appliedAt = optionalString(row, "applied_at");
+    const failureRecordedAt = optionalString(row, "failure_recorded_at");
+    return validateAttemptRollbackPlan({
+      attemptId: requiredString(row, "attempt_id") as Attempt["id"],
+      agentRunId: requiredString(row, "agent_run_id") as AgentRun["id"],
+      projectId: requiredString(row, "project_id") as Project["id"],
+      taskId: requiredString(row, "task_id") as Task["id"],
+      workspacePath: requiredString(row, "workspace_path"),
+      branchName: requiredString(row, "branch_name"),
+      checkpointHead: requiredString(row, "checkpoint_head"),
+      ownedPaths: ownedPaths as RollbackPathSnapshot[],
+      diagnostics: jsonObjectSchema.parse(parseJson(requiredString(row, "diagnostics_json"))),
+      recordedAt: requiredString(row, "recorded_at"),
+      ...(failureRecordedAt === undefined ? {} : { failureRecordedAt }),
+      ...(appliedAt === undefined ? {} : { appliedAt }),
+    });
+  }
+
+  recordFailure(
+    attemptId: Attempt["id"],
+    diagnostics: Readonly<JsonObject>,
+    failureRecordedAt: string,
+  ): AttemptRollbackPlanRecord {
+    isoTimestampSchema.parse(failureRecordedAt);
+    const validatedDiagnostics = jsonObjectSchema.parse(diagnostics);
+    const existing = this.findByAttemptId(attemptId);
+    if (existing === undefined) throw new PersistenceError("Attempt output evidence is missing");
+    if (existing.failureRecordedAt !== undefined) {
+      if (
+        existing.failureRecordedAt !== failureRecordedAt ||
+        JSON.stringify(existing.diagnostics) !== JSON.stringify(validatedDiagnostics)
+      ) {
+        throw new PersistenceError("Attempt already records different failure evidence");
+      }
+      return existing;
+    }
+    const changes = this.connection.run(
+      `UPDATE attempt_rollback_plans
+       SET diagnostics_json = ?, failure_recorded_at = ?
+       WHERE attempt_id = ? AND failure_recorded_at IS NULL`,
+      JSON.stringify(validatedDiagnostics),
+      failureRecordedAt,
+      attemptId,
+    );
+    if (changes !== 1) throw new PersistenceError("Could not record failed-attempt diagnostics");
+    const stored = this.findByAttemptId(attemptId);
+    if (stored === undefined) throw new PersistenceError("Recorded failed-attempt plan is missing");
+    return stored;
+  }
+
+  recordApplied(attemptId: Attempt["id"], appliedAt: string): AttemptRollbackPlanRecord {
+    isoTimestampSchema.parse(appliedAt);
+    const existing = this.findByAttemptId(attemptId);
+    if (existing === undefined) throw new PersistenceError("Attempt rollback plan is missing");
+    if (existing.failureRecordedAt === undefined) {
+      throw new PersistenceError("Attempt failure must be recorded before rollback is applied");
+    }
+    if (existing.appliedAt !== undefined) return existing;
+    const changes = this.connection.run(
+      `UPDATE attempt_rollback_plans SET applied_at = ?
+       WHERE attempt_id = ? AND applied_at IS NULL`,
+      appliedAt,
+      attemptId,
+    );
+    if (changes !== 1) throw new PersistenceError("Could not record rollback outcome");
+    const stored = this.findByAttemptId(attemptId);
+    if (stored === undefined) throw new PersistenceError("Applied rollback plan is missing");
+    return stored;
+  }
+}
+
 class SqliteEventRepository implements EventRepository {
   constructor(
     private readonly connection: SqliteConnection,
@@ -1246,6 +1460,7 @@ export function createRepositories(
     roadmapRevisions: new SqliteRoadmapRevisionRepository(connection),
     densaRunBranches: new SqliteDensaRunBranchRepository(connection),
     taskCommitIntents: new SqliteTaskCommitIntentRepository(connection),
+    attemptRollbackPlans: new SqliteAttemptRollbackPlanRepository(connection),
     checkpoints: new SqliteCheckpointRepository(connection),
     events: new SqliteEventRepository(connection, publishEvent),
     projectSettings: new SqliteProjectSettingsRepository(connection),

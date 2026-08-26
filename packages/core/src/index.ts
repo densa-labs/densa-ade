@@ -1,4 +1,5 @@
 export * from "./event-publisher.js";
+export * from "./attempt-rollback.js";
 export * from "./recovery-inspector.js";
 export * from "./run-checkpoint.js";
 export * from "./task-commit.js";

@@ -96,6 +96,14 @@ The verified SHA and `VALIDATING` to `COMPLETED` transition persist atomically; 
 failed persistence remains recoverable without creating a duplicate commit. Unrelated user changes
 stay outside the task commit, and this local project workflow never pushes.
 
+`AttemptRollbackService` captures the exact files attributed to Densa at the worker terminal
+boundary, then attaches bounded diagnostics after failure or interruption. Rollback restores or
+removes only those paths. If an owned file no longer matches either that captured output or its Git
+checkpoint, the service records a blocked audit event and leaves every path untouched for human
+resolution. Non-overlapping human work is preserved and prevents the workspace from being claimed
+ready for automatic retry. See
+[`docs/bounded-attempt-rollback.md`](docs/bounded-attempt-rollback.md).
+
 ## Portable project representation
 
 `PortableProjectSynchronizer` exports important SQLite-backed project intent to deterministic
