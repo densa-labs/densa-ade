@@ -330,6 +330,35 @@ CREATE INDEX task_commit_intents_project_created
   ON task_commit_intents (project_id, created_at, attempt_id);
 `;
 
+const boundedAttemptRollbacks = `
+CREATE TABLE attempt_rollback_plans (
+  attempt_id TEXT PRIMARY KEY REFERENCES attempts(id) ON DELETE CASCADE,
+  agent_run_id TEXT NOT NULL UNIQUE REFERENCES agent_runs(id) ON DELETE CASCADE,
+  project_id TEXT NOT NULL,
+  task_id TEXT NOT NULL,
+  workspace_path TEXT NOT NULL CHECK (length(workspace_path) > 0),
+  branch_name TEXT NOT NULL REFERENCES densa_run_branches(branch_name) ON DELETE RESTRICT,
+  checkpoint_head TEXT NOT NULL CHECK (length(checkpoint_head) > 0),
+  owned_paths_json TEXT NOT NULL CHECK (json_valid(owned_paths_json)),
+  diagnostics_json TEXT NOT NULL CHECK (json_valid(diagnostics_json)),
+  recorded_at TEXT NOT NULL CHECK (length(recorded_at) >= 20),
+  failure_recorded_at TEXT CHECK (
+    failure_recorded_at IS NULL OR length(failure_recorded_at) >= 20
+  ),
+  applied_at TEXT CHECK (applied_at IS NULL OR length(applied_at) >= 20),
+  FOREIGN KEY (project_id, task_id) REFERENCES tasks(project_id, id) ON DELETE CASCADE,
+  FOREIGN KEY (task_id, attempt_id) REFERENCES attempts(task_id, id) ON DELETE CASCADE,
+  CHECK (
+    (failure_recorded_at IS NULL AND diagnostics_json = '{}')
+    OR failure_recorded_at IS NOT NULL
+  ),
+  CHECK (applied_at IS NULL OR failure_recorded_at IS NOT NULL)
+) STRICT;
+
+CREATE INDEX attempt_rollback_plans_project_recorded
+  ON attempt_rollback_plans (project_id, recorded_at, attempt_id);
+`;
+
 export const schemaMigrations: readonly SchemaMigration[] = Object.freeze([
   Object.freeze({ version: 1, name: "authoritative_runtime_schema", sql: initialSchema }),
   Object.freeze({ version: 2, name: "ordered_event_journal", sql: orderedEventJournal }),
@@ -340,6 +369,11 @@ export const schemaMigrations: readonly SchemaMigration[] = Object.freeze([
     sql: runBranchesAndTaskCheckpoints,
   }),
   Object.freeze({ version: 5, name: "atomic_task_commits", sql: atomicTaskCommits }),
+  Object.freeze({
+    version: 6,
+    name: "bounded_attempt_rollbacks",
+    sql: boundedAttemptRollbacks,
+  }),
 ]);
 
 export const latestSchemaVersion = schemaMigrations.at(-1)?.version ?? 0;
