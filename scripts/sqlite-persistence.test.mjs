@@ -85,14 +85,15 @@ test("a file database migrates from zero and reopening does not reapply migratio
   const path = join(directory, "runtime.sqlite");
   try {
     const first = DensaDatabase.open(path, { now: fixedMigrationTime });
-    assert.equal(first.schemaVersion, 3);
-    assert.equal(first.expectedSchemaVersion, 3);
+    assert.equal(first.schemaVersion, 4);
+    assert.equal(first.expectedSchemaVersion, 4);
     assert.deepEqual(first.listUserTables(), [
       "acceptance_criteria",
       "agent_runs",
       "attempts",
       "checkpoints",
       "decisions",
+      "densa_run_branches",
       "events",
       "phases",
       "project_settings",
@@ -106,7 +107,7 @@ test("a file database migrates from zero and reopening does not reapply migratio
     first.close();
 
     const reopened = DensaDatabase.open(path, { now: fixedMigrationTime });
-    assert.equal(reopened.schemaVersion, 3);
+    assert.equal(reopened.schemaVersion, 4);
     reopened.close();
   } finally {
     rmSync(directory, { force: true, recursive: true });
@@ -281,7 +282,7 @@ test("all remaining P2M1 repositories round-trip their runtime records", () => {
   });
 });
 
-test("migration 3 preserves version-2 runtime rows and adds nullable recovery metadata", () => {
+test("migrations 3 and 4 preserve version-2 runtime rows and add nullable checkpoint metadata", () => {
   const directory = mkdtempSync(join(tmpdir(), "densa-p2m4-migration-"));
   const path = join(directory, "runtime.sqlite");
   try {
@@ -347,7 +348,7 @@ test("migration 3 preserves version-2 runtime rows and adds nullable recovery me
     raw.close();
 
     const database = DensaDatabase.open(path, { now: fixedMigrationTime });
-    assert.equal(database.schemaVersion, 3);
+    assert.equal(database.schemaVersion, 4);
     assert.deepEqual(database.repositories.agentRuns.findById("agent-run-v2"), {
       id: "agent-run-v2",
       attemptId: "attempt-v2",

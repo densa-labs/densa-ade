@@ -4,6 +4,7 @@ import { test } from "node:test";
 import {
   PROTOCOL_VERSION,
   ProtocolVersionMismatchError,
+  checkpointSchema,
   densaErrorCodeSchema,
   deserializeProtocolEnvelope,
   executionModeSchema,
@@ -211,6 +212,36 @@ test("domain schemas enforce acceptance criteria, ISO timestamps, and JSON event
       payload: { phaseCount: 2 },
     }).success,
     true,
+  );
+});
+
+test("task checkpoints require a complete task-attempt-run association and Git base", () => {
+  const base = {
+    id: "checkpoint-1",
+    projectId: "project-1",
+    createdAt: timestamp,
+    gitHead: "0123456789abcdef",
+  };
+  assert.equal(checkpointSchema.safeParse(base).success, true);
+  assert.equal(
+    checkpointSchema.safeParse({
+      ...base,
+      taskId: "task-1",
+      attemptId: "attempt-1",
+      runBranch: "densa/run/project-1-abcd1234",
+    }).success,
+    true,
+  );
+  assert.equal(checkpointSchema.safeParse({ ...base, taskId: "task-1" }).success, false);
+  assert.equal(
+    checkpointSchema.safeParse({
+      ...base,
+      taskId: "task-1",
+      attemptId: "attempt-1",
+      runBranch: "densa/run/project-1-abcd1234",
+      gitHead: undefined,
+    }).success,
+    false,
   );
 });
 

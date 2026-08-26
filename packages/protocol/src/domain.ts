@@ -98,15 +98,36 @@ export const validationRunSchema = z.strictObject({
 });
 export type ValidationRun = z.infer<typeof validationRunSchema>;
 
-export const checkpointSchema = z.strictObject({
-  id: checkpointIdSchema,
-  projectId: projectIdSchema,
-  createdAt: isoTimestampSchema,
-  description: nonEmptyText.optional(),
-  gitHead: nonEmptyText.optional(),
-  gitStatus: z.string().optional(),
-  workspaceFingerprint: nonEmptyText.optional(),
-});
+export const checkpointSchema = z
+  .strictObject({
+    id: checkpointIdSchema,
+    projectId: projectIdSchema,
+    taskId: taskIdSchema.optional(),
+    attemptId: attemptIdSchema.optional(),
+    runBranch: nonEmptyText.optional(),
+    createdAt: isoTimestampSchema,
+    description: nonEmptyText.optional(),
+    gitHead: nonEmptyText.optional(),
+    gitStatus: z.string().optional(),
+    workspaceFingerprint: nonEmptyText.optional(),
+  })
+  .superRefine((checkpoint, context) => {
+    const association = [checkpoint.taskId, checkpoint.attemptId, checkpoint.runBranch];
+    const associatedFields = association.filter((value) => value !== undefined).length;
+    if (associatedFields !== 0 && associatedFields !== association.length) {
+      context.addIssue({
+        code: "custom",
+        message: "Task checkpoints require taskId, attemptId, and runBranch together",
+      });
+    }
+    if (associatedFields === association.length && checkpoint.gitHead === undefined) {
+      context.addIssue({
+        code: "custom",
+        message: "Task checkpoints require a starting Git commit",
+        path: ["gitHead"],
+      });
+    }
+  });
 export type Checkpoint = z.infer<typeof checkpointSchema>;
 
 export const decisionSchema = z.strictObject({
