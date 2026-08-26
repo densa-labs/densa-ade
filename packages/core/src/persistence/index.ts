@@ -21,6 +21,7 @@ export type {
   EventRepository,
   NewAttempt,
   NewDensaRunBranchRecord,
+  NewTaskCommitIntentRecord,
   PhaseRepository,
   ProjectRepository,
   ProjectSettingsRecord,
@@ -30,6 +31,8 @@ export type {
   SpecificationRepository,
   TaskDependencyRecord,
   TaskDependencyRepository,
+  TaskCommitIntentRecord,
+  TaskCommitIntentRepository,
   TaskRepository,
   ValidationRunRepository,
 } from "./repositories.js";

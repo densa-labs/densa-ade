@@ -72,6 +72,7 @@ export const attemptSchema = z.strictObject({
   startedAt: isoTimestampSchema,
   completedAt: isoTimestampSchema.optional(),
   agentRunId: agentRunIdSchema.optional(),
+  commitSha: nonEmptyText.optional(),
 });
 export type Attempt = z.infer<typeof attemptSchema>;
 

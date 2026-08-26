@@ -1,9 +1,10 @@
 # Densa run branches and task checkpoints
 
-Phase 3 Milestone 1 introduces the Core-owned Git mutation boundary used before an implementation
-worker starts. `RunCheckpointService` consumes the read-only `WorkspacePreflight` decision, creates
-or reuses one persisted run branch for a project, captures a content-sensitive Git snapshot, and
-records the task/attempt checkpoint and audit event transactionally.
+Phase 3 Milestones 1 and 2 introduce the Core-owned Git mutation boundaries around a task attempt.
+`RunCheckpointService` consumes the read-only `WorkspacePreflight` decision, creates or reuses one
+persisted run branch for a project, captures a content-sensitive Git snapshot, and records the
+task/attempt checkpoint and audit event transactionally. After deterministic validation passes,
+`TaskCommitService` maps the verified attempt to one local task commit.
 
 ## Branch identity and ownership
 
@@ -44,3 +45,27 @@ no checkpoint is recorded.
 The service invokes only local Git ref inspection and `git switch` for the owned branch. It never
 fetches or pushes. Remote synchronization of the Densa development repository is a maintainer
 workflow and is unrelated to run branches created for projects managed by Densa.
+
+## Passing-task commits
+
+`TaskCommitService` accepts one completed passing validation and an explicit list of normalized,
+repository-relative changed files. Before invoking Git it verifies the project/task/attempt graph,
+the active run-branch ownership, current branch, checkpoint parent commit, and task state. Broad
+directory pathspecs, traversal, control characters, `.git`, unchanged intended paths, failed or
+unfinished validation, and mismatched attempts fail closed.
+
+Commit intent is persisted before staging. The intent fixes the workspace, branch, expected parent,
+message, and exact path set for the attempt. Git stages those paths and commits them with
+`--only`, so unrelated staged, unstaged, and untracked user changes remain outside the commit. A
+post-commit check requires one parent at the checkpoint, the intended message, the owned branch at
+the new SHA, and exactly the intended changed paths. Hooks and Git configuration remain active;
+their failure leaves the task in `VALIDATING`.
+
+The verified SHA is first attached to the persisted intent. One SQLite transaction then attaches
+the SHA to the attempt, appends `TASK_COMMITTED`, and persists the centralized
+`VALIDATING` to `COMPLETED` transition and its event. A transaction failure rolls back both the
+attempt SHA and task state. If Core stops after Git commits but before completion persists, the next
+call verifies the durable intent against `HEAD` and completes the same commit rather than creating
+another one. This is bounded recovery of commit creation only; workspace rollback belongs to P3M3.
+
+The task-commit command set contains no fetch or push operation. A configured remote is unchanged.

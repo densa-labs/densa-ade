@@ -85,8 +85,8 @@ test("a file database migrates from zero and reopening does not reapply migratio
   const path = join(directory, "runtime.sqlite");
   try {
     const first = DensaDatabase.open(path, { now: fixedMigrationTime });
-    assert.equal(first.schemaVersion, 4);
-    assert.equal(first.expectedSchemaVersion, 4);
+    assert.equal(first.schemaVersion, 5);
+    assert.equal(first.expectedSchemaVersion, 5);
     assert.deepEqual(first.listUserTables(), [
       "acceptance_criteria",
       "agent_runs",
@@ -100,6 +100,7 @@ test("a file database migrates from zero and reopening does not reapply migratio
       "projects",
       "roadmap_revisions",
       "specifications",
+      "task_commit_intents",
       "task_dependencies",
       "tasks",
       "validation_runs",
@@ -107,7 +108,7 @@ test("a file database migrates from zero and reopening does not reapply migratio
     first.close();
 
     const reopened = DensaDatabase.open(path, { now: fixedMigrationTime });
-    assert.equal(reopened.schemaVersion, 4);
+    assert.equal(reopened.schemaVersion, 5);
     reopened.close();
   } finally {
     rmSync(directory, { force: true, recursive: true });
@@ -282,7 +283,7 @@ test("all remaining P2M1 repositories round-trip their runtime records", () => {
   });
 });
 
-test("migrations 3 and 4 preserve version-2 runtime rows and add nullable checkpoint metadata", () => {
+test("migrations 3 through 5 preserve version-2 runtime rows and add nullable commit metadata", () => {
   const directory = mkdtempSync(join(tmpdir(), "densa-p2m4-migration-"));
   const path = join(directory, "runtime.sqlite");
   try {
@@ -348,7 +349,7 @@ test("migrations 3 and 4 preserve version-2 runtime rows and add nullable checkp
     raw.close();
 
     const database = DensaDatabase.open(path, { now: fixedMigrationTime });
-    assert.equal(database.schemaVersion, 4);
+    assert.equal(database.schemaVersion, 5);
     assert.deepEqual(database.repositories.agentRuns.findById("agent-run-v2"), {
       id: "agent-run-v2",
       attemptId: "attempt-v2",
@@ -361,6 +362,7 @@ test("migrations 3 and 4 preserve version-2 runtime rows and add nullable checkp
       createdAt,
       description: "pre-recovery metadata",
     });
+    assert.equal(database.repositories.attempts.findById("attempt-v2").commitSha, undefined);
     database.close();
   } finally {
     rmSync(directory, { force: true, recursive: true });
