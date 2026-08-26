@@ -214,7 +214,7 @@ test("accepted transition returns immutable, append-ready audit facts", () => {
     phaseId: "phase-state-machine",
     taskId: "task-state-machine",
     type: "TASK_STATE_CHANGED",
-    schemaVersion: 1,
+    eventVersion: 1,
     occurredAt,
     actor: "densa-core:test",
     payload: {

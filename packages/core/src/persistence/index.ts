@@ -1,4 +1,11 @@
 export * from "./database.js";
+export * from "./event-journal.js";
+export type {
+  EventFilter,
+  EventReplayFilter,
+  EventSubscriber,
+  PersistedEvent,
+} from "../event-publisher.js";
 export type {
   AcceptanceCriterionRecord,
   AcceptanceCriterionRepository,

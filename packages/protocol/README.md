@@ -21,5 +21,5 @@ protocol line. Breaking field, meaning, or payload changes require a new protoco
 explicit compatibility adapter at the client/Core boundary. Core rejects unsupported versions with
 `PROTOCOL_VERSION_MISMATCH`; it never guesses how to interpret them.
 
-Persisted events also carry their own `schemaVersion`. Readers must preserve old event facts and
+Persisted events also carry their own `eventVersion`. Readers must preserve old event facts and
 upgrade their payloads through version-aware readers rather than rewriting event history.

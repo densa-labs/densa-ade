@@ -131,7 +131,7 @@ export const eventSchema = z.strictObject({
   id: eventIdSchema,
   projectId: projectIdSchema,
   type: z.string().regex(/^[A-Z][A-Z0-9_]*$/u),
-  schemaVersion: z.number().int().positive(),
+  eventVersion: z.number().int().positive(),
   occurredAt: isoTimestampSchema,
   actor: nonEmptyText,
   phaseId: phaseIdSchema.optional(),

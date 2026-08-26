@@ -4,7 +4,6 @@ import {
   phaseSchema,
   projectSchema,
   taskSchema,
-  type Event,
   type EventId,
 } from "@densa/protocol";
 
@@ -13,6 +12,8 @@ import type {
   ProjectStateTransition,
   TaskStateTransition,
 } from "../state-transitions.js";
+import { EventPublisher, type PersistedEvent } from "../event-publisher.js";
+import { EventJournal } from "./event-journal.js";
 import { latestSchemaVersion } from "./migrations.js";
 import { createRepositories, type DensaRepositories } from "./repositories.js";
 import {
@@ -47,13 +48,18 @@ function assertEventMatchesTransition(transition: StateTransition): void {
  */
 export class DensaDatabase {
   readonly repositories: DensaRepositories;
+  readonly eventJournal: EventJournal;
   readonly #connection: SqliteConnection;
 
   private constructor(path: string, options: DensaDatabaseOptions) {
     const clock = options.now ?? (() => new Date().toISOString());
     const now = () => isoTimestampSchema.parse(clock());
     this.#connection = new SqliteConnection(path, now);
-    this.repositories = createRepositories(this.#connection);
+    const eventPublisher = new EventPublisher();
+    this.repositories = createRepositories(this.#connection, (event) =>
+      eventPublisher.publish(event),
+    );
+    this.eventJournal = new EventJournal(this.repositories.events, eventPublisher);
   }
 
   static open(path: string, options: DensaDatabaseOptions = {}): DensaDatabase {
@@ -98,7 +104,7 @@ export class DensaDatabase {
     return this.#connection.transaction(() => work(this.repositories));
   }
 
-  persistStateTransition(transition: StateTransition, eventId: EventId): Event {
+  persistStateTransition(transition: StateTransition, eventId: EventId): PersistedEvent {
     assertEventMatchesTransition(transition);
     const event = eventSchema.parse({ id: eventId, ...transition.event });
 

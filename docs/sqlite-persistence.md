@@ -36,9 +36,9 @@ dependency rows. `persistStateTransition()` uses an optimistic current-state pre
 the accepted state plus its versioned event in the same transaction; a stale snapshot or failed
 event insert rolls the state update back.
 
-Events have append-only database triggers from the first schema. Phase 2 Milestone 2 will add
-per-project sequence numbers, replay, filtering, post-commit publication, and subscriptions; those
-features are intentionally not included here.
+Migration 2 upgrades events with deterministic per-project sequence numbers and the canonical
+`eventVersion` field. Replay, filtering, payload bounds, post-commit publication, and subscriptions
+are documented in [event-journal.md](./event-journal.md).
 
 ## Migration compatibility
 
@@ -47,7 +47,7 @@ ISO-8601 application timestamp. Opening a database applies pending migrations tr
 fails closed if an already-applied migration differs from the current build. Migration files are
 immutable after release: future schema changes append a new version instead of editing migration 1.
 
-The zero-to-version-1 path is the only upgrade path in this milestone. There is no downgrade path;
+The supported paths are zero-to-latest and version-1-to-version-2. There is no downgrade path;
 a newer database must not be opened by an older Core build. Future destructive or data-transforming
 migrations must document backup, forward, and rollback assumptions alongside their migration tests.
 
