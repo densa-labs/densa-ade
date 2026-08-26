@@ -4,7 +4,7 @@ import { protocolErrorSchema } from "./errors.js";
 import { correlationIdSchema, requestIdSchema } from "./ids.js";
 import { jsonValueSchema } from "./json.js";
 
-export const PROTOCOL_VERSION = "0.1.0" as const;
+export const PROTOCOL_VERSION = "0.2.0" as const;
 export const protocolVersionSchema = z.literal(PROTOCOL_VERSION);
 export type ProtocolVersion = z.infer<typeof protocolVersionSchema>;
 

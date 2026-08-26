@@ -205,7 +205,7 @@ test("domain schemas enforce acceptance criteria, ISO timestamps, and JSON event
       id: "event-1",
       projectId: "project-1",
       type: "ROADMAP_GENERATED",
-      schemaVersion: 1,
+      eventVersion: 1,
       occurredAt: timestamp,
       actor: "densa-core",
       payload: { phaseCount: 2 },

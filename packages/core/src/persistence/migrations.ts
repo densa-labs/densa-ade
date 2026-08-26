@@ -173,8 +173,79 @@ CREATE TABLE project_settings (
 ) STRICT;
 `;
 
+const orderedEventJournal = `
+DROP TRIGGER events_are_append_only_on_update;
+DROP TRIGGER events_are_append_only_on_delete;
+
+CREATE TABLE events_v2 (
+  id TEXT PRIMARY KEY CHECK (length(id) > 0),
+  project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  sequence_number INTEGER NOT NULL CHECK (sequence_number > 0),
+  phase_id TEXT,
+  task_id TEXT,
+  type TEXT NOT NULL CHECK (type GLOB '[A-Z]*'),
+  event_version INTEGER NOT NULL CHECK (event_version > 0),
+  occurred_at TEXT NOT NULL CHECK (length(occurred_at) >= 20),
+  actor TEXT NOT NULL CHECK (length(actor) > 0),
+  payload_json TEXT NOT NULL CHECK (json_valid(payload_json)),
+  FOREIGN KEY (project_id, phase_id) REFERENCES phases(project_id, id) ON DELETE CASCADE,
+  FOREIGN KEY (project_id, phase_id, task_id)
+    REFERENCES tasks(project_id, phase_id, id) ON DELETE CASCADE,
+  UNIQUE (project_id, sequence_number),
+  CHECK (task_id IS NULL OR phase_id IS NOT NULL)
+) STRICT;
+
+INSERT INTO events_v2 (
+  id, project_id, sequence_number, phase_id, task_id, type, event_version,
+  occurred_at, actor, payload_json
+)
+SELECT
+  event.id,
+  event.project_id,
+  (
+    SELECT COUNT(*)
+    FROM events AS preceding
+    WHERE preceding.project_id = event.project_id
+      AND (
+        preceding.occurred_at < event.occurred_at
+        OR (preceding.occurred_at = event.occurred_at AND preceding.id <= event.id)
+      )
+  ),
+  event.phase_id,
+  event.task_id,
+  event.type,
+  event.schema_version,
+  event.occurred_at,
+  event.actor,
+  event.payload_json
+FROM events AS event;
+
+DROP TABLE events;
+ALTER TABLE events_v2 RENAME TO events;
+
+CREATE INDEX events_project_phase_sequence
+  ON events (project_id, phase_id, sequence_number);
+CREATE INDEX events_project_task_sequence
+  ON events (project_id, task_id, sequence_number);
+CREATE INDEX events_project_type_sequence
+  ON events (project_id, type, sequence_number);
+
+CREATE TRIGGER events_are_append_only_on_update
+BEFORE UPDATE ON events
+BEGIN
+  SELECT RAISE(ABORT, 'events are append-only');
+END;
+
+CREATE TRIGGER events_are_append_only_on_delete
+BEFORE DELETE ON events
+BEGIN
+  SELECT RAISE(ABORT, 'events are append-only');
+END;
+`;
+
 export const schemaMigrations: readonly SchemaMigration[] = Object.freeze([
   Object.freeze({ version: 1, name: "authoritative_runtime_schema", sql: initialSchema }),
+  Object.freeze({ version: 2, name: "ordered_event_journal", sql: orderedEventJournal }),
 ]);
 
 export const latestSchemaVersion = schemaMigrations.at(-1)?.version ?? 0;
@@ -220,8 +291,9 @@ export function migrate(database: DatabaseSync, now: () => string): void {
     }
   }
 
+  let nextVersion = applied.length + 1;
   for (const migration of schemaMigrations.slice(applied.length)) {
-    if (migration.version !== applied.length + 1) {
+    if (migration.version !== nextVersion) {
       throw new Error(`SQLite migrations must be contiguous at version ${migration.version}`);
     }
 
@@ -234,6 +306,7 @@ export function migrate(database: DatabaseSync, now: () => string): void {
         )
         .run(migration.version, migration.name, checksum(migration), now());
       database.exec("COMMIT");
+      nextVersion += 1;
     } catch (error) {
       rollback(database);
       throw error;

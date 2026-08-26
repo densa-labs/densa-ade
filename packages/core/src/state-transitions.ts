@@ -111,7 +111,7 @@ interface StateTransitionPayload<State extends string> {
 export interface ProjectStateTransitionEventDraft {
   readonly projectId: Project["id"];
   readonly type: "PROJECT_STATE_CHANGED";
-  readonly schemaVersion: 1;
+  readonly eventVersion: 1;
   readonly occurredAt: string;
   readonly actor: string;
   readonly payload: Readonly<StateTransitionPayload<ProjectState>>;
@@ -121,7 +121,7 @@ export interface PhaseStateTransitionEventDraft {
   readonly projectId: Phase["projectId"];
   readonly phaseId: Phase["id"];
   readonly type: "PHASE_STATE_CHANGED";
-  readonly schemaVersion: 1;
+  readonly eventVersion: 1;
   readonly occurredAt: string;
   readonly actor: string;
   readonly payload: Readonly<StateTransitionPayload<PhaseState>>;
@@ -132,7 +132,7 @@ export interface TaskStateTransitionEventDraft {
   readonly phaseId: Task["phaseId"];
   readonly taskId: Task["id"];
   readonly type: "TASK_STATE_CHANGED";
-  readonly schemaVersion: 1;
+  readonly eventVersion: 1;
   readonly occurredAt: string;
   readonly actor: string;
   readonly payload: Readonly<StateTransitionPayload<TaskState>>;
@@ -228,7 +228,7 @@ export class StateTransitionService {
     const event = Object.freeze({
       projectId: project.id,
       type: "PROJECT_STATE_CHANGED" as const,
-      schemaVersion: 1 as const,
+      eventVersion: 1 as const,
       occurredAt: context.occurredAt,
       actor: context.actor,
       payload: transitionPayload(project.state, requestedState, context.reason),
@@ -261,7 +261,7 @@ export class StateTransitionService {
       projectId: phase.projectId,
       phaseId: phase.id,
       type: "PHASE_STATE_CHANGED" as const,
-      schemaVersion: 1 as const,
+      eventVersion: 1 as const,
       occurredAt: context.occurredAt,
       actor: context.actor,
       payload: transitionPayload(phase.state, requestedState, context.reason),
@@ -295,7 +295,7 @@ export class StateTransitionService {
       phaseId: task.phaseId,
       taskId: task.id,
       type: "TASK_STATE_CHANGED" as const,
-      schemaVersion: 1 as const,
+      eventVersion: 1 as const,
       occurredAt: context.occurredAt,
       actor: context.actor,
       payload: transitionPayload(task.state, requestedState, context.reason),

@@ -35,6 +35,8 @@ export class SqliteConnection {
   readonly database: DatabaseSync;
   #transactionDepth = 0;
   #savepointCounter = 0;
+  readonly #afterCommitFrames: Array<Array<() => void>> = [];
+  #activeAfterCommitQueue: Array<() => void> | undefined;
 
   constructor(path: string, now: () => string) {
     const database = new DatabaseSync(path, {
@@ -76,22 +78,56 @@ export class SqliteConnection {
     return this.database.prepare(sql).all(...parameters);
   }
 
+  afterCommit(callback: () => void): void {
+    const frame = this.#afterCommitFrames.at(-1);
+    if (frame !== undefined) {
+      frame.push(callback);
+      return;
+    }
+    if (this.#activeAfterCommitQueue !== undefined) {
+      this.#activeAfterCommitQueue.push(callback);
+      return;
+    }
+    callback();
+  }
+
   transaction<Result>(work: () => Result): Result {
     const outermost = this.#transactionDepth === 0;
     const savepoint = `densa_savepoint_${this.#savepointCounter++}`;
     this.database.exec(outermost ? "BEGIN IMMEDIATE" : `SAVEPOINT ${savepoint}`);
     this.#transactionDepth += 1;
+    this.#afterCommitFrames.push([]);
 
     try {
       const result = work();
       if (isPromiseLike(result)) {
         throw new PersistenceError("SQLite transaction callbacks must be synchronous");
       }
-      this.#transactionDepth -= 1;
+      const callbacks = this.#afterCommitFrames.at(-1);
+      const parentFrame = outermost ? undefined : this.#afterCommitFrames.at(-2);
+      if (callbacks === undefined || (!outermost && parentFrame === undefined)) {
+        throw new PersistenceError("SQLite transaction commit hooks became inconsistent");
+      }
       this.database.exec(outermost ? "COMMIT" : `RELEASE SAVEPOINT ${savepoint}`);
+      this.#transactionDepth -= 1;
+      this.#afterCommitFrames.pop();
+      if (outermost) {
+        this.#activeAfterCommitQueue = callbacks;
+        for (let index = 0; index < callbacks.length; index += 1) {
+          try {
+            callbacks[index]?.();
+          } catch {
+            // The transaction is already durable; observer failures cannot roll it back.
+          }
+        }
+        this.#activeAfterCommitQueue = undefined;
+      } else if (parentFrame !== undefined) {
+        parentFrame.push(...callbacks);
+      }
       return result;
     } catch (error) {
       this.#transactionDepth -= 1;
+      this.#afterCommitFrames.pop();
       if (outermost) {
         tryExec(this.database, "ROLLBACK");
       } else {

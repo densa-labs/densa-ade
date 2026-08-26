@@ -82,8 +82,8 @@ test("a file database migrates from zero and reopening does not reapply migratio
   const path = join(directory, "runtime.sqlite");
   try {
     const first = DensaDatabase.open(path, { now: fixedMigrationTime });
-    assert.equal(first.schemaVersion, 1);
-    assert.equal(first.expectedSchemaVersion, 1);
+    assert.equal(first.schemaVersion, 2);
+    assert.equal(first.expectedSchemaVersion, 2);
     assert.deepEqual(first.listUserTables(), [
       "acceptance_criteria",
       "agent_runs",
@@ -103,7 +103,7 @@ test("a file database migrates from zero and reopening does not reapply migratio
     first.close();
 
     const reopened = DensaDatabase.open(path, { now: fixedMigrationTime });
-    assert.equal(reopened.schemaVersion, 1);
+    assert.equal(reopened.schemaVersion, 2);
     reopened.close();
   } finally {
     rmSync(directory, { force: true, recursive: true });
@@ -227,7 +227,7 @@ test("all remaining P2M1 repositories round-trip their runtime records", () => {
       id: "event-manual-1",
       projectId: project.id,
       type: "PROJECT_CREATED",
-      schemaVersion: 1,
+      eventVersion: 1,
       occurredAt: createdAt,
       actor: "densa-core:test",
       payload: { executionMode: "guided" },
@@ -258,7 +258,7 @@ test("all remaining P2M1 repositories round-trip their runtime records", () => {
     assert.deepEqual(repositories.decisions.findById(decision.id), decision);
     assert.deepEqual(repositories.roadmapRevisions.findById(revision.id), revision);
     assert.deepEqual(repositories.checkpoints.findById(checkpoint.id), checkpoint);
-    assert.deepEqual(repositories.events.findById(event.id), event);
+    assert.deepEqual(repositories.events.findById(event.id), { ...event, sequenceNumber: 1 });
     assert.deepEqual(repositories.projectSettings.findByProjectId(project.id), settings);
   });
 });
@@ -365,7 +365,7 @@ test("an event insert failure rolls back its preceding state update", () => {
       id: "event-duplicate",
       projectId: project.id,
       type: "PROJECT_CREATED",
-      schemaVersion: 1,
+      eventVersion: 1,
       occurredAt: createdAt,
       actor: "densa-core:test",
       payload: {},

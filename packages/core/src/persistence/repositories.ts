@@ -25,6 +25,14 @@ import {
 } from "@densa/protocol";
 
 import {
+  DEFAULT_EVENT_REPLAY_LIMIT,
+  MAX_EVENT_PAYLOAD_BYTES,
+  MAX_EVENT_REPLAY_LIMIT,
+  type EventReplayFilter,
+  type PersistedEvent,
+} from "../event-publisher.js";
+
+import {
   PersistenceError,
   type SqliteConnection,
   optionalBoolean,
@@ -118,8 +126,9 @@ export interface CheckpointRepository {
 }
 
 export interface EventRepository {
-  append(event: Event): Event;
-  findById(id: Event["id"]): Event | undefined;
+  append(event: Event): PersistedEvent;
+  findById(id: Event["id"]): PersistedEvent | undefined;
+  replay(filter?: EventReplayFilter): readonly PersistedEvent[];
 }
 
 export interface ProjectSettingsRepository {
@@ -620,45 +629,123 @@ class SqliteCheckpointRepository implements CheckpointRepository {
 }
 
 class SqliteEventRepository implements EventRepository {
-  constructor(private readonly connection: SqliteConnection) {}
+  constructor(
+    private readonly connection: SqliteConnection,
+    private readonly publish: (event: Readonly<PersistedEvent>) => void,
+  ) {}
 
-  append(input: Event): Event {
+  append(input: Event): PersistedEvent {
     const event = eventSchema.parse(input);
+    const payloadJson = JSON.stringify(event.payload);
+    if (Buffer.byteLength(payloadJson, "utf8") > MAX_EVENT_PAYLOAD_BYTES) {
+      throw new PersistenceError(
+        `Event payload exceeds the ${String(MAX_EVENT_PAYLOAD_BYTES)} byte limit`,
+      );
+    }
     this.connection.run(
       `INSERT INTO events
-       (id, project_id, phase_id, task_id, type, schema_version, occurred_at, actor, payload_json)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (id, project_id, sequence_number, phase_id, task_id, type, event_version,
+        occurred_at, actor, payload_json)
+       SELECT ?, ?, COALESCE(MAX(sequence_number), 0) + 1, ?, ?, ?, ?, ?, ?, ?
+       FROM events WHERE project_id = ?`,
       event.id,
       event.projectId,
       event.phaseId ?? null,
       event.taskId ?? null,
       event.type,
-      event.schemaVersion,
+      event.eventVersion,
       event.occurredAt,
       event.actor,
-      JSON.stringify(event.payload),
+      payloadJson,
+      event.projectId,
     );
-    return event;
+    const stored = this.findById(event.id);
+    if (stored === undefined) {
+      throw new PersistenceError("Event append did not produce a stored record");
+    }
+    this.connection.afterCommit(() => this.publish(stored));
+    return stored;
   }
 
-  findById(id: Event["id"]): Event | undefined {
+  findById(id: Event["id"]): PersistedEvent | undefined {
     const row = this.connection.get("SELECT * FROM events WHERE id = ?", id);
-    if (row === undefined) {
-      return undefined;
+    return row === undefined ? undefined : this.parseRow(row);
+  }
+
+  replay(filter: EventReplayFilter = {}): readonly PersistedEvent[] {
+    if (filter.afterSequence !== undefined && filter.projectId === undefined) {
+      throw new PersistenceError("Event replay afterSequence requires a projectId");
     }
+    if (
+      filter.afterSequence !== undefined &&
+      (!Number.isSafeInteger(filter.afterSequence) || filter.afterSequence < 0)
+    ) {
+      throw new PersistenceError("Event replay afterSequence must be a nonnegative safe integer");
+    }
+    const limit = filter.limit ?? DEFAULT_EVENT_REPLAY_LIMIT;
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > MAX_EVENT_REPLAY_LIMIT) {
+      throw new PersistenceError(
+        `Event replay limit must be between 1 and ${String(MAX_EVENT_REPLAY_LIMIT)}`,
+      );
+    }
+    if (filter.types !== undefined && filter.types.length === 0) {
+      throw new PersistenceError("Event replay types must not be empty");
+    }
+
+    const clauses: string[] = [];
+    const parameters: Array<string | number> = [];
+    const addClause = (clause: string, value: string | number): void => {
+      clauses.push(clause);
+      parameters.push(value);
+    };
+    if (filter.projectId !== undefined) {
+      addClause("project_id = ?", filter.projectId);
+    }
+    if (filter.phaseId !== undefined) {
+      addClause("phase_id = ?", filter.phaseId);
+    }
+    if (filter.taskId !== undefined) {
+      addClause("task_id = ?", filter.taskId);
+    }
+    if (filter.afterSequence !== undefined) {
+      addClause("sequence_number > ?", filter.afterSequence);
+    }
+    if (filter.types !== undefined) {
+      for (const type of filter.types) {
+        if (!/^[A-Z][A-Z0-9_]*$/u.test(type)) {
+          throw new PersistenceError(`Invalid event type filter: ${type}`);
+        }
+      }
+      clauses.push(`type IN (${filter.types.map(() => "?").join(", ")})`);
+      parameters.push(...filter.types);
+    }
+
+    const where = clauses.length === 0 ? "" : `WHERE ${clauses.join(" AND ")}`;
+    const order =
+      filter.projectId === undefined ? "project_id, sequence_number" : "sequence_number";
+    const rows = this.connection.all(
+      `SELECT * FROM events ${where} ORDER BY ${order} LIMIT ?`,
+      ...parameters,
+      limit,
+    );
+    return Object.freeze(rows.map((row) => this.parseRow(row)));
+  }
+
+  private parseRow(row: Parameters<typeof requiredString>[0]): PersistedEvent {
     const phaseId = optionalString(row, "phase_id");
     const taskId = optionalString(row, "task_id");
-    return eventSchema.parse({
+    const event = eventSchema.parse({
       id: requiredString(row, "id"),
       projectId: requiredString(row, "project_id"),
       type: requiredString(row, "type"),
-      schemaVersion: requiredNumber(row, "schema_version"),
+      eventVersion: requiredNumber(row, "event_version"),
       occurredAt: requiredString(row, "occurred_at"),
       actor: requiredString(row, "actor"),
       payload: parseJson(requiredString(row, "payload_json")),
       ...(phaseId === undefined ? {} : { phaseId }),
       ...(taskId === undefined ? {} : { taskId }),
     });
+    return Object.freeze({ ...event, sequenceNumber: requiredNumber(row, "sequence_number") });
   }
 }
 
@@ -693,7 +780,10 @@ class SqliteProjectSettingsRepository implements ProjectSettingsRepository {
   }
 }
 
-export function createRepositories(connection: SqliteConnection): DensaRepositories {
+export function createRepositories(
+  connection: SqliteConnection,
+  publishEvent: (event: Readonly<PersistedEvent>) => void = () => undefined,
+): DensaRepositories {
   const taskDependencies = new SqliteTaskDependencyRepository(connection);
   const acceptanceCriteria = new SqliteAcceptanceCriterionRepository(connection);
   return Object.freeze({
@@ -709,7 +799,7 @@ export function createRepositories(connection: SqliteConnection): DensaRepositor
     decisions: new SqliteDecisionRepository(connection),
     roadmapRevisions: new SqliteRoadmapRevisionRepository(connection),
     checkpoints: new SqliteCheckpointRepository(connection),
-    events: new SqliteEventRepository(connection),
+    events: new SqliteEventRepository(connection, publishEvent),
     projectSettings: new SqliteProjectSettingsRepository(connection),
   });
 }
