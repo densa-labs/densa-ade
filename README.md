@@ -1,9 +1,9 @@
 # Densa
 
 Densa is a local-first orchestration layer for an AI development IDE. This repository contains
-the editor-independent TypeScript/Node foundation, a provider-neutral agent boundary, and the
-first non-persistent single-task proof loop. It does not yet contain authoritative persistence or
-editor integration.
+the editor-independent TypeScript/Node foundation, a provider-neutral agent boundary, the first
+single-task proof loop, and migration-backed authoritative SQLite persistence. It does not yet
+contain the long-running orchestrator or editor integration.
 
 ## Process boundary
 
@@ -50,8 +50,19 @@ are immutable snapshots: callers request a transition instead of assigning `stat
 
 An accepted transition returns a new immutable snapshot plus a versioned event draft containing
 the actor, timestamp, prior state, next state, optional reason, and relevant project/phase/task
-identifiers. Phase 2 Milestone 0 does not persist either value; the SQLite repository added in the
-next milestone will consume both in one transaction.
+identifiers. The Core-owned SQLite repository consumes both in one transaction and rejects stale
+transition snapshots without appending an event.
+
+## Authoritative SQLite persistence
+
+`DensaDatabase` migrates a fresh SQLite database, exposes repository interfaces for the Phase 2
+runtime records, and keeps its raw connection and state-update statements private. Foreign keys,
+checks, aggregate task writes, nested transaction savepoints, and append-only event triggers enforce
+the initial integrity boundary. In-memory and temporary file databases support deterministic tests.
+
+The schema, migration compatibility rules, transaction behavior, and data/secret boundary are
+documented in [`docs/sqlite-persistence.md`](docs/sqlite-persistence.md). Event sequencing, replay,
+filters, and post-commit subscriptions remain Phase 2 Milestone 2 scope.
 
 ## Headless CLI
 
@@ -82,10 +93,10 @@ diagnostics directory created after the worker exits. The caller owns cleanup of
 temporary roots. Runs time out and require confirmed adapter cancellation before workspace
 inspection; unconfirmed workers leave their workspace quarantined for escalation. Unexpected
 symlinks fail closed, oversized retained events are labeled as truncated, and post-run inspection
-errors still produce a FAIL diagnostic. This keeps attempt evidence inspectable without introducing
-SQLite or a long-lived runtime source of truth. Routine tests cover passing, failing, deliberately
-lying, stalled, and workspace-tampering fake agents. The authenticated Codex demonstration is
-opt-in because live agents are not used for routine tests:
+errors still produce a FAIL diagnostic. The harness intentionally remains isolated from the newer
+authoritative database boundary while its attempt evidence stays inspectable. Routine tests cover
+passing, failing, deliberately lying, stalled, and workspace-tampering fake agents. The
+authenticated Codex demonstration is opt-in because live agents are not used for routine tests:
 
 ```sh
 npm run test:live:task-proof
