@@ -148,6 +148,11 @@ class SecretRedactor {
   }
 }
 
+/** Redacts secret-shaped values before descriptive text is persisted into portable artifacts. */
+export function redactPortableText(input: string): string {
+  return new SecretRedactor().text(input);
+}
+
 function sha256(content: string): string {
   return createHash("sha256").update(content, "utf8").digest("hex");
 }

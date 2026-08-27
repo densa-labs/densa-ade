@@ -7,6 +7,7 @@ import {
   isoTimestampSchema,
   jsonObjectSchema,
   masterRoadmapRecordSchema,
+  phaseReportSchema,
   phaseSchema,
   projectSpecificationSchema,
   projectSchema,
@@ -21,6 +22,7 @@ import {
   type JsonObject,
   type MasterRoadmapRecord,
   type Phase,
+  type PhaseReport,
   type Project,
   type ProjectSpecification,
   type RoadmapRevision,
@@ -260,6 +262,12 @@ export interface ProjectSettingsRepository {
   findByProjectId(projectId: Project["id"]): ProjectSettingsRecord | undefined;
 }
 
+export interface PhaseReportRepository {
+  create(report: PhaseReport): PhaseReport;
+  findByPhaseId(phaseId: Phase["id"]): PhaseReport | undefined;
+  listByProjectId(projectId: Project["id"]): readonly PhaseReport[];
+}
+
 export interface DensaRepositories {
   readonly projects: ProjectRepository;
   readonly specifications: SpecificationRepository;
@@ -279,6 +287,7 @@ export interface DensaRepositories {
   readonly checkpoints: CheckpointRepository;
   readonly events: EventRepository;
   readonly projectSettings: ProjectSettingsRepository;
+  readonly phaseReports: PhaseReportRepository;
 }
 
 function parseJson(text: string): unknown {
@@ -1575,6 +1584,48 @@ class SqliteProjectSettingsRepository implements ProjectSettingsRepository {
   }
 }
 
+class SqlitePhaseReportRepository implements PhaseReportRepository {
+  constructor(private readonly connection: SqliteConnection) {}
+
+  create(input: PhaseReport): PhaseReport {
+    const report = phaseReportSchema.parse(input);
+    this.connection.run(
+      `INSERT INTO phase_reports
+       (phase_id, project_id, outcome, report_path, report_json, generated_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      report.phaseId,
+      report.projectId,
+      report.outcome,
+      report.reportPath,
+      JSON.stringify(report),
+      report.generatedAt,
+    );
+    return report;
+  }
+
+  findByPhaseId(phaseId: Phase["id"]): PhaseReport | undefined {
+    const row = this.connection.get(
+      "SELECT report_json FROM phase_reports WHERE phase_id = ?",
+      phaseId,
+    );
+    return row === undefined
+      ? undefined
+      : phaseReportSchema.parse(parseJson(requiredString(row, "report_json")));
+  }
+
+  listByProjectId(projectId: Project["id"]): readonly PhaseReport[] {
+    return Object.freeze(
+      this.connection
+        .all(
+          `SELECT report_json FROM phase_reports
+           WHERE project_id = ? ORDER BY generated_at, phase_id`,
+          projectId,
+        )
+        .map((row) => phaseReportSchema.parse(parseJson(requiredString(row, "report_json")))),
+    );
+  }
+}
+
 export function createRepositories(
   connection: SqliteConnection,
   publishEvent: (event: Readonly<PersistedEvent>) => void = () => undefined,
@@ -1600,5 +1651,6 @@ export function createRepositories(
     checkpoints: new SqliteCheckpointRepository(connection),
     events: new SqliteEventRepository(connection, publishEvent),
     projectSettings: new SqliteProjectSettingsRepository(connection),
+    phaseReports: new SqlitePhaseReportRepository(connection),
   });
 }

@@ -5,6 +5,7 @@ export * from "./errors.js";
 export * from "./ids.js";
 export * from "./json.js";
 export * from "./master-roadmap.js";
+export * from "./phase-report.js";
 export * from "./project-specification.js";
 export * from "./roadmap-mutation.js";
 export * from "./states.js";
