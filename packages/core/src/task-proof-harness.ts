@@ -37,7 +37,7 @@ export interface TaskAcceptanceCriterion {
   validation: ValidationCommand;
 }
 
-export interface TaskPacket {
+export interface ProofTaskPacket {
   taskId: string;
   title: string;
   instructions: string;
@@ -94,7 +94,7 @@ export interface TaskProofResult {
   workspacePath: string;
   diagnosticsPath: string;
   diagnosticsRoot: string;
-  taskPacket: TaskPacket;
+  taskPacket: ProofTaskPacket;
   prompt: string;
   checkpoint: {
     head: string;
@@ -591,7 +591,7 @@ async function requireSuccessfulCommand(
   return result;
 }
 
-function buildDefaultTaskPacket(): TaskPacket {
+function buildDefaultTaskPacket(): ProofTaskPacket {
   return {
     taskId: "PROOF-001",
     title: "Implement integer addition",
@@ -609,7 +609,7 @@ function buildDefaultTaskPacket(): TaskPacket {
   };
 }
 
-export function buildTaskPacketPrompt(packet: TaskPacket): string {
+export function buildTaskPacketPrompt(packet: ProofTaskPacket): string {
   const criteria = packet.acceptanceCriteria
     .map(
       (criterion) =>
@@ -632,7 +632,7 @@ export function buildTaskPacketPrompt(packet: TaskPacket): string {
 async function createFixture(temporaryBaseDirectory?: string): Promise<{
   temporaryRoot: string;
   workspacePath: string;
-  taskPacket: TaskPacket;
+  taskPacket: ProofTaskPacket;
 }> {
   const baseDirectory = temporaryBaseDirectory ?? tmpdir();
   await mkdir(baseDirectory, { recursive: true });
