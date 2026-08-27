@@ -424,6 +424,25 @@ CREATE INDEX roadmap_revisions_project_created
   ON roadmap_revisions (project_id, created_at, id);
 `;
 
+const durablePhaseReports = `
+CREATE TABLE phase_reports (
+  phase_id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL,
+  outcome TEXT NOT NULL CHECK (outcome IN ('blocked', 'awaiting_approval', 'completed')),
+  report_path TEXT NOT NULL CHECK (report_path GLOB '.densa/reports/*.md'),
+  report_json TEXT NOT NULL CHECK (
+    json_valid(report_json)
+    AND json_extract(report_json, '$.formatVersion') = 1
+  ),
+  generated_at TEXT NOT NULL CHECK (length(generated_at) >= 20),
+  FOREIGN KEY (project_id, phase_id) REFERENCES phases(project_id, id) ON DELETE CASCADE,
+  UNIQUE (project_id, report_path)
+) STRICT;
+
+CREATE INDEX phase_reports_project_generated
+  ON phase_reports (project_id, generated_at, phase_id);
+`;
+
 export const schemaMigrations: readonly SchemaMigration[] = Object.freeze([
   Object.freeze({ version: 1, name: "authoritative_runtime_schema", sql: initialSchema }),
   Object.freeze({ version: 2, name: "ordered_event_journal", sql: orderedEventJournal }),
@@ -449,6 +468,7 @@ export const schemaMigrations: readonly SchemaMigration[] = Object.freeze([
     name: "audited_roadmap_mutations",
     sql: auditedRoadmapMutations,
   }),
+  Object.freeze({ version: 9, name: "durable_phase_reports", sql: durablePhaseReports }),
 ]);
 
 export const latestSchemaVersion = schemaMigrations.at(-1)?.version ?? 0;

@@ -27,6 +27,7 @@ export type {
   NewTaskCommitIntentRecord,
   MasterRoadmapRepository,
   PhaseRepository,
+  PhaseReportRepository,
   ProjectRepository,
   ProjectSettingsRecord,
   ProjectSettingsRepository,
