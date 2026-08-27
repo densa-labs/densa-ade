@@ -42,5 +42,6 @@ export type {
   TaskCommitIntentRepository,
   TaskRepository,
   ValidationRunRepository,
+  ValidationResultRepository,
 } from "./repositories.js";
 export { PersistenceError } from "./sqlite-connection.js";

@@ -443,6 +443,38 @@ CREATE INDEX phase_reports_project_generated
   ON phase_reports (project_id, generated_at, phase_id);
 `;
 
+const validatorPluginFramework = `
+ALTER TABLE validation_runs ADD COLUMN plan_id TEXT
+  CHECK (plan_id IS NULL OR length(plan_id) > 0);
+ALTER TABLE validation_runs ADD COLUMN plan_version TEXT
+  CHECK (plan_version IS NULL OR length(plan_version) > 0);
+
+CREATE TABLE validation_results (
+  id TEXT PRIMARY KEY CHECK (length(id) > 0),
+  validation_run_id TEXT NOT NULL REFERENCES validation_runs(id) ON DELETE CASCADE,
+  position INTEGER NOT NULL CHECK (position >= 0),
+  validator_id TEXT NOT NULL CHECK (length(validator_id) > 0),
+  validator_version TEXT NOT NULL CHECK (length(validator_version) > 0),
+  policy TEXT NOT NULL CHECK (policy IN ('required', 'advisory')),
+  status TEXT NOT NULL CHECK (status IN ('passed', 'failed', 'error', 'skipped')),
+  started_at TEXT NOT NULL CHECK (length(started_at) >= 20),
+  completed_at TEXT NOT NULL CHECK (length(completed_at) >= 20),
+  command_json TEXT CHECK (command_json IS NULL OR json_valid(command_json)),
+  config_json TEXT CHECK (config_json IS NULL OR json_valid(config_json)),
+  exit_code INTEGER,
+  diagnostics_json TEXT NOT NULL CHECK (json_valid(diagnostics_json)),
+  related_acceptance_criteria_json TEXT NOT NULL CHECK (
+    json_valid(related_acceptance_criteria_json)
+  ),
+  retry_relevant INTEGER NOT NULL CHECK (retry_relevant IN (0, 1)),
+  UNIQUE (validation_run_id, position),
+  CHECK (completed_at >= started_at)
+) STRICT;
+
+CREATE INDEX validation_results_run_position
+  ON validation_results (validation_run_id, position);
+`;
+
 export const schemaMigrations: readonly SchemaMigration[] = Object.freeze([
   Object.freeze({ version: 1, name: "authoritative_runtime_schema", sql: initialSchema }),
   Object.freeze({ version: 2, name: "ordered_event_journal", sql: orderedEventJournal }),
@@ -469,6 +501,11 @@ export const schemaMigrations: readonly SchemaMigration[] = Object.freeze([
     sql: auditedRoadmapMutations,
   }),
   Object.freeze({ version: 9, name: "durable_phase_reports", sql: durablePhaseReports }),
+  Object.freeze({
+    version: 10,
+    name: "validator_plugin_framework",
+    sql: validatorPluginFramework,
+  }),
 ]);
 
 export const latestSchemaVersion = schemaMigrations.at(-1)?.version ?? 0;
