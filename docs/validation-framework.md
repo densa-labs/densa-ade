@@ -22,5 +22,23 @@ required results fail the aggregate run. Advisory entries are still persisted an
 change the aggregate verdict. All validators continue in deterministic order after a failure so the
 retry path receives the complete available evidence.
 
-The framework deliberately does not discover or execute project commands yet. Safe command
-detection belongs to P6M1.
+## Safe command detection
+
+Phase 6 Milestone 1 adds a read-only `ProjectValidationDetector`. It recognizes initial Node and
+TypeScript projects from bounded regular metadata files and proposes deterministic build,
+typecheck, lint, and test commands as executable-plus-argument arrays. It never evaluates a
+`package.json` script body, concatenates shell text, or starts a process. The Policy/Validation
+layer must still decide whether a proposal may run and must spawn approved commands without a
+shell.
+
+Only exact, allowlisted script names are inferred. A `tsconfig.json` without a typecheck script can
+use `node_modules/.bin/tsc` only when that executable resolves to a regular file inside the
+workspace. Unsupported or ambiguous package managers, malformed or symlinked metadata, missing
+local TypeScript tooling, and unknown project types fail closed with an explicit unknown/manual
+configuration result.
+
+User-configured structured argv replaces all guesses. Overrides require an actor, reason, and
+durable audit sink. Detection fails closed unless that sink records the versioned audit fact before
+the configured plan is returned. Shell-evaluation forms and working directories outside the
+workspace are rejected. Audit facts retain command identity, category, policy, argument count, and
+an argv digest rather than potentially secret argument values.
