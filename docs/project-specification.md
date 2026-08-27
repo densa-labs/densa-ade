@@ -17,6 +17,12 @@ Every unresolved question has a stable ID, category, and `high`, `medium`, or `l
 milestone only represents and renders those questions. Deciding which questions to generate, rank,
 or ask belongs to P4M1.
 
+P4M1 may also attach a proposed default, its rationale, and whether a non-critical default is safe
+to carry into roadmap planning without another answer. High-impact questions can display a proposed
+default for clarity, but schema validation forbids marking it safe to use without the user. Adaptive
+questions retain an optional batch key so related-question grouping survives persistence and Core
+restart; older or externally created questions without one resume as single-question batches.
+
 Specification text must contain non-whitespace content, but validation never trims or rewrites it.
 Exact user wording belongs in the corresponding specification value. Interpretations must be
 recorded separately as a decision or unresolved question; callers must not silently replace a

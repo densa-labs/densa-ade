@@ -1,5 +1,7 @@
 import { spawn, type ChildProcess, type ChildProcessWithoutNullStreams } from "node:child_process";
-import { stat } from "node:fs/promises";
+import { mkdtemp, rm, stat, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import process from "node:process";
 
 import type { UsageState } from "@densa/protocol";
@@ -298,15 +300,42 @@ export class CodexAdapter implements AgentAdapter {
     const queue = new AsyncEventQueue<AgentEvent>();
     const stderr = new BoundedText(this.captureLimitBytes);
     const finalMessage = new BoundedText(this.captureLimitBytes);
+    let outputSchemaDirectory: string | undefined;
+    let outputSchemaPath: string | undefined;
+    if (request.outputSchema !== undefined) {
+      try {
+        outputSchemaDirectory = await mkdtemp(path.join(tmpdir(), "densa-agent-schema-"));
+        outputSchemaPath = path.join(outputSchemaDirectory, "response.schema.json");
+        await writeFile(outputSchemaPath, JSON.stringify(request.outputSchema), {
+          encoding: "utf8",
+          mode: 0o600,
+          flag: "wx",
+        });
+      } catch {
+        if (outputSchemaDirectory !== undefined) {
+          await rm(outputSchemaDirectory, { recursive: true, force: true }).catch(() => undefined);
+        }
+        this.startingRunIds.delete(request.runId);
+        yield this.startedEvent(request.runId);
+        yield this.failureEvent(request.runId, {
+          code: "PROCESS_FAILURE",
+          message: "Agent response schema could not be prepared",
+        });
+        return;
+      }
+    }
     let child: ChildProcessWithoutNullStreams;
     try {
-      child = spawn(this.command, this.executionArguments(request.cwd), {
+      child = spawn(this.command, this.executionArguments(request.cwd, outputSchemaPath), {
         cwd: request.cwd,
         detached: process.platform !== "win32",
         env: process.env,
         stdio: ["pipe", "pipe", "pipe"],
       });
     } catch (error) {
+      if (outputSchemaDirectory !== undefined) {
+        await rm(outputSchemaDirectory, { recursive: true, force: true }).catch(() => undefined);
+      }
       this.startingRunIds.delete(request.runId);
       yield this.startedEvent(request.runId);
       yield this.failureEvent(request.runId, this.spawnError(error));
@@ -416,6 +445,9 @@ export class CodexAdapter implements AgentAdapter {
         this.requestCancellation(active);
         await active.done;
       }
+      if (outputSchemaDirectory !== undefined) {
+        await rm(outputSchemaDirectory, { recursive: true, force: true }).catch(() => undefined);
+      }
     }
   }
 
@@ -433,8 +465,8 @@ export class CodexAdapter implements AgentAdapter {
     };
   }
 
-  private executionArguments(cwd: string): string[] {
-    return [
+  private executionArguments(cwd: string, outputSchemaPath?: string): string[] {
+    const arguments_ = [
       "--ask-for-approval",
       "never",
       "--sandbox",
@@ -449,8 +481,12 @@ export class CodexAdapter implements AgentAdapter {
       "never",
       "--cd",
       cwd,
-      "-",
     ];
+    if (outputSchemaPath !== undefined) {
+      arguments_.push("--output-schema", outputSchemaPath);
+    }
+    arguments_.push("-");
+    return arguments_;
   }
 
   private requestCancellation(active: ActiveRun): void {

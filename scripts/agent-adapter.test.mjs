@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { Buffer } from "node:buffer";
-import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import process from "node:process";
@@ -155,6 +155,44 @@ process.stdin.on("end", () => {
   assert.equal(terminal.exitCode, 0);
   assert.match(terminal.finalMessage, new RegExp(`cwd=.*${path.basename(directory)}`));
   assert.match(terminal.finalMessage, /prompt=respond exactly/u);
+});
+
+test("CodexAdapter materializes a constrained output schema and cleans it after the run", async (t) => {
+  const { executable } = await createFakeCodex(
+    t,
+    `const schemaIndex = args.indexOf("--output-schema");
+if (schemaIndex < 0) process.exit(2);
+const schemaPath = args[schemaIndex + 1];
+const { readFileSync } = await import("node:fs");
+const schema = JSON.parse(readFileSync(schemaPath, "utf8"));
+process.stdout.write(JSON.stringify({ type: "turn.started" }) + "\\n");
+process.stdout.write(JSON.stringify({
+  type: "item.completed",
+  item: { type: "agent_message", text: "schemaPath=" + schemaPath + ";type=" + schema.type }
+}) + "\\n");
+process.stdout.write(JSON.stringify({ type: "turn.completed" }) + "\\n");`,
+  );
+  const adapter = new CodexAdapter({ command: executable, now: () => fixedTime });
+
+  const events = await collect(
+    adapter.execute({
+      runId: "codex-schema-1",
+      cwd: tmpdir(),
+      prompt: "return structured data",
+      outputSchema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["ok"],
+        properties: { ok: { type: "boolean" } },
+      },
+    }),
+  );
+  const terminal = events.find(isTerminalAgentEvent);
+  assert.equal(terminal.outcome, "succeeded");
+  assert.match(terminal.finalMessage, /;type=object$/u);
+  const schemaPath = terminal.finalMessage.match(/^schemaPath=(.*);type=/u)?.[1];
+  assert.ok(schemaPath);
+  await assert.rejects(stat(schemaPath), (error) => error.code === "ENOENT");
 });
 
 test("CodexAdapter returns classified terminal errors for missing and unauthenticated Codex", async (t) => {

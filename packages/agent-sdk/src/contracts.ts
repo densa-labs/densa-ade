@@ -23,6 +23,8 @@ export interface AgentRunRequest {
   runId: string;
   cwd: string;
   prompt: string;
+  /** Provider-neutral JSON Schema for adapters that support constrained final responses. */
+  outputSchema?: JsonObject;
 }
 
 export interface AgentError {
