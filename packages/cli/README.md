@@ -10,7 +10,9 @@ densa project init
 densa project status
 densa project start
 densa project pause
+densa project cancel
 densa project resume
+densa project stop
 densa events
 densa version
 ```

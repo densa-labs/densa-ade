@@ -105,6 +105,8 @@ export interface ExecuteProjectLifecycleRequest {
   readonly guidedTaskApproval?: Readonly<{ taskId: TaskId }>;
   readonly phaseApproval?: Readonly<{ phaseId: PhaseId }>;
   readonly signal?: AbortSignal;
+  readonly cancellationDisposition?: "cancel" | "interrupt";
+  readonly controlBoundary?: () => "pause" | "stop" | undefined;
 }
 
 export type ProjectLifecycleResult =
@@ -172,6 +174,10 @@ export class ProjectExecutionOrchestrator {
       );
     }
     for (;;) {
+      const control = request.controlBoundary?.();
+      if (control !== undefined) {
+        return this.#stopped(request, `Project ${control} was requested at a safe boundary`);
+      }
       const policyReason = this.#policyReason(request.gates);
       if (policyReason !== undefined) return this.#blocked(request, policyReason);
       const project = this.database.repositories.projects.findById(request.projectId);
@@ -243,6 +249,12 @@ export class ProjectExecutionOrchestrator {
           ? {}
           : { guidedTaskApproval: request.guidedTaskApproval }),
         ...(request.signal === undefined ? {} : { signal: request.signal }),
+        ...(request.cancellationDisposition === undefined
+          ? {}
+          : { cancellationDisposition: request.cancellationDisposition }),
+        ...(request.controlBoundary === undefined
+          ? {}
+          : { controlBoundary: request.controlBoundary }),
       });
       if (phaseResult.status === "COMPLETED") continue;
       if (phaseResult.status === "AWAITING_TASK_APPROVAL") {

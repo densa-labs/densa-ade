@@ -64,7 +64,9 @@ test("top-level help coherently lists every milestone command", async () => {
     "project status",
     "project start",
     "project pause",
+    "project cancel",
     "project resume",
+    "project stop",
     "events",
     "version",
   ]) {
@@ -108,7 +110,9 @@ test("every Core command uses a versioned shared-protocol request", async () => 
     { arguments: ["project", "status"], command: "project status", method: "project.status" },
     { arguments: ["project", "start"], command: "project start", method: "project.start" },
     { arguments: ["project", "pause"], command: "project pause", method: "project.pause" },
+    { arguments: ["project", "cancel"], command: "project cancel", method: "project.cancel" },
     { arguments: ["project", "resume"], command: "project resume", method: "project.resume" },
+    { arguments: ["project", "stop"], command: "project stop", method: "project.stop" },
     { arguments: ["events"], command: "events", method: "events.list" },
   ];
 

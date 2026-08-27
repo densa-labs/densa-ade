@@ -35,6 +35,7 @@ export interface ExecutePhaseTaskRequest {
   readonly workspacePath: string;
   readonly actor: string;
   readonly signal?: AbortSignal;
+  readonly cancellationDisposition?: "cancel" | "interrupt";
 }
 
 export interface PhaseTaskExecutor {
@@ -72,6 +73,9 @@ export class SingleTaskPhaseExecutor implements PhaseTaskExecutor {
       actor: request.actor,
       ...details,
       ...(request.signal === undefined ? {} : { signal: request.signal }),
+      ...(request.cancellationDisposition === undefined
+        ? {}
+        : { cancellationDisposition: request.cancellationDisposition }),
     });
   }
 }
@@ -110,6 +114,9 @@ export interface ExecutePhaseLifecycleRequest {
   readonly actor: string;
   readonly guidedTaskApproval?: Readonly<{ taskId: TaskId }>;
   readonly signal?: AbortSignal;
+  readonly cancellationDisposition?: "cancel" | "interrupt";
+  /** Read at serial safe boundaries; it must not mutate authoritative state. */
+  readonly controlBoundary?: () => "pause" | "stop" | undefined;
 }
 
 export type PhaseLifecycleStopCode =
@@ -120,6 +127,7 @@ export type PhaseLifecycleStopCode =
   | "PHASE_STATE_MISMATCH"
   | "POLICY_GATE_BLOCKED"
   | "PROJECT_NOT_RUNNABLE"
+  | "PROJECT_CONTROL_REQUESTED"
   | "REPORT_SYNC_FAILED"
   | "SCHEDULER_NO_WORK"
   | "TASK_EXECUTION_STOPPED";
@@ -561,6 +569,14 @@ export class PhaseLifecycleOrchestrator {
       roadmapPhase.tasks.filter((task) => task.executable).map((task) => task.id),
     );
     for (;;) {
+      const control = request.controlBoundary?.();
+      if (control !== undefined) {
+        return {
+          status: "stopped",
+          code: "PROJECT_CONTROL_REQUESTED",
+          reason: `Project ${control} was requested at a serial task boundary`,
+        };
+      }
       const guidedBoundary = this.#handleGuidedBoundary(request, key);
       if (guidedBoundary !== undefined) return guidedBoundary;
       if (request.signal?.aborted === true) {
@@ -597,6 +613,9 @@ export class PhaseLifecycleOrchestrator {
           workspacePath: request.workspacePath,
           actor: request.actor,
           ...(request.signal === undefined ? {} : { signal: request.signal }),
+          ...(request.cancellationDisposition === undefined
+            ? {}
+            : { cancellationDisposition: request.cancellationDisposition }),
         });
         const persisted = this.database.repositories.tasks.findById(selection.task.id);
         if (result.status === "COMPLETED") {

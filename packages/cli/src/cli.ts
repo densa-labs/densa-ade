@@ -39,7 +39,9 @@ Commands:
   project status         Show the current project status
   project start          Start the current project
   project pause          Pause the current project
+  project cancel         Immediately interrupt the current worker and pause
   project resume         Resume the current project
+  project stop           Stop scheduling without deleting work
   events                 List project events
   version                Show CLI and protocol versions
 
@@ -133,7 +135,9 @@ function parseInvocation(arguments_: readonly string[]): ParsedInvocation {
       subcommand === "status" ||
       subcommand === "start" ||
       subcommand === "pause" ||
-      subcommand === "resume"
+      subcommand === "cancel" ||
+      subcommand === "resume" ||
+      subcommand === "stop"
     ) {
       assertNoExtraArguments(tokens, 2);
       return { command: `project ${subcommand}`, json };
@@ -179,8 +183,12 @@ async function executeCommand(
       return requestCore(command, "project.start", services);
     case "project pause":
       return requestCore(command, "project.pause", services);
+    case "project cancel":
+      return requestCore(command, "project.cancel", services);
     case "project resume":
       return requestCore(command, "project.resume", services);
+    case "project stop":
+      return requestCore(command, "project.stop", services);
   }
 }
 
