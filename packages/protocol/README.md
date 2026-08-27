@@ -23,3 +23,7 @@ explicit compatibility adapter at the client/Core boundary. Core rejects unsuppo
 
 Persisted events also carry their own `eventVersion`. Readers must preserve old event facts and
 upgrade their payloads through version-aware readers rather than rewriting event history.
+
+`ProjectSpecification` is independently versioned with `formatVersion`. Its strict schema preserves
+the exact project constraints and unresolved-question metadata used before roadmap generation;
+rendering and contradiction detection remain editor- and model-neutral Core concerns.

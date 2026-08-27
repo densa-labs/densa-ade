@@ -48,8 +48,23 @@ function seedPortableProject(repositories) {
   });
   repositories.specifications.set({
     projectId,
-    content:
-      "# Build intent\r\n\r\nCreate an offline tool. api_key=sk-proj-AAAAAAAAAAAAAAAAAAAA\r\n",
+    specification: {
+      formatVersion: 1,
+      projectGoal: "Create an offline tool.",
+      targetUsers: ["Developers working without a network connection"],
+      coreUserJourneys: ["Create and export a local project"],
+      requiredFeatures: ["Deterministic portable exports"],
+      nonGoals: [],
+      architectureConstraints: ["Densa Core remains editor-independent"],
+      platformRuntimeConstraints: ["Run locally on macOS"],
+      integrations: [],
+      dataStorageNeeds: ["Store detailed state in SQLite"],
+      securityPrivacyRequirements: ["api_key=sk-proj-AAAAAAAAAAAAAAAAAAAA"],
+      uxConstraints: [],
+      deploymentIntent: ["Local installation"],
+      explicitUserDecisions: [{ topic: "Network", decision: "Operate offline" }],
+      unresolvedQuestions: [],
+    },
     createdAt,
     updatedAt,
   });
@@ -146,7 +161,9 @@ test("SQLite project intent exports to a deterministic, understandable .densa tr
       createdAt,
       updatedAt: createdAt,
     });
-    assert.match(files["SPEC.md"], /^# Build intent\n\nCreate an offline tool\./u);
+    assert.match(files["SPEC.md"], /^# Project Specification\n/u);
+    assert.match(files["SPEC.md"], /Create an offline tool\./u);
+    assert.match(files["SPEC.md"], /Canonical structured specification/u);
     assert.match(files["ROADMAP.md"], /## Phase 1: Portable intent/u);
     assert.match(files["ROADMAP.md"], /### Task 2: Export the intent/u);
     assert.match(files["ROADMAP.md"], /Foundation exists/u);

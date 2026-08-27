@@ -59,6 +59,33 @@ function makeTask({
   };
 }
 
+function makeSpecification() {
+  return {
+    formatVersion: 1,
+    projectGoal: "Prove structured specifications persist exactly.",
+    targetUsers: ["Local-first developers"],
+    coreUserJourneys: ["Describe a project before roadmap generation"],
+    requiredFeatures: ["Lossless SPEC.md export"],
+    nonGoals: ["Cloud-only operation"],
+    architectureConstraints: ["Keep Core editor-independent"],
+    platformRuntimeConstraints: ["Node.js 22.13 or newer"],
+    integrations: ["Git"],
+    dataStorageNeeds: ["SQLite is authoritative"],
+    securityPrivacyRequirements: ["Do not persist secrets"],
+    uxConstraints: ["Surface unknown information honestly"],
+    deploymentIntent: ["Local macOS application"],
+    explicitUserDecisions: [{ topic: "Telemetry", decision: "Off by default" }],
+    unresolvedQuestions: [
+      {
+        id: "deployment.signing",
+        question: "How will release signing be managed?",
+        category: "deployment",
+        impact: "high",
+      },
+    ],
+  };
+}
+
 function withDatabase(work) {
   const database = DensaDatabase.openInMemory({ now: fixedMigrationTime });
   try {
@@ -85,8 +112,8 @@ test("a file database migrates from zero and reopening does not reapply migratio
   const path = join(directory, "runtime.sqlite");
   try {
     const first = DensaDatabase.open(path, { now: fixedMigrationTime });
-    assert.equal(first.schemaVersion, 6);
-    assert.equal(first.expectedSchemaVersion, 6);
+    assert.equal(first.schemaVersion, 7);
+    assert.equal(first.expectedSchemaVersion, 7);
     assert.deepEqual(first.listUserTables(), [
       "acceptance_criteria",
       "agent_runs",
@@ -109,7 +136,7 @@ test("a file database migrates from zero and reopening does not reapply migratio
     first.close();
 
     const reopened = DensaDatabase.open(path, { now: fixedMigrationTime });
-    assert.equal(reopened.schemaVersion, 6);
+    assert.equal(reopened.schemaVersion, 7);
     reopened.close();
   } finally {
     rmSync(directory, { force: true, recursive: true });
@@ -179,7 +206,7 @@ test("all remaining P2M1 repositories round-trip their runtime records", () => {
     const { project, task } = seedTaskGraph(repositories);
     const specification = {
       projectId: project.id,
-      content: "# Specification\n\nNo secret-bearing transcript fields are stored.",
+      specification: makeSpecification(),
       createdAt,
       updatedAt,
     };
@@ -284,7 +311,7 @@ test("all remaining P2M1 repositories round-trip their runtime records", () => {
   });
 });
 
-test("migrations 3 through 6 preserve version-2 runtime rows and add nullable attempt metadata", () => {
+test("migrations 3 through 7 preserve version-2 runtime rows and convert legacy specifications", () => {
   const directory = mkdtempSync(join(tmpdir(), "densa-p2m4-migration-"));
   const path = join(directory, "runtime.sqlite");
   try {
@@ -318,6 +345,12 @@ test("migrations 3 through 6 preserve version-2 runtime rows and add nullable at
       .run(createdAt, createdAt);
     raw
       .prepare(
+        `INSERT INTO projects (id, name, state, execution_mode, created_at, updated_at)
+         VALUES ('project-empty-spec', 'Empty legacy spec', 'DRAFT', 'guided', ?, ?)`,
+      )
+      .run(createdAt, createdAt);
+    raw
+      .prepare(
         `INSERT INTO phases (id, project_id, title, state, position, created_at, updated_at)
          VALUES ('phase-v2', 'project-v2', 'Version 2', 'PENDING', 0, ?, ?)`,
       )
@@ -347,10 +380,22 @@ test("migrations 3 through 6 preserve version-2 runtime rows and add nullable at
          VALUES ('checkpoint-v2', 'project-v2', ?, 'pre-recovery metadata')`,
       )
       .run(createdAt);
+    raw
+      .prepare(
+        `INSERT INTO specifications (project_id, content, created_at, updated_at)
+         VALUES ('project-v2', ?, ?, ?)`,
+      )
+      .run("# Legacy specification\n\nPreserve this exact text.", createdAt, updatedAt);
+    raw
+      .prepare(
+        `INSERT INTO specifications (project_id, content, created_at, updated_at)
+         VALUES ('project-empty-spec', '   ', ?, ?)`,
+      )
+      .run(createdAt, updatedAt);
     raw.close();
 
     const database = DensaDatabase.open(path, { now: fixedMigrationTime });
-    assert.equal(database.schemaVersion, 6);
+    assert.equal(database.schemaVersion, 7);
     assert.deepEqual(database.repositories.agentRuns.findById("agent-run-v2"), {
       id: "agent-run-v2",
       attemptId: "attempt-v2",
@@ -364,6 +409,33 @@ test("migrations 3 through 6 preserve version-2 runtime rows and add nullable at
       description: "pre-recovery metadata",
     });
     assert.equal(database.repositories.attempts.findById("attempt-v2").commitSha, undefined);
+    assert.deepEqual(database.repositories.specifications.findByProjectId("project-v2"), {
+      projectId: "project-v2",
+      specification: {
+        ...makeSpecification(),
+        projectGoal: "# Legacy specification\n\nPreserve this exact text.",
+        targetUsers: [],
+        coreUserJourneys: [],
+        requiredFeatures: [],
+        nonGoals: [],
+        architectureConstraints: [],
+        platformRuntimeConstraints: [],
+        integrations: [],
+        dataStorageNeeds: [],
+        securityPrivacyRequirements: [],
+        uxConstraints: [],
+        deploymentIntent: [],
+        explicitUserDecisions: [],
+        unresolvedQuestions: [],
+      },
+      createdAt,
+      updatedAt,
+    });
+    assert.equal(
+      database.repositories.specifications.findByProjectId("project-empty-spec").specification
+        .projectGoal,
+      "No project goal was recorded in the legacy specification.",
+    );
     database.close();
   } finally {
     rmSync(directory, { force: true, recursive: true });

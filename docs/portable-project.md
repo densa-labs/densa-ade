@@ -20,7 +20,8 @@ inside the workspace's `.densa/` directory.
 ```
 
 `project.json` contains portable project identity, lifecycle state, execution mode, and timestamps.
-`SPEC.md` mirrors the current specification. `ROADMAP.md` renders ordered phases, tasks,
+`SPEC.md` renders the current structured specification as readable sections plus a canonical,
+schema-versioned JSON block for lossless round-trips. `ROADMAP.md` renders ordered phases, tasks,
 dependencies, acceptance criteria, and roadmap-revision history. `DECISIONS.md` renders the
 project's durable decisions. `config.json` contains non-secret portable project settings. The
 reports and logs directories are created for later bounded artifacts; P2M3 does not invent report
@@ -49,6 +50,11 @@ If any meaningful edit exists, synchronization returns a `conflict` result and w
 managed files or manifest. The caller can present the affected paths and route the proposed change
 through a later specification, roadmap, or decision workflow. A missing `.densa/` directory is not
 a conflict; it is recreated from SQLite.
+
+The canonical block in `SPEC.md` does not make filesystem edits authoritative. Its parser validates
+renderer-produced version 1 data for import workflows, but any accepted change must still pass
+through Densa Core and the applicable audited mutation service. See
+[project-specification.md](./project-specification.md).
 
 ## File and secret safety
 

@@ -7,6 +7,7 @@ import {
   isoTimestampSchema,
   jsonObjectSchema,
   phaseSchema,
+  projectSpecificationSchema,
   projectSchema,
   roadmapRevisionSchema,
   taskSchema,
@@ -19,6 +20,7 @@ import {
   type JsonObject,
   type Phase,
   type Project,
+  type ProjectSpecification,
   type RoadmapRevision,
   type Task,
   type ValidationRun,
@@ -45,7 +47,7 @@ import {
 
 export interface SpecificationRecord {
   readonly projectId: Project["id"];
-  readonly content: string;
+  readonly specification: ProjectSpecification;
   readonly createdAt: string;
   readonly updatedAt: string;
 }
@@ -287,7 +289,10 @@ function validateSpecification(specification: SpecificationRecord): Specificatio
   requireNonEmpty(specification.projectId, "Specification projectId");
   isoTimestampSchema.parse(specification.createdAt);
   isoTimestampSchema.parse(specification.updatedAt);
-  return Object.freeze({ ...specification });
+  return Object.freeze({
+    ...specification,
+    specification: projectSpecificationSchema.parse(specification.specification),
+  });
 }
 
 function validateSettings(settings: ProjectSettingsRecord): ProjectSettingsRecord {
@@ -339,11 +344,13 @@ class SqliteSpecificationRepository implements SpecificationRepository {
   set(input: SpecificationRecord): SpecificationRecord {
     const specification = validateSpecification(input);
     this.connection.run(
-      `INSERT INTO specifications (project_id, content, created_at, updated_at)
+      `INSERT INTO specifications (project_id, specification_json, created_at, updated_at)
        VALUES (?, ?, ?, ?)
-       ON CONFLICT(project_id) DO UPDATE SET content = excluded.content, updated_at = excluded.updated_at`,
+       ON CONFLICT(project_id) DO UPDATE SET
+         specification_json = excluded.specification_json,
+         updated_at = excluded.updated_at`,
       specification.projectId,
-      specification.content,
+      JSON.stringify(specification.specification),
       specification.createdAt,
       specification.updatedAt,
     );
@@ -360,7 +367,9 @@ class SqliteSpecificationRepository implements SpecificationRepository {
       ? undefined
       : validateSpecification({
           projectId: requiredString(row, "project_id") as Project["id"],
-          content: requiredString(row, "content"),
+          specification: projectSpecificationSchema.parse(
+            parseJson(requiredString(row, "specification_json")),
+          ),
           createdAt: requiredString(row, "created_at"),
           updatedAt: requiredString(row, "updated_at"),
         });
