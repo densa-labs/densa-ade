@@ -108,16 +108,17 @@ export interface ExecutePhaseLifecycleRequest {
   readonly taskExecutor: PhaseTaskExecutor;
   readonly validator: PhaseLifecycleValidator;
   readonly actor: string;
+  readonly guidedTaskApproval?: Readonly<{ taskId: TaskId }>;
   readonly signal?: AbortSignal;
 }
 
 export type PhaseLifecycleStopCode =
   | "ACTIVE_PHASE_LIFECYCLE_EXISTS"
-  | "EXECUTION_MODE_UNSUPPORTED"
   | "INVALID_REQUEST"
   | "PERSISTED_STATE_INCONSISTENT"
   | "PHASE_NOT_FOUND"
   | "PHASE_STATE_MISMATCH"
+  | "POLICY_GATE_BLOCKED"
   | "PROJECT_NOT_RUNNABLE"
   | "REPORT_SYNC_FAILED"
   | "SCHEDULER_NO_WORK"
@@ -128,6 +129,11 @@ export type PhaseLifecycleResult =
       status: "AWAITING_APPROVAL" | "BLOCKED" | "COMPLETED";
       phaseId: PhaseId;
       report: PhaseReport;
+    }>
+  | Readonly<{
+      status: "AWAITING_TASK_APPROVAL";
+      phaseId: PhaseId;
+      taskId: TaskId;
     }>
   | Readonly<{
       status: "STOPPED";
@@ -157,6 +163,11 @@ function phaseEventId(key: string, scope: string): EventId {
 function taskReadyEventId(key: string, taskId: TaskId): EventId {
   const taskKey = createHash("sha256").update(taskId).digest("hex").slice(0, 12);
   return phaseEventId(key, `task-${taskKey}-ready`);
+}
+
+function taskBoundaryEventId(key: string, taskId: TaskId, scope: string): EventId {
+  const taskKey = createHash("sha256").update(taskId).digest("hex").slice(0, 12);
+  return phaseEventId(key, `guided-${taskKey}-${scope}`);
 }
 
 function reportPathFor(phaseId: PhaseId): string {
@@ -357,7 +368,7 @@ function committedPaths(
   return result;
 }
 
-/** P5M3 editor-independent, serial phase lifecycle over authoritative persisted state. */
+/** P5M3/P5M4 editor-independent serial phase lifecycle with durable mode boundaries. */
 export class PhaseLifecycleOrchestrator {
   readonly #now: () => string;
   #active = false;
@@ -407,14 +418,6 @@ export class PhaseLifecycleOrchestrator {
     if (project?.state !== "RUNNING") {
       return stopped("PROJECT_NOT_RUNNABLE", request, "Project must already be RUNNING");
     }
-    if (project.executionMode === "guided") {
-      return stopped(
-        "EXECUTION_MODE_UNSUPPORTED",
-        request,
-        "Guided task boundaries belong to Phase 5 Milestone 4",
-      );
-    }
-
     const existingReport = this.database.repositories.phaseReports.findByPhaseId(phase.id);
     if (existingReport !== undefined)
       return this.#returnPersistedReport(request, phase, existingReport);
@@ -461,6 +464,13 @@ export class PhaseLifecycleOrchestrator {
     if (phase.state !== "VALIDATING") {
       const taskResult = await this.#executeTasks(request, roadmapPhase, key);
       if (taskResult !== undefined) {
+        if (taskResult.status === "awaiting_task_approval") {
+          return Object.freeze({
+            status: "AWAITING_TASK_APPROVAL" as const,
+            phaseId: request.phaseId,
+            taskId: taskResult.taskId,
+          });
+        }
         if (taskResult.status === "blocked") {
           return await this.#finish(
             request,
@@ -476,6 +486,11 @@ export class PhaseLifecycleOrchestrator {
         }
         return stopped(taskResult.code, request, taskResult.reason);
       }
+    }
+
+    const policyGate = this.#policyGateReason(request);
+    if (policyGate !== undefined) {
+      return stopped("POLICY_GATE_BLOCKED", request, policyGate);
     }
 
     let currentPhase = this.database.repositories.phases.findById(phase.id);
@@ -538,6 +553,7 @@ export class PhaseLifecycleOrchestrator {
     key: string,
   ): Promise<
     | { readonly status: "blocked"; readonly issues: readonly string[] }
+    | { readonly status: "awaiting_task_approval"; readonly taskId: TaskId }
     | { readonly status: "stopped"; readonly code: PhaseLifecycleStopCode; readonly reason: string }
     | undefined
   > {
@@ -545,6 +561,8 @@ export class PhaseLifecycleOrchestrator {
       roadmapPhase.tasks.filter((task) => task.executable).map((task) => task.id),
     );
     for (;;) {
+      const guidedBoundary = this.#handleGuidedBoundary(request, key);
+      if (guidedBoundary !== undefined) return guidedBoundary;
       if (request.signal?.aborted === true) {
         return {
           status: "stopped",
@@ -554,6 +572,10 @@ export class PhaseLifecycleOrchestrator {
       }
       const tasks = this.#phaseTasks(request.projectId, roadmapPhase);
       if (tasks.every((task) => task.state === "COMPLETED")) return undefined;
+      const policyGate = this.#policyGateReason(request);
+      if (policyGate !== undefined) {
+        return { status: "stopped", code: "POLICY_GATE_BLOCKED", reason: policyGate };
+      }
       this.#promoteReadyTasks(request, tasks, key);
 
       const selection = new DependencyScheduler(this.database.repositories).selectNext({
@@ -624,6 +646,131 @@ export class PhaseLifecycleOrchestrator {
         reason: selection.reasons.map((reason) => `${reason.code}: ${reason.message}`).join("; "),
       };
     }
+  }
+
+  #policyGateReason(request: ExecutePhaseLifecycleRequest): string | undefined {
+    if (request.gates.outstandingUserDecisionIds.length > 0) {
+      return `Mandatory user decisions remain unresolved: ${request.gates.outstandingUserDecisionIds.join(", ")}`;
+    }
+    if (request.gates.permissionBlockers.length > 0) {
+      return `Non-overridable permission or safety blockers remain: ${request.gates.permissionBlockers.map((blocker) => blocker.id).join(", ")}`;
+    }
+    return undefined;
+  }
+
+  #handleGuidedBoundary(
+    request: ExecutePhaseLifecycleRequest,
+    key: string,
+  ): { readonly status: "awaiting_task_approval"; readonly taskId: TaskId } | undefined {
+    const project = this.database.repositories.projects.findById(request.projectId);
+    if (project === undefined) return undefined;
+    const events = this.database.eventJournal.replay({
+      projectId: request.projectId,
+      phaseId: request.phaseId,
+      types: [
+        "TASK_STATE_CHANGED",
+        "GUIDED_TASK_APPROVAL_REQUIRED",
+        "GUIDED_TASK_APPROVED",
+        "GUIDED_TASK_APPROVAL_SUPERSEDED",
+      ],
+      limit: 1_000,
+    });
+    const modeEvents = this.database.eventJournal.replay({
+      projectId: request.projectId,
+      types: ["EXECUTION_MODE_CHANGED"],
+      limit: 1_000,
+    });
+    const terminalTaskIds = new Set(
+      events
+        .filter(
+          (event) =>
+            event.type === "GUIDED_TASK_APPROVED" ||
+            event.type === "GUIDED_TASK_APPROVAL_SUPERSEDED",
+        )
+        .flatMap((event) =>
+          typeof event.payload["taskId"] === "string" ? [event.payload["taskId"]] : [],
+        ),
+    );
+    const pendingRequired = [...events]
+      .reverse()
+      .find(
+        (event) =>
+          event.type === "GUIDED_TASK_APPROVAL_REQUIRED" &&
+          typeof event.payload["taskId"] === "string" &&
+          !terminalTaskIds.has(event.payload["taskId"]),
+      );
+    let pendingTaskId =
+      typeof pendingRequired?.payload["taskId"] === "string"
+        ? (pendingRequired.payload["taskId"] as TaskId)
+        : undefined;
+
+    if (pendingTaskId === undefined && project.executionMode === "guided") {
+      const lastGuidedModeChange = [...modeEvents]
+        .reverse()
+        .find(
+          (event) => event.type === "EXECUTION_MODE_CHANGED" && event.payload["mode"] === "guided",
+        );
+      const guidedSince = lastGuidedModeChange?.sequenceNumber ?? 0;
+      const unacknowledgedCompletion = [...events]
+        .reverse()
+        .find(
+          (event) =>
+            event.sequenceNumber > guidedSince &&
+            event.type === "TASK_STATE_CHANGED" &&
+            event.payload["state"] === "COMPLETED" &&
+            event.taskId !== undefined &&
+            !terminalTaskIds.has(event.taskId),
+        );
+      if (unacknowledgedCompletion?.taskId !== undefined) {
+        pendingTaskId = unacknowledgedCompletion.taskId;
+        const occurredAt = this.#now();
+        this.database.repositories.events.append({
+          id: taskBoundaryEventId(key, pendingTaskId, "required"),
+          projectId: request.projectId,
+          phaseId: request.phaseId,
+          taskId: pendingTaskId,
+          type: "GUIDED_TASK_APPROVAL_REQUIRED",
+          eventVersion: 1,
+          occurredAt,
+          actor: request.actor,
+          payload: { taskId: pendingTaskId },
+        });
+      }
+    }
+
+    if (pendingTaskId === undefined) {
+      return undefined;
+    }
+
+    if (project.executionMode !== "guided") {
+      this.database.repositories.events.append({
+        id: taskBoundaryEventId(key, pendingTaskId, "superseded"),
+        projectId: request.projectId,
+        phaseId: request.phaseId,
+        taskId: pendingTaskId,
+        type: "GUIDED_TASK_APPROVAL_SUPERSEDED",
+        eventVersion: 1,
+        occurredAt: this.#now(),
+        actor: request.actor,
+        payload: { taskId: pendingTaskId, mode: project.executionMode },
+      });
+      return undefined;
+    }
+    if (request.guidedTaskApproval?.taskId !== pendingTaskId) {
+      return { status: "awaiting_task_approval", taskId: pendingTaskId };
+    }
+    this.database.repositories.events.append({
+      id: taskBoundaryEventId(key, pendingTaskId, "approved"),
+      projectId: request.projectId,
+      phaseId: request.phaseId,
+      taskId: pendingTaskId,
+      type: "GUIDED_TASK_APPROVED",
+      eventVersion: 1,
+      occurredAt: this.#now(),
+      actor: request.actor,
+      payload: { taskId: pendingTaskId },
+    });
+    return undefined;
   }
 
   #promoteReadyTasks(
@@ -821,7 +968,7 @@ export class PhaseLifecycleOrchestrator {
               ? "Required phase work or validation remains unresolved"
               : outcome === "awaiting_approval"
                 ? "Phase validation passed; phase-by-phase mode requires user approval"
-                : "Phase validation passed in continuous mode",
+                : `Phase validation passed in ${project.executionMode} mode`,
         }),
         phaseEventId(key, `phase-${targetState.toLowerCase()}`),
       );
@@ -1023,7 +1170,18 @@ export class PhaseLifecycleOrchestrator {
         : report.outcome === "awaiting_approval"
           ? "AWAITING_APPROVAL"
           : "COMPLETED";
-    if (phase.state !== expectedState) {
+    const releasedApproval =
+      report.outcome === "awaiting_approval" &&
+      phase.state === "COMPLETED" &&
+      this.database.eventJournal
+        .replay({
+          projectId: request.projectId,
+          phaseId: request.phaseId,
+          types: ["PHASE_APPROVED", "PHASE_APPROVAL_SUPERSEDED"],
+          limit: 2,
+        })
+        .some(() => true);
+    if (phase.state !== expectedState && !releasedApproval) {
       return stopped(
         "PERSISTED_STATE_INCONSISTENT",
         request,
@@ -1037,8 +1195,9 @@ export class PhaseLifecycleOrchestrator {
       return stopped("REPORT_SYNC_FAILED", request, errorMessage(error), report);
     }
     return Object.freeze({
-      status:
-        report.outcome === "blocked"
+      status: releasedApproval
+        ? ("COMPLETED" as const)
+        : report.outcome === "blocked"
           ? ("BLOCKED" as const)
           : report.outcome === "awaiting_approval"
             ? ("AWAITING_APPROVAL" as const)

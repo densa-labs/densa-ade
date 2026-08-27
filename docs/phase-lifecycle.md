@@ -1,9 +1,9 @@
-# Persistent phase lifecycle
+# Persistent phase lifecycle and execution modes
 
-Phase 5 Milestone 3 adds the editor-independent `PhaseLifecycleOrchestrator`. It executes one
+Phase 5 Milestone 3 added the editor-independent `PhaseLifecycleOrchestrator`. It executes one
 persisted roadmap phase over the existing dependency scheduler and single-task lifecycle boundary.
-It deliberately does not implement Guided-mode approval after every task, execution-mode changes,
-pause/resume controls, or the next roadmap milestone.
+Phase 5 Milestone 4 adds `ProjectExecutionOrchestrator` and `ExecutionModeService` over that same
+phase/task lifecycle. Pause, resume, stop, and intervention controls remain outside this milestone.
 
 ## Serial execution and readiness
 
@@ -20,19 +20,46 @@ both the task's `COMPLETED` state and the reported commit SHA before it schedule
 blocked or cancelled required task prevents phase completion. Permission, decision, usage, and other
 nonterminal no-work boundaries stop without guessing a lifecycle outcome.
 
-## Independent phase validation and mode boundary
+## Independent phase validation
 
 After every executable task in the phase is complete, Core persists `RUNNING -> VALIDATING` before
 calling the phase validation hook. Structured validation evidence must include at least one check,
 and a passing aggregate cannot contain a failing check.
 
-- Phase-by-phase mode persists `AWAITING_APPROVAL` after validation passes.
-- Continuous mode persists `COMPLETED` and makes only the immediately following `PENDING` phase
-  `READY`, in the same SQLite transaction.
+- Phase mode persists `AWAITING_APPROVAL` after validation passes.
+- Guided and Continuous modes persist `COMPLETED` and make only the immediately following
+  `PENDING` phase `READY`, in the same SQLite transaction.
 - Failed or skipped validation persists `BLOCKED`; the next phase remains ineligible.
 
-Guided mode returns an explicit unsupported boundary because its per-task stop behavior belongs to
-Phase 5 Milestone 4.
+## User-control boundaries
+
+All modes use the same serial task and phase orchestrators:
+
+- **Guided** stops after every durably completed, validated, and committed task. Core appends
+  `GUIDED_TASK_APPROVAL_REQUIRED`; a matching explicit approval appends `GUIDED_TASK_APPROVED`
+  before scheduling more work. On restart, Core derives any missing boundary from the authoritative
+  task-completion event, so a crash between task completion and boundary publication fails closed.
+- **Phase** runs and validates the current phase, saves its report, and stops with the phase in
+  `AWAITING_APPROVAL`. Explicit phase approval atomically completes that phase and makes only its
+  immediate `PENDING` successor `READY`.
+- **Continuous** saves every phase report and continues through later phases automatically. A
+  mandatory user decision or permission/safety blocker stops the project loop before task
+  scheduling or phase validation; Continuous never treats missing approval evidence as permission.
+
+When all required phases complete, the project transitions through the centralized state service to
+`COMPLETED`.
+
+## Persistent mode changes
+
+`ExecutionModeService` updates `projects.execution_mode` and appends `EXECUTION_MODE_CHANGED` in one
+SQLite transaction. The event records the previous mode, new mode, actor, and that the change takes
+effect at a safe boundary. A running task is never interrupted merely to apply a mode change.
+
+The phase loop rereads the authoritative mode between tasks and before finalizing a phase. Switching
+away from Guided or Phase at an existing approval boundary appends a superseding audit fact before
+continuing. Switching into Guided while work is active takes effect after the current task reaches
+its durable completion boundary. Because the mode lives on the authoritative project record, it
+survives Core restart without a separate in-memory setting.
 
 ## Durable reports and recovery
 
