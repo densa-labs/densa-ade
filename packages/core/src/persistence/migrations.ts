@@ -359,6 +359,48 @@ CREATE INDEX attempt_rollback_plans_project_recorded
   ON attempt_rollback_plans (project_id, recorded_at, attempt_id);
 `;
 
+const structuredProjectSpecifications = `
+CREATE TABLE specifications_v2 (
+  project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
+  specification_json TEXT NOT NULL CHECK (
+    json_valid(specification_json)
+    AND json_extract(specification_json, '$.formatVersion') = 1
+  ),
+  created_at TEXT NOT NULL CHECK (length(created_at) >= 20),
+  updated_at TEXT NOT NULL CHECK (length(updated_at) >= 20)
+) STRICT;
+
+INSERT INTO specifications_v2 (project_id, specification_json, created_at, updated_at)
+SELECT
+  project_id,
+  json_object(
+    'formatVersion', 1,
+    'projectGoal', CASE
+      WHEN length(trim(content)) > 0 THEN content
+      ELSE 'No project goal was recorded in the legacy specification.'
+    END,
+    'targetUsers', json('[]'),
+    'coreUserJourneys', json('[]'),
+    'requiredFeatures', json('[]'),
+    'nonGoals', json('[]'),
+    'architectureConstraints', json('[]'),
+    'platformRuntimeConstraints', json('[]'),
+    'integrations', json('[]'),
+    'dataStorageNeeds', json('[]'),
+    'securityPrivacyRequirements', json('[]'),
+    'uxConstraints', json('[]'),
+    'deploymentIntent', json('[]'),
+    'explicitUserDecisions', json('[]'),
+    'unresolvedQuestions', json('[]')
+  ),
+  created_at,
+  updated_at
+FROM specifications;
+
+DROP TABLE specifications;
+ALTER TABLE specifications_v2 RENAME TO specifications;
+`;
+
 export const schemaMigrations: readonly SchemaMigration[] = Object.freeze([
   Object.freeze({ version: 1, name: "authoritative_runtime_schema", sql: initialSchema }),
   Object.freeze({ version: 2, name: "ordered_event_journal", sql: orderedEventJournal }),
@@ -373,6 +415,11 @@ export const schemaMigrations: readonly SchemaMigration[] = Object.freeze([
     version: 6,
     name: "bounded_attempt_rollbacks",
     sql: boundedAttemptRollbacks,
+  }),
+  Object.freeze({
+    version: 7,
+    name: "structured_project_specifications",
+    sql: structuredProjectSpecifications,
   }),
 ]);
 

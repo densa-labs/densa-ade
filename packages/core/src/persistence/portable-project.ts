@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { lstat, mkdir, open, readFile, rename, rm } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 
+import { projectSpecificationSchema } from "@densa/protocol";
 import type {
   Decision,
   JsonObject,
@@ -9,10 +10,12 @@ import type {
   Phase,
   Project,
   ProjectId,
+  ProjectSpecification,
   RoadmapRevision,
   Task,
 } from "@densa/protocol";
 
+import { renderProjectSpecificationMarkdown } from "../project-specification.js";
 import type { DensaRepositories, ProjectSettingsRecord } from "./repositories.js";
 
 const PORTABLE_FORMAT_VERSION = 1;
@@ -41,7 +44,7 @@ const SECRET_LIKE_VALUE_PATTERN = /\b(?:my|super|test)?[-_]?secret[-_][A-Za-z0-9
 
 export interface PortableProjectSnapshot {
   readonly project: Project;
-  readonly specification?: string;
+  readonly specification?: ProjectSpecification;
   readonly phases: readonly Phase[];
   readonly tasks: readonly Task[];
   readonly decisions: readonly Decision[];
@@ -159,10 +162,13 @@ function inlineText(content: string): string {
 }
 
 function renderSpecification(snapshot: PortableProjectSnapshot, redactor: SecretRedactor): string {
-  if (snapshot.specification === undefined || snapshot.specification.trim().length === 0) {
+  if (snapshot.specification === undefined) {
     return "# Specification\n\nNo specification has been recorded in Densa Core.\n";
   }
-  return normalizeMarkdown(redactor.text(snapshot.specification));
+  const sanitized = projectSpecificationSchema.parse(
+    redactor.json(snapshot.specification as unknown as JsonValue),
+  );
+  return normalizeMarkdown(renderProjectSpecificationMarkdown(sanitized));
 }
 
 function renderRoadmap(snapshot: PortableProjectSnapshot, redactor: SecretRedactor): string {
@@ -313,7 +319,7 @@ export function createPortableProjectSnapshot(
       `Cannot export missing project ${projectId}`,
     );
   }
-  const specification = repositories.specifications.findByProjectId(projectId)?.content;
+  const specification = repositories.specifications.findByProjectId(projectId)?.specification;
   const settings = repositories.projectSettings.findByProjectId(projectId);
   return Object.freeze({
     project,

@@ -65,6 +65,13 @@ structured failure diagnostics, and records an optional applied timestamp only a
 files have been verified against their checkpoint. The overlap and retry-safety rules are documented in
 [bounded-attempt-rollback.md](./bounded-attempt-rollback.md).
 
+Migration 7 replaces free-form specification content with schema-versioned structured JSON. Legacy
+non-empty text is retained exactly as the version 1 project goal while all newly introduced
+collection fields begin empty; empty legacy records receive an explicit no-goal placeholder.
+Repository reads and writes validate the complete `ProjectSpecification`; portable
+`SPEC.md` output is rendered from that authoritative value. The contract and round-trip rules are
+documented in [project-specification.md](./project-specification.md).
+
 The project-scoped list queries added for portable export retain repository isolation and stable
 ordering. Phase 2 Milestone 3 uses them to create `.densa/` snapshots without exposing raw SQL or
 making the filesystem authoritative; see [portable-project.md](./portable-project.md).
@@ -79,7 +86,9 @@ immutable after release: future schema changes append a new version instead of e
 The supported paths are zero-to-latest and any contiguous older migration to the current schema.
 Migration 4 rebuilds the checkpoint table while preserving legacy rows and leaving its new
 association columns null. Migrations 5 and 6 add only nullable attempt data and new intent/evidence
-tables, so existing attempts remain valid without commit or rollback outcomes. There is no
+tables, so existing attempts remain valid without commit or rollback outcomes. Migration 7 rebuilds
+only the specification table and carries non-empty old free-form content losslessly into the version
+1 goal. There is no
 downgrade path; a newer database must not be opened by an older Core build. Future destructive or
 data-transforming migrations must document backup, forward, and rollback assumptions alongside
 their migration tests.
