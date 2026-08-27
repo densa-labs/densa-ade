@@ -78,6 +78,13 @@ mutation service replaces the expected roadmap revision, stores full before/afte
 appends `ROADMAP_CHANGED` in one transaction. Policy, recovery, and inspection rules are documented
 in [audited-roadmap-mutations.md](./audited-roadmap-mutations.md).
 
+Migration 9 adds durable phase reports. Migration 10 extends validation runs with plan identity and
+adds ordered `validation_results` records for versioned plugin identity, required/advisory policy,
+status, timing, safe execution metadata, bounded diagnostics, acceptance mappings, and retry
+relevance. Each plugin result commits before the next plugin begins, so a restarted Core can replay
+the completed prefix of an interrupted plan. The aggregate policy and provider boundary are
+documented in [validation-framework.md](./validation-framework.md).
+
 The project-scoped list queries added for portable export retain repository isolation and stable
 ordering. Phase 2 Milestone 3 uses them to create `.densa/` snapshots without exposing raw SQL or
 making the filesystem authoritative; see [portable-project.md](./portable-project.md).
@@ -95,10 +102,11 @@ association columns null. Migrations 5 and 6 add only nullable attempt data and 
 tables, so existing attempts remain valid without commit or rollback outcomes. Migration 7 rebuilds
 only the specification table and carries non-empty old free-form content losslessly into the version
 1 goal. Migration 8 is additive: existing projects begin without a persisted Master Roadmap and
-legacy roadmap revisions retain null operation/session/approval metadata. There is no
-downgrade path; a newer database must not be opened by an older Core build. Future destructive or
-data-transforming migrations must document backup, forward, and rollback assumptions alongside
-their migration tests.
+legacy roadmap revisions retain null operation/session/approval metadata. Migration 10 is also
+additive: existing validation runs retain their aggregate outcome with null plan identity and no
+detailed child results. There is no downgrade path; a newer database must not be opened by an older
+Core build. Future destructive or data-transforming migrations must document backup, forward, and
+rollback assumptions alongside their migration tests.
 
 ## Data and secret boundary
 

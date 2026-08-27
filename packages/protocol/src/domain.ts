@@ -93,15 +93,26 @@ export const agentRunSchema = z.strictObject({
 });
 export type AgentRun = z.infer<typeof agentRunSchema>;
 
-export const validationRunSchema = z.strictObject({
-  id: validationRunIdSchema,
-  taskId: taskIdSchema,
-  attemptId: attemptIdSchema.optional(),
-  validatorId: nonEmptyText,
-  startedAt: isoTimestampSchema,
-  completedAt: isoTimestampSchema.optional(),
-  passed: z.boolean().optional(),
-});
+export const validationRunSchema = z
+  .strictObject({
+    id: validationRunIdSchema,
+    taskId: taskIdSchema,
+    attemptId: attemptIdSchema.optional(),
+    validatorId: nonEmptyText,
+    planId: nonEmptyText.optional(),
+    planVersion: nonEmptyText.optional(),
+    startedAt: isoTimestampSchema,
+    completedAt: isoTimestampSchema.optional(),
+    passed: z.boolean().optional(),
+  })
+  .superRefine((run, context) => {
+    if ((run.planId === undefined) !== (run.planVersion === undefined)) {
+      context.addIssue({
+        code: "custom",
+        message: "Validation plan ID and version must be recorded together",
+      });
+    }
+  });
 export type ValidationRun = z.infer<typeof validationRunSchema>;
 
 export const checkpointSchema = z

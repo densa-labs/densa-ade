@@ -13,6 +13,7 @@ import {
   projectSchema,
   roadmapRevisionSchema,
   taskSchema,
+  validationResultSchema,
   validationRunSchema,
   type AgentRun,
   type Attempt,
@@ -27,6 +28,7 @@ import {
   type ProjectSpecification,
   type RoadmapRevision,
   type Task,
+  type ValidationResult,
   type ValidationRun,
 } from "@densa/protocol";
 
@@ -134,6 +136,12 @@ export interface ValidationRunRepository {
   findById(id: ValidationRun["id"]): ValidationRun | undefined;
   listByTaskId(taskId: Task["id"]): readonly ValidationRun[];
   recordCompleted(id: ValidationRun["id"], completedAt: string, passed: boolean): ValidationRun;
+}
+
+export interface ValidationResultRepository {
+  create(result: ValidationResult): ValidationResult;
+  findById(id: ValidationResult["id"]): ValidationResult | undefined;
+  listByRunId(validationRunId: ValidationRun["id"]): readonly ValidationResult[];
 }
 
 export interface DecisionRepository {
@@ -279,6 +287,7 @@ export interface DensaRepositories {
   readonly attempts: AttemptRepository;
   readonly agentRuns: AgentRunRepository;
   readonly validationRuns: ValidationRunRepository;
+  readonly validationResults: ValidationResultRepository;
   readonly decisions: DecisionRepository;
   readonly roadmapRevisions: RoadmapRevisionRepository;
   readonly densaRunBranches: DensaRunBranchRepository;
@@ -806,12 +815,15 @@ class SqliteValidationRunRepository implements ValidationRunRepository {
     const run = validationRunSchema.parse(input);
     this.connection.run(
       `INSERT INTO validation_runs
-       (id, task_id, attempt_id, validator_id, started_at, completed_at, passed)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+       (id, task_id, attempt_id, validator_id, plan_id, plan_version,
+        started_at, completed_at, passed)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       run.id,
       run.taskId,
       run.attemptId ?? null,
       run.validatorId,
+      run.planId ?? null,
+      run.planVersion ?? null,
       run.startedAt,
       run.completedAt ?? null,
       run.passed === undefined ? null : Number(run.passed),
@@ -857,16 +869,91 @@ class SqliteValidationRunRepository implements ValidationRunRepository {
 
   private parse(row: SqliteRow): ValidationRun {
     const attemptId = optionalString(row, "attempt_id");
+    const planId = optionalString(row, "plan_id");
+    const planVersion = optionalString(row, "plan_version");
     const completedAt = optionalString(row, "completed_at");
     const passed = optionalBoolean(row, "passed");
     return validationRunSchema.parse({
       id: requiredString(row, "id"),
       taskId: requiredString(row, "task_id"),
       validatorId: requiredString(row, "validator_id"),
+      ...(planId === undefined ? {} : { planId }),
+      ...(planVersion === undefined ? {} : { planVersion }),
       startedAt: requiredString(row, "started_at"),
       ...(attemptId === undefined ? {} : { attemptId }),
       ...(completedAt === undefined ? {} : { completedAt }),
       ...(passed === undefined ? {} : { passed }),
+    });
+  }
+}
+
+class SqliteValidationResultRepository implements ValidationResultRepository {
+  constructor(private readonly connection: SqliteConnection) {}
+
+  create(input: ValidationResult): ValidationResult {
+    const result = validationResultSchema.parse(input);
+    this.connection.run(
+      `INSERT INTO validation_results
+       (id, validation_run_id, position, validator_id, validator_version, policy, status,
+        started_at, completed_at, command_json, config_json, exit_code, diagnostics_json,
+        related_acceptance_criteria_json, retry_relevant)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      result.id,
+      result.validationRunId,
+      result.position,
+      result.validatorId,
+      result.validatorVersion,
+      result.policy,
+      result.status,
+      result.startedAt,
+      result.completedAt,
+      result.command === undefined ? null : JSON.stringify(result.command),
+      result.config === undefined ? null : JSON.stringify(result.config),
+      result.exitCode ?? null,
+      JSON.stringify(result.diagnostics),
+      JSON.stringify(result.relatedAcceptanceCriteria),
+      Number(result.retryRelevant),
+    );
+    return result;
+  }
+
+  findById(id: ValidationResult["id"]): ValidationResult | undefined {
+    const row = this.connection.get("SELECT * FROM validation_results WHERE id = ?", id);
+    return row === undefined ? undefined : this.parse(row);
+  }
+
+  listByRunId(validationRunId: ValidationRun["id"]): readonly ValidationResult[] {
+    return Object.freeze(
+      this.connection
+        .all(
+          `SELECT * FROM validation_results
+           WHERE validation_run_id = ? ORDER BY position, id`,
+          validationRunId,
+        )
+        .map((row) => this.parse(row)),
+    );
+  }
+
+  private parse(row: SqliteRow): ValidationResult {
+    const command = optionalString(row, "command_json");
+    const config = optionalString(row, "config_json");
+    const exitCode = optionalNumber(row, "exit_code");
+    return validationResultSchema.parse({
+      id: requiredString(row, "id"),
+      validationRunId: requiredString(row, "validation_run_id"),
+      position: requiredNumber(row, "position"),
+      validatorId: requiredString(row, "validator_id"),
+      validatorVersion: requiredString(row, "validator_version"),
+      policy: requiredString(row, "policy"),
+      status: requiredString(row, "status"),
+      startedAt: requiredString(row, "started_at"),
+      completedAt: requiredString(row, "completed_at"),
+      ...(command === undefined ? {} : { command: parseJson(command) }),
+      ...(config === undefined ? {} : { config: parseJson(config) }),
+      ...(exitCode === undefined ? {} : { exitCode }),
+      diagnostics: parseJson(requiredString(row, "diagnostics_json")),
+      relatedAcceptanceCriteria: parseJson(requiredString(row, "related_acceptance_criteria_json")),
+      retryRelevant: requiredNumber(row, "retry_relevant") === 1,
     });
   }
 }
@@ -1643,6 +1730,7 @@ export function createRepositories(
     attempts: new SqliteAttemptRepository(connection),
     agentRuns: new SqliteAgentRunRepository(connection),
     validationRuns: new SqliteValidationRunRepository(connection),
+    validationResults: new SqliteValidationResultRepository(connection),
     decisions: new SqliteDecisionRepository(connection),
     roadmapRevisions: new SqliteRoadmapRevisionRepository(connection),
     densaRunBranches: new SqliteDensaRunBranchRepository(connection),

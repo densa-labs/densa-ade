@@ -20,6 +20,9 @@ export type AgentRunId = z.infer<typeof agentRunIdSchema>;
 export const validationRunIdSchema = id().brand<"ValidationRunId">();
 export type ValidationRunId = z.infer<typeof validationRunIdSchema>;
 
+export const validationResultIdSchema = id().brand<"ValidationResultId">();
+export type ValidationResultId = z.infer<typeof validationResultIdSchema>;
+
 export const checkpointIdSchema = id().brand<"CheckpointId">();
 export type CheckpointId = z.infer<typeof checkpointIdSchema>;
 
