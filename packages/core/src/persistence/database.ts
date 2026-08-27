@@ -1,4 +1,5 @@
 import {
+  executionModeSchema,
   eventSchema,
   eventIdSchema,
   isoTimestampSchema,
@@ -8,7 +9,9 @@ import {
   type AttemptId,
   type EventId,
   type Event,
+  type ExecutionMode,
   type MasterRoadmapRecord,
+  type ProjectId,
   type RoadmapRevision,
   type ValidationRunId,
 } from "@densa/protocol";
@@ -62,6 +65,15 @@ export interface PersistRoadmapMutationRequest {
   readonly roadmap: MasterRoadmapRecord;
   readonly revision: RoadmapRevision;
   readonly event: Event;
+}
+
+export interface PersistExecutionModeChangeRequest {
+  readonly projectId: ProjectId;
+  readonly previousMode: ExecutionMode;
+  readonly mode: ExecutionMode;
+  readonly occurredAt: string;
+  readonly actor: string;
+  readonly eventId: EventId;
 }
 
 function assertEventMatchesTransition(transition: StateTransition): void {
@@ -157,6 +169,45 @@ export class DensaDatabase {
       this.repositories.masterRoadmaps.replace(request.roadmap, request.expectedRevisionNumber);
       this.repositories.roadmapRevisions.create(request.revision);
       return this.repositories.events.append(request.event);
+    });
+  }
+
+  /** Atomically updates the durable execution mode and appends its audit fact. */
+  persistExecutionModeChange(request: PersistExecutionModeChangeRequest): PersistedEvent {
+    const previousMode = executionModeSchema.parse(request.previousMode);
+    const mode = executionModeSchema.parse(request.mode);
+    isoTimestampSchema.parse(request.occurredAt);
+    if (previousMode === mode || request.actor.trim().length === 0) {
+      throw new PersistenceError("Execution mode changes require distinct modes and an actor");
+    }
+    const project = this.repositories.projects.findById(request.projectId);
+    if (project === undefined || project.executionMode !== previousMode) {
+      throw new PersistenceError(
+        "Execution mode change does not match authoritative project state",
+      );
+    }
+
+    return this.#connection.transaction(() => {
+      const changes = this.#connection.run(
+        `UPDATE projects SET execution_mode = ?, updated_at = ?
+         WHERE id = ? AND execution_mode = ?`,
+        mode,
+        request.occurredAt,
+        request.projectId,
+        previousMode,
+      );
+      if (changes !== 1) {
+        throw new PersistenceError("Could not atomically persist the execution mode change");
+      }
+      return this.repositories.events.append({
+        id: request.eventId,
+        projectId: request.projectId,
+        type: "EXECUTION_MODE_CHANGED",
+        eventVersion: 1,
+        occurredAt: request.occurredAt,
+        actor: request.actor,
+        payload: { previousMode, mode, effectiveAt: "safe_boundary" },
+      });
     });
   }
 
