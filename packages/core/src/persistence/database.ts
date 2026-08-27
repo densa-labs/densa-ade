@@ -1,5 +1,6 @@
 import {
   eventSchema,
+  eventIdSchema,
   isoTimestampSchema,
   phaseSchema,
   projectSchema,
@@ -40,7 +41,20 @@ export interface PersistTaskCommitCompletionRequest {
   readonly commitSha: string;
   readonly commitRecordedEventId: EventId;
   readonly completionEventId: EventId;
+  readonly attemptCompletedEventId: EventId;
   readonly transition: TaskStateTransition;
+}
+
+export type AttemptCompletionOutcome =
+  "blocked" | "cancelled" | "failed" | "interrupted" | "retrying";
+
+export interface PersistAttemptCompletionRequest {
+  readonly attemptId: AttemptId;
+  readonly completedAt: string;
+  readonly outcome: AttemptCompletionOutcome;
+  readonly eventId: EventId;
+  readonly actor: string;
+  readonly transition?: TaskStateTransition;
 }
 
 export interface PersistRoadmapMutationRequest {
@@ -197,6 +211,48 @@ export class DensaDatabase {
     });
   }
 
+  /** Atomically closes an attempt, appends its outcome, and optionally changes task state. */
+  persistAttemptCompletion(request: PersistAttemptCompletionRequest): PersistedEvent {
+    isoTimestampSchema.parse(request.completedAt);
+    if (request.actor.trim().length === 0) {
+      throw new PersistenceError("Attempt completion actor must not be empty");
+    }
+    const attempt = this.repositories.attempts.findById(request.attemptId);
+    if (attempt === undefined)
+      throw new PersistenceError("Attempt completion is missing its attempt");
+    if (
+      request.transition !== undefined &&
+      (request.transition.entity.id !== attempt.taskId ||
+        request.transition.event.occurredAt !== request.completedAt)
+    ) {
+      throw new PersistenceError("Attempt completion and task transition disagree");
+    }
+    const task = this.repositories.tasks.findById(attempt.taskId);
+    if (task === undefined) throw new PersistenceError("Attempt completion is missing its task");
+
+    return this.#connection.transaction(() => {
+      this.repositories.attempts.recordCompleted(request.attemptId, request.completedAt);
+      const event = this.repositories.events.append({
+        id: request.eventId,
+        projectId: task.projectId,
+        phaseId: task.phaseId,
+        taskId: task.id,
+        type: "ATTEMPT_COMPLETED",
+        eventVersion: 1,
+        occurredAt: request.completedAt,
+        actor: request.actor,
+        payload: { attemptId: request.attemptId, outcome: request.outcome },
+      });
+      if (request.transition !== undefined) {
+        this.persistStateTransition(
+          request.transition,
+          eventIdSchema.parse(`${request.eventId}:task-state`),
+        );
+      }
+      return event;
+    });
+  }
+
   /** Atomically records a verified Git outcome and the task's terminal state transition. */
   persistTaskCommitCompletion(request: PersistTaskCommitCompletionRequest): PersistedEvent {
     const transition = request.transition;
@@ -222,6 +278,18 @@ export class DensaDatabase {
     }
 
     return this.#connection.transaction(() => {
+      this.repositories.attempts.recordCompleted(request.attemptId, transition.event.occurredAt);
+      this.repositories.events.append({
+        id: request.attemptCompletedEventId,
+        projectId: transition.entity.projectId,
+        phaseId: transition.entity.phaseId,
+        taskId: transition.entity.id,
+        type: "ATTEMPT_COMPLETED",
+        eventVersion: 1,
+        occurredAt: transition.event.occurredAt,
+        actor: transition.event.actor,
+        payload: { attemptId: request.attemptId, outcome: "completed" },
+      });
       this.repositories.attempts.recordCommit(
         request.attemptId,
         transition.entity.id,

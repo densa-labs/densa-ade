@@ -9,6 +9,7 @@ export * from "./recovery-inspector.js";
 export * from "./run-checkpoint.js";
 export * from "./task-commit.js";
 export * from "./task-packet.js";
+export * from "./task-orchestrator.js";
 export * from "./state-transitions.js";
 export * from "./task-proof-harness.js";
 export * from "./workspace-preflight.js";

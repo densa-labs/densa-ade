@@ -560,6 +560,55 @@ test("an event insert failure rolls back its preceding state update", () => {
   });
 });
 
+test("attempt completion and its task transition roll back together on an audit failure", () => {
+  withDatabase((database) => {
+    const { project, task } = seedTaskGraph(database.repositories);
+    const transitions = new StateTransitionService();
+    database.persistStateTransition(
+      transitions.transitionTask(task, "READY", {
+        actor: "densa-core:test",
+        occurredAt: "2026-08-26T06:10:00.000Z",
+      }),
+      "event-attempt-task-ready",
+    );
+    const readyTask = database.repositories.tasks.findById(task.id);
+    const attempt = database.repositories.attempts.create({
+      id: "attempt-atomic-completion",
+      taskId: task.id,
+      number: 1,
+      startedAt: "2026-08-26T06:11:00.000Z",
+    });
+    database.repositories.events.append({
+      id: "event-attempt-completion-duplicate",
+      projectId: project.id,
+      phaseId: task.phaseId,
+      taskId: task.id,
+      type: "FIXTURE_EVENT",
+      eventVersion: 1,
+      occurredAt: "2026-08-26T06:12:00.000Z",
+      actor: "densa-core:test",
+      payload: {},
+    });
+    const completedAt = "2026-08-26T06:13:00.000Z";
+
+    assert.throws(() =>
+      database.persistAttemptCompletion({
+        attemptId: attempt.id,
+        completedAt,
+        outcome: "blocked",
+        eventId: "event-attempt-completion-duplicate",
+        actor: "densa-core:test",
+        transition: transitions.transitionTask(readyTask, "BLOCKED", {
+          actor: "densa-core:test",
+          occurredAt: completedAt,
+        }),
+      }),
+    );
+    assert.equal(database.repositories.attempts.findById(attempt.id).completedAt, undefined);
+    assert.equal(database.repositories.tasks.findById(task.id).state, "READY");
+  });
+});
+
 test("stale transition snapshots fail closed without appending an event", () => {
   withDatabase((database) => {
     const project = makeProject("project-stale-transition");

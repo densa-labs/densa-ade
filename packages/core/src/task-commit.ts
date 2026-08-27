@@ -5,6 +5,7 @@ import process from "node:process";
 
 import {
   isoTimestampSchema,
+  eventIdSchema,
   type AttemptId,
   type EventId,
   type ProjectId,
@@ -51,6 +52,7 @@ export interface CommitPassingTaskRequest {
   readonly actor: string;
   readonly commitRecordedEventId: EventId;
   readonly completionEventId: EventId;
+  readonly attemptCompletedEventId?: EventId;
 }
 
 export interface CommittedPassingTask {
@@ -576,6 +578,9 @@ export class TaskCommitService {
         commitSha,
         commitRecordedEventId: request.commitRecordedEventId,
         completionEventId: request.completionEventId,
+        attemptCompletedEventId:
+          request.attemptCompletedEventId ??
+          eventIdSchema.parse(`${request.completionEventId}:attempt`),
         transition,
       });
     } catch (error) {

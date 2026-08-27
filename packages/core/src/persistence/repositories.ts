@@ -116,6 +116,7 @@ export interface AttemptRepository {
   create(attempt: NewAttempt): Attempt;
   findById(id: Attempt["id"]): Attempt | undefined;
   listByTaskId(taskId: Task["id"]): readonly Attempt[];
+  recordCompleted(id: Attempt["id"], completedAt: string): Attempt;
   recordCommit(id: Attempt["id"], taskId: Task["id"], commitSha: string): Attempt;
 }
 
@@ -130,6 +131,7 @@ export interface ValidationRunRepository {
   create(run: ValidationRun): ValidationRun;
   findById(id: ValidationRun["id"]): ValidationRun | undefined;
   listByTaskId(taskId: Task["id"]): readonly ValidationRun[];
+  recordCompleted(id: ValidationRun["id"], completedAt: string, passed: boolean): ValidationRun;
 }
 
 export interface DecisionRepository {
@@ -661,6 +663,27 @@ class SqliteAttemptRepository implements AttemptRepository {
     );
   }
 
+  recordCompleted(id: Attempt["id"], completedAt: string): Attempt {
+    isoTimestampSchema.parse(completedAt);
+    const existing = this.findById(id);
+    if (existing === undefined) throw new PersistenceError("Attempt is missing");
+    if (existing.completedAt !== undefined) {
+      if (existing.completedAt !== completedAt) {
+        throw new PersistenceError("Attempt already records a different completion time");
+      }
+      return existing;
+    }
+    const changes = this.connection.run(
+      "UPDATE attempts SET completed_at = ? WHERE id = ? AND completed_at IS NULL",
+      completedAt,
+      id,
+    );
+    if (changes !== 1) throw new PersistenceError("Could not complete the attempt");
+    const stored = this.findById(id);
+    if (stored === undefined) throw new PersistenceError("Completed attempt is missing");
+    return stored;
+  }
+
   recordCommit(id: Attempt["id"], taskId: Task["id"], commitSha: string): Attempt {
     requireNonEmpty(commitSha, "Attempt commit SHA");
     const existing = this.findById(id);
@@ -798,6 +821,29 @@ class SqliteValidationRunRepository implements ValidationRunRepository {
         .all("SELECT * FROM validation_runs WHERE task_id = ? ORDER BY started_at, id", taskId)
         .map((row) => this.parse(row)),
     );
+  }
+
+  recordCompleted(id: ValidationRun["id"], completedAt: string, passed: boolean): ValidationRun {
+    isoTimestampSchema.parse(completedAt);
+    const existing = this.findById(id);
+    if (existing === undefined) throw new PersistenceError("Validation run is missing");
+    if (existing.completedAt !== undefined || existing.passed !== undefined) {
+      if (existing.completedAt !== completedAt || existing.passed !== passed) {
+        throw new PersistenceError("Validation run already records a different outcome");
+      }
+      return existing;
+    }
+    const changes = this.connection.run(
+      `UPDATE validation_runs SET completed_at = ?, passed = ?
+       WHERE id = ? AND completed_at IS NULL AND passed IS NULL`,
+      completedAt,
+      Number(passed),
+      id,
+    );
+    if (changes !== 1) throw new PersistenceError("Could not complete the validation run");
+    const stored = this.findById(id);
+    if (stored === undefined) throw new PersistenceError("Completed validation run is missing");
+    return stored;
   }
 
   private parse(row: SqliteRow): ValidationRun {
