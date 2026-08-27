@@ -2,11 +2,12 @@ import { createHash, randomUUID } from "node:crypto";
 import { lstat, mkdir, open, readFile, rename, rm } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 
-import { projectSpecificationSchema } from "@densa/protocol";
+import { masterRoadmapSchema, projectSpecificationSchema } from "@densa/protocol";
 import type {
   Decision,
   JsonObject,
   JsonValue,
+  MasterRoadmapRecord,
   Phase,
   Project,
   ProjectId,
@@ -16,6 +17,7 @@ import type {
 } from "@densa/protocol";
 
 import { renderProjectSpecificationMarkdown } from "../project-specification.js";
+import { renderMasterRoadmapMarkdown } from "../master-roadmap.js";
 import type { DensaRepositories, ProjectSettingsRecord } from "./repositories.js";
 
 const PORTABLE_FORMAT_VERSION = 1;
@@ -45,6 +47,7 @@ const SECRET_LIKE_VALUE_PATTERN = /\b(?:my|super|test)?[-_]?secret[-_][A-Za-z0-9
 export interface PortableProjectSnapshot {
   readonly project: Project;
   readonly specification?: ProjectSpecification;
+  readonly masterRoadmap?: MasterRoadmapRecord;
   readonly phases: readonly Phase[];
   readonly tasks: readonly Task[];
   readonly decisions: readonly Decision[];
@@ -172,6 +175,15 @@ function renderSpecification(snapshot: PortableProjectSnapshot, redactor: Secret
 }
 
 function renderRoadmap(snapshot: PortableProjectSnapshot, redactor: SecretRedactor): string {
+  if (snapshot.masterRoadmap !== undefined) {
+    const roadmap = masterRoadmapSchema.parse(
+      redactor.json(snapshot.masterRoadmap.roadmap as unknown as JsonValue),
+    );
+    return `${renderMasterRoadmapMarkdown(roadmap).trimEnd()}\n\n${renderRoadmapRevisionHistory(
+      snapshot.roadmapRevisions,
+      redactor,
+    ).trimEnd()}\n`;
+  }
   const lines = [
     `# Roadmap — ${inlineText(redactor.text(snapshot.project.name))}`,
     "",
@@ -218,11 +230,19 @@ function renderRoadmap(snapshot: PortableProjectSnapshot, redactor: SecretRedact
     }
   }
 
-  lines.push("## Roadmap revision history", "");
-  if (snapshot.roadmapRevisions.length === 0) {
+  lines.push(...renderRoadmapRevisionHistory(snapshot.roadmapRevisions, redactor).split("\n"));
+  return `${lines.join("\n").trimEnd()}\n`;
+}
+
+function renderRoadmapRevisionHistory(
+  revisions: readonly RoadmapRevision[],
+  redactor: SecretRedactor,
+): string {
+  const lines = ["## Roadmap revision history", ""];
+  if (revisions.length === 0) {
     lines.push("No roadmap revisions have been recorded.", "");
   }
-  for (const revision of snapshot.roadmapRevisions) {
+  for (const revision of revisions) {
     const oldValue = redactor.json(revision.oldValue);
     const newValue = redactor.json(revision.newValue);
     lines.push(
@@ -230,7 +250,11 @@ function renderRoadmap(snapshot: PortableProjectSnapshot, redactor: SecretRedact
       "",
       `- ID: \`${redactor.text(revision.id)}\``,
       `- Actor: ${inlineText(redactor.text(revision.actor))}`,
+      ...(revision.sessionId === undefined
+        ? []
+        : [`- Session: ${inlineText(redactor.text(revision.sessionId))}`]),
       `- Reason: ${inlineText(redactor.text(revision.reason))}`,
+      ...(revision.operation === undefined ? [] : [`- Operation: \`${revision.operation.kind}\``]),
       `- Affected phases: ${
         revision.affectedPhaseIds.length === 0
           ? "none"
@@ -320,6 +344,7 @@ export function createPortableProjectSnapshot(
     );
   }
   const specification = repositories.specifications.findByProjectId(projectId)?.specification;
+  const masterRoadmap = repositories.masterRoadmaps.findByProjectId(projectId);
   const settings = repositories.projectSettings.findByProjectId(projectId);
   return Object.freeze({
     project,
@@ -328,6 +353,7 @@ export function createPortableProjectSnapshot(
     decisions: repositories.decisions.listByProjectId(projectId),
     roadmapRevisions: repositories.roadmapRevisions.listByProjectId(projectId),
     ...(specification === undefined ? {} : { specification }),
+    ...(masterRoadmap === undefined ? {} : { masterRoadmap }),
     ...(settings === undefined ? {} : { settings }),
   });
 }

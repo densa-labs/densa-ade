@@ -21,8 +21,10 @@ inside the workspace's `.densa/` directory.
 
 `project.json` contains portable project identity, lifecycle state, execution mode, and timestamps.
 `SPEC.md` renders the current structured specification as readable sections plus a canonical,
-schema-versioned JSON block for lossless round-trips. `ROADMAP.md` renders ordered phases, tasks,
-dependencies, acceptance criteria, and roadmap-revision history. `DECISIONS.md` renders the
+schema-versioned JSON block for lossless round-trips. `ROADMAP.md` renders the authoritative Master
+Roadmap when one has been stored, including phase goals, risks, validators, supersession,
+dependencies, acceptance criteria, its canonical JSON block, and roadmap-revision history. Older
+projects without that record continue to render their runtime phase/task projection. `DECISIONS.md` renders the
 project's durable decisions. `config.json` contains non-secret portable project settings. The
 reports and logs directories are created for later bounded artifacts; P2M3 does not invent report
 or log records that do not yet exist.
@@ -55,6 +57,8 @@ The canonical block in `SPEC.md` does not make filesystem edits authoritative. I
 renderer-produced version 1 data for import workflows, but any accepted change must still pass
 through Densa Core and the applicable audited mutation service. See
 [project-specification.md](./project-specification.md).
+Roadmap changes use the classification, approval, transaction, and history rules in
+[audited-roadmap-mutations.md](./audited-roadmap-mutations.md).
 
 ## File and secret safety
 

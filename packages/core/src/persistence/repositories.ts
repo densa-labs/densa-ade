@@ -6,6 +6,7 @@ import {
   eventSchema,
   isoTimestampSchema,
   jsonObjectSchema,
+  masterRoadmapRecordSchema,
   phaseSchema,
   projectSpecificationSchema,
   projectSchema,
@@ -18,6 +19,7 @@ import {
   type Decision,
   type Event,
   type JsonObject,
+  type MasterRoadmapRecord,
   type Phase,
   type Project,
   type ProjectSpecification,
@@ -77,6 +79,12 @@ export interface ProjectRepository {
 export interface SpecificationRepository {
   set(specification: SpecificationRecord): SpecificationRecord;
   findByProjectId(projectId: Project["id"]): SpecificationRecord | undefined;
+}
+
+export interface MasterRoadmapRepository {
+  create(roadmap: MasterRoadmapRecord): MasterRoadmapRecord;
+  replace(roadmap: MasterRoadmapRecord, expectedRevisionNumber: number): MasterRoadmapRecord;
+  findByProjectId(projectId: Project["id"]): MasterRoadmapRecord | undefined;
 }
 
 export interface PhaseRepository {
@@ -253,6 +261,7 @@ export interface ProjectSettingsRepository {
 export interface DensaRepositories {
   readonly projects: ProjectRepository;
   readonly specifications: SpecificationRepository;
+  readonly masterRoadmaps: MasterRoadmapRepository;
   readonly phases: PhaseRepository;
   readonly tasks: TaskRepository;
   readonly taskDependencies: TaskDependencyRepository;
@@ -370,6 +379,67 @@ class SqliteSpecificationRepository implements SpecificationRepository {
           specification: projectSpecificationSchema.parse(
             parseJson(requiredString(row, "specification_json")),
           ),
+          createdAt: requiredString(row, "created_at"),
+          updatedAt: requiredString(row, "updated_at"),
+        });
+  }
+}
+
+class SqliteMasterRoadmapRepository implements MasterRoadmapRepository {
+  constructor(private readonly connection: SqliteConnection) {}
+
+  create(input: MasterRoadmapRecord): MasterRoadmapRecord {
+    const record = masterRoadmapRecordSchema.parse(input);
+    if (record.revisionNumber !== 0) {
+      throw new PersistenceError("Initial master roadmap revision number must be zero");
+    }
+    this.connection.run(
+      `INSERT INTO master_roadmaps
+       (project_id, roadmap_json, revision_number, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?)`,
+      record.projectId,
+      JSON.stringify(record.roadmap),
+      record.revisionNumber,
+      record.createdAt,
+      record.updatedAt,
+    );
+    return record;
+  }
+
+  replace(input: MasterRoadmapRecord, expectedRevisionNumber: number): MasterRoadmapRecord {
+    const record = masterRoadmapRecordSchema.parse(input);
+    if (record.revisionNumber !== expectedRevisionNumber + 1) {
+      throw new PersistenceError("Master roadmap replacement must advance exactly one revision");
+    }
+    const changes = this.connection.run(
+      `UPDATE master_roadmaps
+       SET roadmap_json = ?, revision_number = ?, updated_at = ?
+       WHERE project_id = ? AND revision_number = ?`,
+      JSON.stringify(record.roadmap),
+      record.revisionNumber,
+      record.updatedAt,
+      record.projectId,
+      expectedRevisionNumber,
+    );
+    if (changes !== 1) {
+      throw new PersistenceError(
+        `Could not replace master roadmap revision ${expectedRevisionNumber}`,
+      );
+    }
+    return record;
+  }
+
+  findByProjectId(projectId: Project["id"]): MasterRoadmapRecord | undefined {
+    const row = this.connection.get(
+      "SELECT * FROM master_roadmaps WHERE project_id = ?",
+      projectId,
+    );
+    return row === undefined
+      ? undefined
+      : masterRoadmapRecordSchema.parse({
+          projectId: requiredString(row, "project_id"),
+          roadmap: parseJson(requiredString(row, "roadmap_json")),
+          revisionNumber: requiredNumber(row, "revision_number"),
           createdAt: requiredString(row, "created_at"),
           updatedAt: requiredString(row, "updated_at"),
         });
@@ -794,19 +864,23 @@ class SqliteRoadmapRevisionRepository implements RoadmapRevisionRepository {
     const revision = roadmapRevisionSchema.parse(input);
     this.connection.run(
       `INSERT INTO roadmap_revisions
-       (id, project_id, classification, reason, actor, created_at, affected_phase_ids_json,
-        affected_task_ids_json, old_value_json, new_value_json)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (id, project_id, classification, reason, actor, session_id, created_at,
+        affected_phase_ids_json, affected_task_ids_json, old_value_json, new_value_json,
+        operation_json, approval_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       revision.id,
       revision.projectId,
       revision.classification,
       revision.reason,
       revision.actor,
+      revision.sessionId ?? null,
       revision.createdAt,
       JSON.stringify(revision.affectedPhaseIds),
       JSON.stringify(revision.affectedTaskIds),
       JSON.stringify(revision.oldValue),
       JSON.stringify(revision.newValue),
+      revision.operation === undefined ? null : JSON.stringify(revision.operation),
+      revision.approval === undefined ? null : JSON.stringify(revision.approval),
     );
     return revision;
   }
@@ -828,17 +902,23 @@ class SqliteRoadmapRevisionRepository implements RoadmapRevisionRepository {
   }
 
   private parse(row: SqliteRow): RoadmapRevision {
+    const sessionId = optionalString(row, "session_id");
+    const operation = optionalString(row, "operation_json");
+    const approval = optionalString(row, "approval_json");
     return roadmapRevisionSchema.parse({
       id: requiredString(row, "id"),
       projectId: requiredString(row, "project_id"),
       classification: requiredString(row, "classification"),
       reason: requiredString(row, "reason"),
       actor: requiredString(row, "actor"),
+      ...(sessionId === undefined ? {} : { sessionId }),
       createdAt: requiredString(row, "created_at"),
       affectedPhaseIds: parseJson(requiredString(row, "affected_phase_ids_json")),
       affectedTaskIds: parseJson(requiredString(row, "affected_task_ids_json")),
       oldValue: parseJson(requiredString(row, "old_value_json")),
       newValue: parseJson(requiredString(row, "new_value_json")),
+      ...(operation === undefined ? {} : { operation: parseJson(operation) }),
+      ...(approval === undefined ? {} : { approval: parseJson(approval) }),
     });
   }
 }
@@ -1458,6 +1538,7 @@ export function createRepositories(
   return Object.freeze({
     projects: new SqliteProjectRepository(connection),
     specifications: new SqliteSpecificationRepository(connection),
+    masterRoadmaps: new SqliteMasterRoadmapRepository(connection),
     phases: new SqlitePhaseRepository(connection),
     tasks: new SqliteTaskRepository(connection, taskDependencies, acceptanceCriteria),
     taskDependencies,

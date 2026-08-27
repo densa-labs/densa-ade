@@ -35,6 +35,7 @@ export const masterRoadmapTaskSchema = z
     goal: preservedTextSchema,
     executable: z.boolean(),
     dependencyIds: z.array(stableRoadmapIdSchema),
+    supersededByTaskIds: z.array(stableRoadmapIdSchema).optional(),
     acceptanceCriteria: z.array(preservedTextSchema),
     riskLevel: roadmapRiskLevelSchema,
     expectedValidators: z.array(roadmapValidatorCategorySchema),
@@ -50,6 +51,31 @@ export const masterRoadmapTaskSchema = z
         });
       }
       dependencies.add(dependencyId);
+    }
+    const supersedingTasks = new Set<string>();
+    for (const [index, taskId] of (task.supersededByTaskIds ?? []).entries()) {
+      if (taskId === task.id) {
+        context.addIssue({
+          code: "custom",
+          message: `Task ${task.id} cannot supersede itself`,
+          path: ["supersededByTaskIds", index],
+        });
+      }
+      if (supersedingTasks.has(taskId)) {
+        context.addIssue({
+          code: "custom",
+          message: `Task ${task.id} repeats superseding task ${taskId}`,
+          path: ["supersededByTaskIds", index],
+        });
+      }
+      supersedingTasks.add(taskId);
+    }
+    if ((task.supersededByTaskIds?.length ?? 0) > 0 && task.executable) {
+      context.addIssue({
+        code: "custom",
+        message: `Superseded task ${task.id} must not remain executable`,
+        path: ["executable"],
+      });
     }
     if (task.executable && task.acceptanceCriteria.length === 0) {
       context.addIssue({
@@ -153,6 +179,17 @@ export const masterRoadmapSchema = z
           });
         }
       }
+      for (const [supersededIndex, supersedingTaskId] of (
+        task.supersededByTaskIds ?? []
+      ).entries()) {
+        if (!taskIds.has(supersedingTaskId)) {
+          context.addIssue({
+            code: "custom",
+            message: `Task ${task.id} is superseded by missing task ${supersedingTaskId}`,
+            path: [...path, "supersededByTaskIds", supersededIndex],
+          });
+        }
+      }
     }
 
     const indegree = new Map(tasks.map(({ task }) => [task.id, 0]));
@@ -185,6 +222,43 @@ export const masterRoadmapSchema = z
       context.addIssue({
         code: "custom",
         message: `Task dependency cycle includes: ${cyclicTaskIds.join(", ")}`,
+        path: ["phases"],
+      });
+    }
+
+    const supersessionIndegree = new Map(tasks.map(({ task }) => [task.id, 0]));
+    const supersessionDependents = new Map(tasks.map(({ task }) => [task.id, [] as string[]]));
+    for (const { task } of tasks) {
+      for (const supersedingTaskId of task.supersededByTaskIds ?? []) {
+        if (!taskIds.has(supersedingTaskId)) continue;
+        supersessionIndegree.set(
+          supersedingTaskId,
+          (supersessionIndegree.get(supersedingTaskId) ?? 0) + 1,
+        );
+        supersessionDependents.get(task.id)?.push(supersedingTaskId);
+      }
+    }
+    const supersessionQueue = tasks
+      .filter(({ task }) => supersessionIndegree.get(task.id) === 0)
+      .map(({ task }) => task.id);
+    let supersessionVisited = 0;
+    for (let index = 0; index < supersessionQueue.length; index += 1) {
+      const taskId = supersessionQueue[index];
+      if (taskId === undefined) continue;
+      supersessionVisited += 1;
+      for (const dependentId of supersessionDependents.get(taskId) ?? []) {
+        const nextIndegree = (supersessionIndegree.get(dependentId) ?? 0) - 1;
+        supersessionIndegree.set(dependentId, nextIndegree);
+        if (nextIndegree === 0) supersessionQueue.push(dependentId);
+      }
+    }
+    if (supersessionVisited !== tasks.length) {
+      const cyclicTaskIds = tasks
+        .filter(({ task }) => (supersessionIndegree.get(task.id) ?? 0) > 0)
+        .map(({ task }) => task.id);
+      context.addIssue({
+        code: "custom",
+        message: `Task supersession cycle includes: ${cyclicTaskIds.join(", ")}`,
         path: ["phases"],
       });
     }
@@ -234,6 +308,13 @@ export const masterRoadmapOutputSchema: JsonObject = {
                 goal: { type: "string", minLength: 1 },
                 executable: { type: "boolean" },
                 dependencyIds: {
+                  type: "array",
+                  items: {
+                    type: "string",
+                    pattern: "^[A-Za-z0-9]+(?:[._-][A-Za-z0-9]+)*$",
+                  },
+                },
+                supersededByTaskIds: {
                   type: "array",
                   items: {
                     type: "string",

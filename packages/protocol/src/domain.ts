@@ -13,6 +13,11 @@ import {
   validationRunIdSchema,
 } from "./ids.js";
 import { isoTimestampSchema, jsonObjectSchema } from "./json.js";
+import { masterRoadmapSchema } from "./master-roadmap.js";
+import {
+  roadmapMutationApprovalSchema,
+  roadmapMutationOperationSchema,
+} from "./roadmap-mutation.js";
 import {
   executionModeSchema,
   phaseStateSchema,
@@ -146,13 +151,27 @@ export const roadmapRevisionSchema = z.strictObject({
   classification: roadmapMutationClassificationSchema,
   reason: nonEmptyText,
   actor: nonEmptyText,
+  sessionId: nonEmptyText.optional(),
   createdAt: isoTimestampSchema,
   affectedPhaseIds: z.array(phaseIdSchema),
   affectedTaskIds: z.array(taskIdSchema),
   oldValue: jsonObjectSchema,
   newValue: jsonObjectSchema,
+  operation: roadmapMutationOperationSchema.optional(),
+  approval: roadmapMutationApprovalSchema.optional(),
 });
 export type RoadmapRevision = z.infer<typeof roadmapRevisionSchema>;
+
+export const masterRoadmapRecordSchema = z
+  .strictObject({
+    projectId: projectIdSchema,
+    roadmap: masterRoadmapSchema,
+    revisionNumber: z.number().int().nonnegative(),
+    createdAt: isoTimestampSchema,
+    updatedAt: isoTimestampSchema,
+  })
+  .readonly();
+export type MasterRoadmapRecord = z.infer<typeof masterRoadmapRecordSchema>;
 
 export const eventSchema = z.strictObject({
   id: eventIdSchema,

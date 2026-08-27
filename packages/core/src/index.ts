@@ -2,6 +2,7 @@ export * from "./event-publisher.js";
 export * from "./adaptive-interview.js";
 export * from "./master-roadmap.js";
 export * from "./project-specification.js";
+export * from "./roadmap-mutations.js";
 export * from "./attempt-rollback.js";
 export * from "./recovery-inspector.js";
 export * from "./run-checkpoint.js";
