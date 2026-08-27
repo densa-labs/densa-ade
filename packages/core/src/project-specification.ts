@@ -162,6 +162,22 @@ export function renderProjectSpecificationMarkdown(input: ProjectSpecification):
       if (question.context !== undefined) {
         lines.push("", question.context.replace(/\r\n?/gu, "\n"));
       }
+      if (question.proposedDefault !== undefined) {
+        lines.push("", `Proposed default: ${question.proposedDefault.replace(/\r\n?/gu, "\n")}`);
+        if (question.defaultRationale !== undefined) {
+          lines.push(
+            "",
+            `Default rationale: ${question.defaultRationale.replace(/\r\n?/gu, "\n")}`,
+          );
+        }
+        lines.push(
+          "",
+          `May proceed without an answer: ${question.defaultCanBeUsedWithoutAnswer === true ? "yes" : "no"}`,
+        );
+      }
+      if (question.batchKey !== undefined) {
+        lines.push("", `Interview batch: ${question.batchKey.replace(/\r\n?/gu, "\n")}`);
+      }
       lines.push("");
     }
   }

@@ -13,6 +13,12 @@ so descendant tool processes do not survive the run. The tested exec template in
 must also work in isolated non-Git temporary directories. Authentication status is classified only
 for the fixture-backed CLI version; unverified versions return `unknown`.
 
+An `AgentRunRequest` may include a provider-neutral JSON Schema for its final response. The Codex
+adapter materializes that schema in a user-only temporary file, passes it through the version-scoped
+`--output-schema` flag, and removes the file after success, failure, cancellation, or early consumer
+termination. Callers still validate the returned data at their own domain boundary; constrained
+generation is not treated as proof that a response is safe or semantically correct.
+
 Routine tests use `FakeAgentAdapter` from `@densa/testing` and local fake executables. A real,
 authenticated Codex smoke test is deliberately opt-in:
 

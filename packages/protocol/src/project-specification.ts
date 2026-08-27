@@ -36,6 +36,30 @@ export const unresolvedSpecificationQuestionSchema = z
     category: specificationQuestionCategorySchema,
     impact: specificationQuestionImpactSchema,
     context: preservedTextSchema.optional(),
+    proposedDefault: preservedTextSchema.optional(),
+    defaultRationale: preservedTextSchema.optional(),
+    defaultCanBeUsedWithoutAnswer: z.boolean().optional(),
+    batchKey: preservedTextSchema.optional(),
+  })
+  .superRefine((question, context) => {
+    if (
+      (question.defaultRationale !== undefined ||
+        question.defaultCanBeUsedWithoutAnswer !== undefined) &&
+      question.proposedDefault === undefined
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "Default metadata requires a proposed default",
+        path: ["proposedDefault"],
+      });
+    }
+    if (question.impact === "high" && question.defaultCanBeUsedWithoutAnswer === true) {
+      context.addIssue({
+        code: "custom",
+        message: "High-impact ambiguity always requires a user answer",
+        path: ["defaultCanBeUsedWithoutAnswer"],
+      });
+    }
   })
   .readonly();
 export type UnresolvedSpecificationQuestion = z.infer<typeof unresolvedSpecificationQuestionSchema>;
