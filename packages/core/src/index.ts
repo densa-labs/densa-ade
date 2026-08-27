@@ -1,5 +1,6 @@
 export * from "./event-publisher.js";
 export * from "./execution-modes.js";
+export * from "./execution-control.js";
 export * from "./adaptive-interview.js";
 export * from "./master-roadmap.js";
 export * from "./phase-orchestrator.js";

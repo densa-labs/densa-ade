@@ -3,7 +3,8 @@
 Phase 5 Milestone 3 added the editor-independent `PhaseLifecycleOrchestrator`. It executes one
 persisted roadmap phase over the existing dependency scheduler and single-task lifecycle boundary.
 Phase 5 Milestone 4 adds `ProjectExecutionOrchestrator` and `ExecutionModeService` over that same
-phase/task lifecycle. Pause, resume, stop, and intervention controls remain outside this milestone.
+phase/task lifecycle. Phase 5 Milestone 5 composes this loop through the separate
+`ProjectExecutionControlService`; see [Project execution controls](./execution-controls.md).
 
 ## Serial execution and readiness
 

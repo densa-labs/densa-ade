@@ -56,6 +56,8 @@ export interface ExecuteTaskLifecycleRequest {
   readonly validator: TaskLifecycleValidator;
   readonly actor: string;
   readonly signal?: AbortSignal;
+  /** Project-level pause uses interruption so the task can be revalidated and retried on resume. */
+  readonly cancellationDisposition?: "cancel" | "interrupt";
   readonly onAgentEvent?: (event: AgentEvent) => void | Promise<void>;
 }
 
@@ -65,6 +67,7 @@ export type TaskLifecycleStopCode =
   | "RECOVERY_REQUIRED"
   | "TASK_STATE_MISMATCH"
   | "TASK_NOT_FOUND"
+  | "PROJECT_PAUSED"
   | `CHECKPOINT_${RunCheckpointStopCode}`
   | `COMMIT_${TaskCommitStopCode}`
   | `ROLLBACK_${AttemptRollbackStopCode}`;
@@ -94,7 +97,7 @@ export interface TaskOrchestratorOptions {
   readonly now?: () => string;
 }
 
-type FailureKind = "agent_failed" | "cancelled" | "process_crash";
+type FailureKind = "agent_failed" | "cancelled" | "interrupted" | "process_crash";
 
 interface AttemptIdentity {
   readonly attempt: Attempt;
@@ -395,6 +398,14 @@ export class SingleTaskOrchestrator {
       );
     }
     if (signalAborted(request.signal)) {
+      if (request.cancellationDisposition === "interrupt") {
+        return stopped(
+          "PROJECT_PAUSED",
+          request,
+          attempt.number,
+          "Project pause was requested before worker execution",
+        );
+      }
       return this.#completeWithTransition(
         request,
         attempt,
@@ -524,10 +535,21 @@ export class SingleTaskOrchestrator {
     }
 
     if (signalAborted(request.signal) || terminal?.outcome === "cancelled") {
-      return await this.#handleWorkerFailure(request, task, identity, "cancelled", {
-        kind: "cancellation",
-        message: cancellationFailure ?? "Worker cancellation was requested",
-      });
+      const interruption = request.cancellationDisposition === "interrupt";
+      return await this.#handleWorkerFailure(
+        request,
+        task,
+        identity,
+        interruption ? "interrupted" : "cancelled",
+        {
+          kind: "cancellation",
+          message:
+            cancellationFailure ??
+            (interruption
+              ? "Worker was interrupted for a project pause"
+              : "Worker cancellation was requested"),
+        },
+      );
     }
     if (processFailure !== undefined) {
       return await this.#handleWorkerFailure(request, task, identity, "process_crash", {
@@ -733,7 +755,7 @@ export class SingleTaskOrchestrator {
         "Worker cancellation was confirmed and scoped output was rolled back",
       );
     }
-    if (kind === "process_crash") {
+    if (kind === "process_crash" || kind === "interrupted") {
       const completedAt = this.#now();
       this.database.persistAttemptCompletion({
         attemptId: attempt.id,
@@ -746,7 +768,10 @@ export class SingleTaskOrchestrator {
         status: "INTERRUPTED" as const,
         taskId: request.taskId,
         attemptCount: attempt.number,
-        reason: "Worker process outcome was not confirmed; task remains interrupted",
+        reason:
+          kind === "interrupted"
+            ? "Worker cancellation was confirmed for project pause; task remains resumable"
+            : "Worker process outcome was not confirmed; task remains interrupted",
       });
     }
     if (attempt.number >= MAX_TASK_ATTEMPTS) {

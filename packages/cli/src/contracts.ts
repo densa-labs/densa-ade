@@ -18,7 +18,9 @@ export type CliCommandName =
   | "project status"
   | "project start"
   | "project pause"
+  | "project cancel"
   | "project resume"
+  | "project stop"
   | "events"
   | "version";
 

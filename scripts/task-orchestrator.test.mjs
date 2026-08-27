@@ -318,6 +318,38 @@ test("cancellation is explicit, durable, and rolls back owned output", async () 
   fixture.database.close();
 });
 
+test("project pause cancels the adapter run without orphaning or terminally cancelling the task", async () => {
+  const fixture = createFixture("densa-orchestrator-pause-interrupt-");
+  const controller = new globalThis.AbortController();
+  const adapter = new FakeAgentAdapter({
+    holdOpen: true,
+    onExecute() {
+      writeFileSync(join(fixture.repository, "task.txt"), "interrupted output\n", "utf8");
+    },
+  });
+  const result = await new SingleTaskOrchestrator(fixture.database, { now: clock() }).execute(
+    requestFor(fixture, adapter, passingValidator("interrupted output\n"), {
+      signal: controller.signal,
+      cancellationDisposition: "interrupt",
+      onAgentEvent(event) {
+        if (event.type === "run.started") controller.abort();
+      },
+    }),
+  );
+
+  assert.equal(result.status, "INTERRUPTED");
+  assert.deepEqual(adapter.cancelledRunIds, [adapter.requests[0].runId]);
+  assert.equal(fixture.database.repositories.tasks.findById(fixture.task.id).state, "INTERRUPTED");
+  assert.equal(readFileSync(join(fixture.repository, "task.txt"), "utf8"), "baseline\n");
+  assert.equal(
+    fixture.database.repositories.events
+      .replay({ projectId: fixture.project.id, types: ["AGENT_FINISHED"] })
+      .at(-1).payload.outcome,
+    "cancelled",
+  );
+  fixture.database.close();
+});
+
 test("worker process crash persists diagnostics and leaves an interrupted coherent checkpoint", async () => {
   const fixture = createFixture("densa-orchestrator-crash-");
   const startingHead = git(fixture.repository, ["rev-parse", "HEAD"]).trim();
