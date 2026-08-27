@@ -1,6 +1,6 @@
 # Densa — Master Roadmap
 
-> **Purpose:** This file is the implementation roadmap for Densa v0.1.
+> **Purpose:** This file is the implementation roadmap for Densa v1, the first usable public release of the Densa Agentic Development Environment (ADE).
 >
 > **Hierarchy:** `Phase → Milestone`.
 >
@@ -12,11 +12,13 @@
 
 # Product target
 
-Densa v0.1 is a **macOS-only, local-first, Code - OSS-based AI development IDE** with:
+Densa v1 is the **first usable public release of the Densa Agentic Development Environment (ADE)**. It is a deliberately focused, macOS-only, local-first, Code - OSS-based AI development IDE with:
 
+- Densa Core;
 - Codex as the first worker backend;
 - a separate editor-independent Densa Core process;
 - idea → adaptive interview → complete roadmap → execution;
+- Phase and Milestone execution;
 - Guided, Phase-by-phase, and Continuous execution modes;
 - independent validation;
 - Git checkpoints and task commits;
@@ -24,9 +26,35 @@ Densa v0.1 is a **macOS-only, local-first, Code - OSS-based AI development IDE**
 - `WAITING_FOR_USAGE` and auto-resume when usage becomes available;
 - built-in macOS keep-awake;
 - Master Agent, Roadmap, Dashboard, and normal Editor surfaces;
+- onboarding;
 - Open VSX;
-- telemetry off by default;
-- no cloud account, billing, collaboration, remote workers, or additional agent providers in v0.1.
+- permissions and security controls;
+- a secure Sparkle network updater;
+- carefully scoped optional telemetry that users can disable, off by default;
+- a distributable macOS application.
+
+Densa v1 does **not** include additional agent providers unless separately approved, parallel implementation agents, Windows or Linux support, cloud execution, Densa accounts, team collaboration, remote workers, billing, a mobile companion, or automatic pushes for user projects.
+
+## Phase summary
+
+| Phase | Focus | Milestones |
+| ---: | --- | ---: |
+| **0** | Foundation & contracts | **3** — M0–M2 |
+| **1** | Codex integration spike | **3** — M0–M2 |
+| **2** | State, SQLite & recovery | **5** — M0–M4 |
+| **3** | Git & workspace safety | **4** — M0–M3 |
+| **4** | Specification & roadmap generation | **4** — M0–M3 |
+| **5** | Orchestrator & execution modes | **6** — M0–M5 |
+| **6** | Validation | **5** — M0–M4 |
+| **7** | Usage, security & Core daemon | **6** — M0–M5 |
+| **8** | Master Agent | **4** — M0–M3 |
+| **9** | Headless product proof | **3** — M0–M2 |
+| **10** | **Code - OSS fork begins** | **4** — M0–M3 |
+| **11** | Roadmap/Dashboard/Master UI | **5** — M0–M4 |
+| **12** | Onboarding, product integration & telemetry | **5** — M0–M4 |
+| **13** | Hardening, updates & public release | **5** — M0–M4 |
+
+**Total: 62 milestones.**
 
 ## Global architecture
 
@@ -155,7 +183,7 @@ Acceptance criteria:
 - No Codex-specific types leak into project/task state.
 - Tests cover version mismatch and malformed payload behavior.
 
-Document how backwards compatibility will be handled once v0.1 ships.
+Document how backwards compatibility will be handled once v1 ships.
 
 Do not start the next milestone.
 ```
@@ -842,7 +870,7 @@ Read AGENTS.md first.
 Goal:
 Select the next executable task from the persisted roadmap safely and deterministically.
 
-Implement a serial v0.1 Scheduler that:
+Implement a serial v1 Scheduler that:
 - evaluates hard dependencies;
 - respects project/phase/task state;
 - respects outstanding user decisions;
@@ -1110,7 +1138,7 @@ Read AGENTS.md first.
 Goal:
 Determine appropriate deterministic validation commands for common local projects without blindly executing arbitrary discovered text.
 
-Implement safe project inspection for initial v0.1 ecosystems, prioritizing:
+Implement safe project inspection for initial v1 ecosystems, prioritizing:
 - Node/package.json scripts;
 - TypeScript config;
 - common test/lint/build scripts.
@@ -1374,7 +1402,7 @@ Support necessary credentials without turning Densa logs/state into a secret lea
 
 Implement:
 - SecretRef type;
-- macOS Keychain-backed storage abstraction for v0.1;
+- macOS Keychain-backed storage abstraction for v1;
 - scoped environment injection into child processes;
 - log/event/prompt redaction utilities;
 - permission checks before secret use;
@@ -1612,7 +1640,7 @@ Do not start the next milestone.
 
 ---
 
-# Phase 9 — Headless v0.1 Proof Before IDE Fork
+# Phase 9 — Headless v1 Proof Before IDE Fork
 
 ## Phase 9 Milestone 0 — Run the first real one-phase Densa project
 
@@ -1688,7 +1716,7 @@ Acceptance criteria:
 Do not start the next milestone.
 ```
 
-## Phase 9 Milestone 2 — Freeze Core v0.1 protocol for IDE integration
+## Phase 9 Milestone 2 — Freeze Core v1 protocol for IDE integration
 
 ### Copy-paste prompt
 
@@ -1723,7 +1751,7 @@ Requirements:
 - protocol version compatibility documented.
 
 Acceptance criteria:
-- a fake client can implement every planned v0.1 UI interaction without direct DB access.
+- a fake client can implement every planned v1 UI interaction without direct DB access.
 - no UI feature requires importing Core internals.
 - protocol schemas are considered frozen for the first IDE integration pass.
 
@@ -2088,7 +2116,7 @@ Do not start the next milestone.
 
 ---
 
-# Phase 12 — Onboarding, Settings, Open VSX, and Densa Product Polish
+# Phase 12 — Onboarding, Settings, Open VSX, Telemetry, and Densa Product Polish
 
 ## Phase 12 Milestone 0 — Build first-launch onboarding and resize transition
 
@@ -2111,14 +2139,14 @@ Experience:
    - default execution mode;
    - default permissions preset;
    - keep-awake preference;
-   - privacy/telemetry setting.
+   - "Share optional diagnostics" privacy/telemetry setting.
 3. On completion, transition/resize into the normal full IDE workspace.
 
 Defaults:
 - Phase-by-phase
 - Standard permissions
 - built-in keep-awake enabled for active autonomous/waiting projects subject to battery policy
-- telemetry off
+- optional telemetry off
 
 Requirements:
 - user can skip nonessential optional integrations.
@@ -2180,9 +2208,9 @@ Settings:
 - auto-continue after usage returns;
 - keep-awake preference;
 - battery threshold;
-- preferred agent (Codex only in v0.1, but use adapter ID);
+- preferred agent (Codex only in v1, but use adapter ID);
 - validation preferences;
-- telemetry/privacy;
+- "Share optional diagnostics" (off by default) and privacy information;
 - advanced project-specific overrides.
 
 Requirements:
@@ -2236,9 +2264,66 @@ Acceptance criteria:
 Do not start the next milestone.
 ```
 
+## Phase 12 Milestone 4 — Implement privacy-conscious telemetry and diagnostics
+
+### Copy-paste prompt
+
+```text
+You are implementing Densa Phase 12 Milestone 4.
+
+Read AGENTS.md first.
+
+Goal:
+Implement a small, privacy-conscious telemetry and diagnostics system for the Densa v1 public release using strict data minimization.
+
+Telemetry categories:
+1. Essential operational data may exist independently where technically required for update delivery, compatibility, or local reliability. Minimize it and document why it is essential. Sparkle update traffic must not be falsely described as optional telemetry.
+2. Optional diagnostic/product telemetry is controlled by the user-facing "Share optional diagnostics" setting. It is off by default, visible in Settings, and can be disabled at any time without dark patterns.
+
+Optional telemetry may include only explicitly useful, allowlisted fields such as:
+- Densa app/Core version and coarse macOS/CPU architecture compatibility data;
+- Guided, Phase-by-phase, or Continuous execution mode;
+- project run started and phase/milestone completed or failed;
+- retry occurrence and validator category/pass-fail result;
+- agent adapter identifier, structured Densa error code, and Core crash/restart or recovery outcome;
+- updater check/update success or failure;
+- high-level Dashboard, Roadmap, or Master Agent surface usage when genuinely useful.
+
+Never upload as ordinary telemetry:
+- source code, file contents, project/specification/roadmap content, filenames, or absolute paths;
+- Git remote URLs, repository names, project names, or other repository identity;
+- prompts, user-entered natural language, Master Agent conversations, or worker transcripts;
+- environment variables, secrets, API keys, credentials, cookies/tokens, or Codex authentication data;
+- personal/account identity, arbitrary command stdout/stderr, or unsanitized raw crash dumps.
+
+Use an anonymous random installation identifier only if aggregate reliability measurement truly requires it. Do not create user tracking or cross-product identity.
+
+Engineering requirements:
+- one centralized telemetry abstraction independent of feature/UI code;
+- small typed/versioned event schemas with explicit allowlisted properties;
+- reject unknown fields rather than uploading them automatically;
+- batching and retry with bounded local storage and reasonable network timeouts;
+- telemetry failures never block or break Densa execution;
+- easy local disablement and deterministic fakes for development/tests;
+- sanitization/redaction tests and negative tests proving forbidden data cannot enter an upload;
+- Settings copy that concisely explains what is and is not collected;
+- create docs/TELEMETRY.md listing every v1 event, its properties, purpose, optional/essential category, retention assumptions, and the explicit data Densa does not collect.
+
+Acceptance criteria:
+- optional events are transmitted only when "Share optional diagnostics" is enabled.
+- disabling optional telemetry stops its transmission, including after restart and with queued batches.
+- essential operational traffic is separately classified, minimized, and documented.
+- schema/allowlist tests reject unknown or forbidden properties.
+- tests cover source code, prompts, project/repository identity, paths, secrets, auth data, and arbitrary logs.
+- bounded retry/storage behavior survives network failure without affecting an active project run.
+- Settings state, privacy language, and docs/TELEMETRY.md match actual behavior.
+
+Do not start the next milestone.
+```
+
 ---
 
-# Phase 13 — v0.1 Hardening, Soak Testing, Packaging, and Release Candidate
+# Phase 13 — v1 Hardening, Soak Testing, Secure Updating, Packaging, and Release Candidate
 
 ## Phase 13 Milestone 0 — Build end-to-end reliability test matrix
 
@@ -2250,7 +2335,7 @@ You are implementing Densa Phase 13 Milestone 0.
 Read AGENTS.md first.
 
 Goal:
-Create the v0.1 release-blocking reliability test matrix.
+Create the v1 release-blocking reliability test matrix.
 
 Automate as much as practical with fakes/temporary repos:
 - new project -> spec -> roadmap -> Phase 1 -> approval;
@@ -2326,7 +2411,7 @@ Acceptance criteria:
 Do not start the next milestone.
 ```
 
-## Phase 13 Milestone 2 — Release packaging, signing, and manual update plan
+## Phase 13 Milestone 2 — Implement secure Sparkle network auto-update
 
 ### Copy-paste prompt
 
@@ -2336,30 +2421,55 @@ You are implementing Densa Phase 13 Milestone 2.
 Read AGENTS.md first.
 
 Goal:
-Prepare a safe macOS v0.1 release artifact without overbuilding a full update infrastructure.
+Implement the secure in-app macOS network updater required for the Densa v1 public release using Sparkle.
 
-Tasks:
-- produce reproducible Densa.app build;
-- establish bundle identifier/versioning;
-- configure macOS code signing/notarization workflow if credentials are available;
-- produce a release checklist;
-- include third-party license notices;
-- document manual update/install flow for v0.1;
-- do not add a risky custom auto-updater just to ship this milestone.
+Requirements:
+- integrate Sparkle as the macOS updater; do not create a custom update protocol;
+- support automatic network update checks and a visible "Check for Updates…" action;
+- use an HTTPS-hosted appcast/update feed with release notes and version information;
+- expose updater state, download progress, and understandable errors to the application;
+- provide user-configurable automatic update behavior where appropriate;
+- centralize the configurable feed endpoint and define a stable v1 channel without prematurely building beta/nightly channels;
+- validate Densa IDE and bundled Densa Core compatibility before installation;
+- define a safe download/install/restart flow.
 
-The product logo may still be placeholder if final branding is not ready.
+Update security:
+- authenticate update artifacts with Sparkle's supported Ed25519 update-signing flow where appropriate;
+- never install an update whose authenticity cannot be verified;
+- never commit, store in the repository, log, or emit through telemetry any private Sparkle signing key;
+- document private update-signing keys as release secrets;
+- clearly separate Sparkle update-signing keys from Apple Developer ID signing/notarization credentials. They are independent systems.
+
+Distribution constraints:
+- Apple Developer enrollment is not required to complete this milestone;
+- support unsigned or appropriate development/ad-hoc-signed Densa.app builds initially while retaining Sparkle signature verification;
+- document Gatekeeper limitations for the initial public distribution path;
+- preserve compatibility with future Developer ID Application signing, Hardened Runtime, notarization, and stapling without replacing the updater architecture.
+
+Failure and active-run behavior:
+- Densa remains usable when the server/DNS/network is unavailable, the feed is malformed, no update exists, signature verification fails, or download fails;
+- a failed update check never breaks Densa Core or an active project run;
+- downloading may proceed when safe, but installation/restart must wait for a safe project state or explicit user approval to interrupt;
+- never silently terminate an autonomous run to install an update.
+
+Testing:
+- use local/fake appcasts in normal automated tests rather than the production server;
+- cover version comparison, malformed feeds, network failure, no-update behavior, and download failure;
+- prove bad signatures are rejected and a correctly signed update succeeds;
+- cover IDE/Core compatibility checks and active-project restart safety.
 
 Acceptance criteria:
-- clean-machine installation instructions are tested.
-- app launches with correct identity.
-- Core/CLI versions are compatible and visible.
-- signed/notarized path is documented even if local credentials are intentionally absent from CI.
-- no signing secret is committed.
+- a development build can discover and complete a signed update through a local/fake HTTPS-equivalent test setup.
+- an invalid or missing update signature cannot install.
+- updater failures leave Core and active project execution healthy.
+- update state and the manual/automatic check controls are accurately exposed in the app.
+- private update keys are absent from the repository, logs, test artifacts, and telemetry.
+- the unsigned/ad-hoc development path and future Developer ID/notarization path are both documented.
 
 Do not start the next milestone.
 ```
 
-## Phase 13 Milestone 3 — v0.1 release candidate audit
+## Phase 13 Milestone 3 — Release packaging, signing, and update publishing
 
 ### Copy-paste prompt
 
@@ -2369,7 +2479,48 @@ You are implementing Densa Phase 13 Milestone 3.
 Read AGENTS.md first.
 
 Goal:
-Perform the final v0.1 engineering audit. Do not add new product features.
+Prepare and publish safe macOS v1 release artifacts for the existing Sparkle update architecture.
+
+Tasks:
+- produce reproducible Densa.app build;
+- establish bundle identifier/versioning;
+- package the app using the selected ZIP/DMG distribution format;
+- generate Sparkle-compatible update artifacts and appcast/feed metadata;
+- sign update artifacts with the separate Sparkle Ed25519 release key and include checksums where useful;
+- configure Developer ID Application signing, Hardened Runtime, notarization, and stapling when Apple credentials are available;
+- document unsigned/ad-hoc-signed fallback builds and Gatekeeper limitations while Apple credentials are unavailable;
+- document publication steps for the HTTPS update feed and release artifacts;
+- produce a release checklist;
+- include third-party license notices;
+- retain a manual download/install fallback without treating it as the primary v1 update path;
+- never commit, log, or publish either Sparkle private keys or Apple signing/notarization credentials.
+
+The product logo may still be placeholder if final branding is not ready.
+
+Acceptance criteria:
+- clean-machine installation instructions are tested.
+- app launches with correct identity.
+- Core/CLI versions are compatible and visible.
+- an installed older Densa build can discover the published new release.
+- generated appcast/artifacts pass Sparkle signature verification.
+- manual download remains available when in-app updating cannot be used.
+- Developer ID/notarization and unsigned/ad-hoc paths are both documented; missing Apple credentials do not block the software release procedure.
+- no Sparkle or Apple signing secret is committed, logged, or emitted through telemetry.
+
+Do not start the next milestone.
+```
+
+## Phase 13 Milestone 4 — v1 release candidate audit
+
+### Copy-paste prompt
+
+```text
+You are implementing Densa Phase 13 Milestone 4.
+
+Read AGENTS.md first.
+
+Goal:
+Perform the final v1 engineering audit. Do not add new product features.
 
 Audit:
 1. AGENTS.md invariants.
@@ -2388,12 +2539,20 @@ Audit:
 14. validation independence.
 15. Dashboard/Roadmap factual correctness.
 16. Open VSX configuration.
-17. telemetry default off.
-18. no automatic push.
-19. no hidden cloud dependency.
-20. release test matrix.
+17. Sparkle integration, reachable HTTPS feed, signed artifacts, and invalid-signature rejection.
+18. private Sparkle update key absent from the repository, logs, and telemetry.
+19. an older version can discover a newer version; updater failure does not break Densa.
+20. update install/restart cannot silently destroy an active Densa run.
+21. Developer ID/notarization status and unsigned/ad-hoc fallback are accurately documented.
+22. optional telemetry can be disabled and disabled telemetry is not transmitted.
+23. telemetry allowlist/schema is enforced and excludes source code, prompts, project/repository identity, paths, secrets, auth data, and arbitrary logs.
+24. telemetry failures cannot break Densa and docs/TELEMETRY.md matches implementation.
+25. onboarding/settings privacy language is accurate and update checks are not mislabeled as optional telemetry.
+26. no automatic push.
+27. no hidden cloud dependency.
+28. release test matrix.
 
-Produce `docs/v0.1-release-audit.md` with:
+Produce `docs/v1-release-audit.md` with:
 - PASS;
 - FAIL;
 - DEFERRED;
@@ -2401,18 +2560,18 @@ for every item, evidence links/commands, and release blockers.
 
 Acceptance criteria:
 - no critical FAIL remains.
-- deferred items are genuinely outside v0.1 scope.
+- deferred items are genuinely outside v1 scope.
 - all release-blocking tests pass.
 - the audit does not hide known issues.
 
-Do not begin post-v0.1 expansion from this milestone.
+Do not begin post-v1 expansion from this milestone.
 ```
 
 ---
 
-# Post-v0.1 backlog — explicitly not authorized by this roadmap
+# Post-v1 backlog — explicitly not authorized by this roadmap
 
-Do **not** implement these before the v0.1 release candidate unless the roadmap is deliberately revised:
+Do **not** implement these before the v1 release candidate unless the roadmap is deliberately revised:
 
 - Claude Code adapter;
 - Gemini adapter;
@@ -2432,7 +2591,7 @@ Do **not** implement these before the v0.1 release candidate unless the roadmap 
 - automatic remote Git pushes;
 - multi-repo distributed orchestration.
 
-The v0.1 moat is not the number of providers or platforms. It is **reliable, understandable orchestration**.
+The v1 moat is not the number of providers or platforms. It is **reliable, understandable orchestration**.
 
 ---
 
@@ -2464,11 +2623,13 @@ Must pass after Phase 11:
 - Core can continue without the window;
 - Roadmap/Dashboard/Master surfaces reflect persisted truth.
 
-## Gate E — v0.1 release
+## Gate E — v1 public release
 Must pass after Phase 13:
 - reliability matrix green;
 - release audit has no critical FAIL;
-- packaging path works;
+- optional telemetry disablement and data-minimization checks pass;
+- Sparkle signed-update path, failure isolation, and active-run restart safety pass;
+- packaging and update-feed publication paths work with the current signing/notarization status documented;
 - known limitations are documented.
 
 ---
@@ -2481,7 +2642,7 @@ These are deliberately not baked into Densa's core contracts:
    Keep the downstream patch thin and re-check the upstream source-organization guidance before deep workbench changes.
 
 2. **VS Code's own Agent Host/AHP is evolving.**
-   Densa Core should remain independent rather than depending on private/experimental agent APIs in v0.1.
+   Densa Core should remain independent rather than depending on private/experimental agent APIs in v1.
 
 3. **Codex CLI flags/output may evolve.**
    The Phase 1 spike must inspect the installed official CLI and store versioned fixtures.

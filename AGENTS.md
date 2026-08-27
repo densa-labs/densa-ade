@@ -535,6 +535,8 @@ Do not collect or log:
 
 ## 14. UI rules
 
+For **ANY** UI/UX change, use [taste-skill](https://github.com/leonxlnx/taste-skill).
+
 ### 14.1 UI reflects Core; it does not invent truth
 
 If Core says usage is `unknown`, UI says unknown.
