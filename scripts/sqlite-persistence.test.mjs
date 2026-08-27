@@ -112,8 +112,8 @@ test("a file database migrates from zero and reopening does not reapply migratio
   const path = join(directory, "runtime.sqlite");
   try {
     const first = DensaDatabase.open(path, { now: fixedMigrationTime });
-    assert.equal(first.schemaVersion, 7);
-    assert.equal(first.expectedSchemaVersion, 7);
+    assert.equal(first.schemaVersion, 8);
+    assert.equal(first.expectedSchemaVersion, 8);
     assert.deepEqual(first.listUserTables(), [
       "acceptance_criteria",
       "agent_runs",
@@ -123,6 +123,7 @@ test("a file database migrates from zero and reopening does not reapply migratio
       "decisions",
       "densa_run_branches",
       "events",
+      "master_roadmaps",
       "phases",
       "project_settings",
       "projects",
@@ -136,7 +137,7 @@ test("a file database migrates from zero and reopening does not reapply migratio
     first.close();
 
     const reopened = DensaDatabase.open(path, { now: fixedMigrationTime });
-    assert.equal(reopened.schemaVersion, 7);
+    assert.equal(reopened.schemaVersion, 8);
     reopened.close();
   } finally {
     rmSync(directory, { force: true, recursive: true });
@@ -311,7 +312,7 @@ test("all remaining P2M1 repositories round-trip their runtime records", () => {
   });
 });
 
-test("migrations 3 through 7 preserve version-2 runtime rows and convert legacy specifications", () => {
+test("migrations 3 through 8 preserve version-2 runtime rows and convert legacy specifications", () => {
   const directory = mkdtempSync(join(tmpdir(), "densa-p2m4-migration-"));
   const path = join(directory, "runtime.sqlite");
   try {
@@ -395,7 +396,7 @@ test("migrations 3 through 7 preserve version-2 runtime rows and convert legacy 
     raw.close();
 
     const database = DensaDatabase.open(path, { now: fixedMigrationTime });
-    assert.equal(database.schemaVersion, 7);
+    assert.equal(database.schemaVersion, 8);
     assert.deepEqual(database.repositories.agentRuns.findById("agent-run-v2"), {
       id: "agent-run-v2",
       attemptId: "attempt-v2",

@@ -27,3 +27,8 @@ upgrade their payloads through version-aware readers rather than rewriting event
 `ProjectSpecification` is independently versioned with `formatVersion`. Its strict schema preserves
 the exact project constraints and unresolved-question metadata used before roadmap generation;
 rendering and contradiction detection remain editor- and model-neutral Core concerns.
+
+`MasterRoadmap` and its mutation operations are independently strict. The roadmap schema validates
+the complete dependency graph and supersession references. Mutation requests carry typed operation,
+classification proposal, rationale, actor/session, application mode, and optional explicit approval
+evidence; Core policy and persistence decide whether a request may apply.

@@ -6,4 +6,5 @@ export * from "./ids.js";
 export * from "./json.js";
 export * from "./master-roadmap.js";
 export * from "./project-specification.js";
+export * from "./roadmap-mutation.js";
 export * from "./states.js";

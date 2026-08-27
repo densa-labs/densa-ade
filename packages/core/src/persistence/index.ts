@@ -25,6 +25,7 @@ export type {
   NewAttemptRollbackPlanRecord,
   NewDensaRunBranchRecord,
   NewTaskCommitIntentRecord,
+  MasterRoadmapRepository,
   PhaseRepository,
   ProjectRepository,
   ProjectSettingsRecord,

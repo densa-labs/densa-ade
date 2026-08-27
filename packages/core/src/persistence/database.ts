@@ -6,6 +6,9 @@ import {
   taskSchema,
   type AttemptId,
   type EventId,
+  type Event,
+  type MasterRoadmapRecord,
+  type RoadmapRevision,
   type ValidationRunId,
 } from "@densa/protocol";
 
@@ -38,6 +41,13 @@ export interface PersistTaskCommitCompletionRequest {
   readonly commitRecordedEventId: EventId;
   readonly completionEventId: EventId;
   readonly transition: TaskStateTransition;
+}
+
+export interface PersistRoadmapMutationRequest {
+  readonly expectedRevisionNumber: number;
+  readonly roadmap: MasterRoadmapRecord;
+  readonly revision: RoadmapRevision;
+  readonly event: Event;
 }
 
 function assertEventMatchesTransition(transition: StateTransition): void {
@@ -113,6 +123,27 @@ export class DensaDatabase {
 
   transaction<Result>(work: (repositories: DensaRepositories) => Result): Result {
     return this.#connection.transaction(() => work(this.repositories));
+  }
+
+  persistInitialMasterRoadmap(record: MasterRoadmapRecord): MasterRoadmapRecord {
+    return this.#connection.transaction(() => this.repositories.masterRoadmaps.create(record));
+  }
+
+  /** Atomically replaces one authoritative roadmap revision and appends its complete audit fact. */
+  persistRoadmapMutation(request: PersistRoadmapMutationRequest): PersistedEvent {
+    if (
+      request.roadmap.projectId !== request.revision.projectId ||
+      request.event.projectId !== request.revision.projectId ||
+      request.event.type !== "ROADMAP_CHANGED" ||
+      request.roadmap.revisionNumber !== request.expectedRevisionNumber + 1
+    ) {
+      throw new PersistenceError("Roadmap mutation persistence request is inconsistent");
+    }
+    return this.#connection.transaction(() => {
+      this.repositories.masterRoadmaps.replace(request.roadmap, request.expectedRevisionNumber);
+      this.repositories.roadmapRevisions.create(request.revision);
+      return this.repositories.events.append(request.event);
+    });
   }
 
   persistStateTransition(transition: StateTransition, eventId: EventId): PersistedEvent {

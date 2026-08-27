@@ -269,6 +269,7 @@ function renderTask(lines: string[], task: MasterRoadmapTask): void {
     `- Executable: ${task.executable ? "yes" : "no"}`,
     `- Risk: **${task.riskLevel.toUpperCase()}**`,
     `- Dependencies: ${task.dependencyIds.length === 0 ? "none" : task.dependencyIds.map((id) => `\`${id}\``).join(", ")}`,
+    `- Superseded by: ${(task.supersededByTaskIds?.length ?? 0) === 0 ? "none" : task.supersededByTaskIds?.map((id) => `\`${id}\``).join(", ")}`,
     `- Expected validators: ${task.expectedValidators.length === 0 ? "none" : task.expectedValidators.map((validator) => `\`${validator}\``).join(", ")}`,
     "",
   );

@@ -49,8 +49,9 @@ A marked canonical JSON block preserves the full versioned graph. `parseMasterRo
 round-trips only renderer-produced documents and reruns strict schema and cycle validation.
 
 The structured roadmap remains the authoritative Core value. `ROADMAP.md` is its portable,
-inspectable representation; parsing the file does not itself authorize a lifecycle mutation. P4M3
-will add audited roadmap mutation semantics.
+inspectable representation; parsing the file does not itself authorize a lifecycle mutation.
+Persisted roadmap evolution is handled by the audited mutation boundary described in
+[audited-roadmap-mutations.md](./audited-roadmap-mutations.md).
 
 ## Verification
 

@@ -401,6 +401,29 @@ DROP TABLE specifications;
 ALTER TABLE specifications_v2 RENAME TO specifications;
 `;
 
+const auditedRoadmapMutations = `
+CREATE TABLE master_roadmaps (
+  project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
+  roadmap_json TEXT NOT NULL CHECK (
+    json_valid(roadmap_json)
+    AND json_extract(roadmap_json, '$.formatVersion') = 1
+  ),
+  revision_number INTEGER NOT NULL CHECK (revision_number >= 0),
+  created_at TEXT NOT NULL CHECK (length(created_at) >= 20),
+  updated_at TEXT NOT NULL CHECK (length(updated_at) >= 20)
+) STRICT;
+
+ALTER TABLE roadmap_revisions ADD COLUMN session_id TEXT
+  CHECK (session_id IS NULL OR length(session_id) > 0);
+ALTER TABLE roadmap_revisions ADD COLUMN operation_json TEXT
+  CHECK (operation_json IS NULL OR json_valid(operation_json));
+ALTER TABLE roadmap_revisions ADD COLUMN approval_json TEXT
+  CHECK (approval_json IS NULL OR json_valid(approval_json));
+
+CREATE INDEX roadmap_revisions_project_created
+  ON roadmap_revisions (project_id, created_at, id);
+`;
+
 export const schemaMigrations: readonly SchemaMigration[] = Object.freeze([
   Object.freeze({ version: 1, name: "authoritative_runtime_schema", sql: initialSchema }),
   Object.freeze({ version: 2, name: "ordered_event_journal", sql: orderedEventJournal }),
@@ -420,6 +443,11 @@ export const schemaMigrations: readonly SchemaMigration[] = Object.freeze([
     version: 7,
     name: "structured_project_specifications",
     sql: structuredProjectSpecifications,
+  }),
+  Object.freeze({
+    version: 8,
+    name: "audited_roadmap_mutations",
+    sql: auditedRoadmapMutations,
   }),
 ]);
 

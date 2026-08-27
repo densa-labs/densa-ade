@@ -72,6 +72,12 @@ Repository reads and writes validate the complete `ProjectSpecification`; portab
 `SPEC.md` output is rendered from that authoritative value. The contract and round-trip rules are
 documented in [project-specification.md](./project-specification.md).
 
+Migration 8 adds the authoritative versioned `master_roadmaps` document and extends roadmap
+revision history with the typed operation, actor session, and optional approval evidence. The
+mutation service replaces the expected roadmap revision, stores full before/after values, and
+appends `ROADMAP_CHANGED` in one transaction. Policy, recovery, and inspection rules are documented
+in [audited-roadmap-mutations.md](./audited-roadmap-mutations.md).
+
 The project-scoped list queries added for portable export retain repository isolation and stable
 ordering. Phase 2 Milestone 3 uses them to create `.densa/` snapshots without exposing raw SQL or
 making the filesystem authoritative; see [portable-project.md](./portable-project.md).
@@ -88,7 +94,8 @@ Migration 4 rebuilds the checkpoint table while preserving legacy rows and leavi
 association columns null. Migrations 5 and 6 add only nullable attempt data and new intent/evidence
 tables, so existing attempts remain valid without commit or rollback outcomes. Migration 7 rebuilds
 only the specification table and carries non-empty old free-form content losslessly into the version
-1 goal. There is no
+1 goal. Migration 8 is additive: existing projects begin without a persisted Master Roadmap and
+legacy roadmap revisions retain null operation/session/approval metadata. There is no
 downgrade path; a newer database must not be opened by an older Core build. Future destructive or
 data-transforming migrations must document backup, forward, and rollback assumptions alongside
 their migration tests.
