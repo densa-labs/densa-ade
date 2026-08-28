@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Densa ADE — Densa Labs</title>
+  <meta
+    name="description"
+    content="Densa ADE is an agentic development environment for structured, long-running software work."
+  >
+
+  <style>
+    :root {
+      --navy: #16324f;
+      --navy-dark: #0e2236;
+      --text: #202830;
+      --muted: #5f6b76;
+      --border: #cbd3da;
+      --light: #f5f7f8;
+      --link: #0b57a3;
+      --white: #ffffff;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      color: var(--text);
+      background: var(--white);
+      line-height: 1.55;
+    }
+
+    .container {
+      width: min(960px, calc(100% - 48px));
+      margin: 0 auto;
+    }
+
+    .utility {
+      background: var(--navy-dark);
+      color: #dce5ec;
+      font-size: 12px;
+    }
+
+    .utility .container {
+      padding: 7px 0;
+    }
+
+    .utility a {
+      color: white;
+    }
+
+    header {
+      background: var(--navy);
+      color: white;
+      border-bottom: 4px solid var(--navy-dark);
+    }
+
+    .header-inner {
+      padding: 22px 0;
+    }
+
+    .agency {
+      margin: 0 0 3px;
+      font-size: 13px;
+      opacity: 0.82;
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 27px;
+      font-weight: 600;
+    }
+
+    header p {
+      margin: 5px 0 0;
+      font-size: 14px;
+      color: #dce5ec;
+    }
+
+    nav {
+      border-bottom: 1px solid var(--border);
+      background: var(--light);
+    }
+
+    nav .container {
+      display: flex;
+      gap: 24px;
+      min-height: 44px;
+      align-items: center;
+    }
+
+    nav a {
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 600;
+      text-decoration: none;
+    }
+
+    nav a:hover {
+      text-decoration: underline;
+    }
+
+    main {
+      padding: 42px 0 64px;
+    }
+
+    .development-status {
+      margin: 0 0 24px;
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .hero {
+      padding-bottom: 36px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .hero h2 {
+      max-width: 720px;
+      margin: 0 0 14px;
+      font-size: 34px;
+      line-height: 1.2;
+      font-weight: 600;
+    }
+
+    .hero .lead {
+      max-width: 720px;
+      margin: 0 0 24px;
+      color: #44505a;
+      font-size: 17px;
+    }
+
+    .buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .button {
+      display: inline-block;
+      padding: 9px 14px;
+      border: 1px solid var(--navy);
+      font-size: 13px;
+      font-weight: 600;
+      text-decoration: none;
+    }
+
+    .button.primary {
+      color: white;
+      background: var(--navy);
+    }
+
+    .button.secondary {
+      color: var(--navy);
+      background: white;
+    }
+
+    .button:hover {
+      text-decoration: underline;
+    }
+
+    section.content {
+      padding: 36px 0;
+    }
+
+    section.content h2 {
+      margin: 0 0 16px;
+      font-size: 22px;
+      font-weight: 600;
+    }
+
+    .definition {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 18px;
+      font-size: 13px;
+    }
+
+    .definition th,
+    .definition td {
+      padding: 11px 12px;
+      text-align: left;
+      vertical-align: top;
+      border: 1px solid var(--border);
+    }
+
+    .definition th {
+      width: 180px;
+      background: var(--light);
+      font-weight: 600;
+    }
+
+    a {
+      color: var(--link);
+    }
+
+    footer {
+      background: var(--light);
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    footer .container {
+      padding: 24px 0 32px;
+    }
+
+    footer p {
+      margin: 4px 0;
+    }
+
+    @media (max-width: 650px) {
+      .container {
+        width: min(100% - 30px, 960px);
+      }
+
+      .hero h2 {
+        font-size: 28px;
+      }
+
+      nav .container {
+        gap: 16px;
+        overflow-x: auto;
+      }
+
+      .definition th {
+        width: 120px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="utility">
+    <div class="container">
+      A project of
+      <a href="https://densa-labs.github.io/">Densa Labs</a>
+    </div>
+  </div>
+
+  <header>
+    <div class="container header-inner">
+      <p class="agency">Densa Labs</p>
+      <h1>Densa ADE</h1>
+      <p>Agentic Development Environment</p>
+    </div>
+  </header>
+
+  <nav>
+    <div class="container">
+      <a href="#overview">Overview</a>
+      <a href="#project">Project information</a>
+      <a href="https://github.com/densa-labs/densa-ade">GitHub</a>
+    </div>
+  </nav>
+
+  <main class="container">
+
+    <div class="hero" id="overview">
+
+      <p class="development-status">In development</p>
+
+      <h2>
+        Structured software development with long-running agents.
+      </h2>
+
+      <p class="lead">
+        Densa ADE is an agentic development environment designed to organize,
+        execute and supervise software work across structured development
+        phases.
+      </p>
+
+      <div class="buttons">
+        <a
+          class="button primary"
+          href="https://github.com/densa-labs/densa-ade"
+        >
+          View source repository
+        </a>
+
+        <a
+          class="button secondary"
+          href="#project"
+        >
+          Project information
+        </a>
+      </div>
+    </div>
+
+    <section class="content" id="project">
+      <h2>Project information</h2>
+
+      <table class="definition">
+        <tr>
+          <th>Project</th>
+          <td>Densa ADE</td>
+        </tr>
+
+        <tr>
+          <th>Organization</th>
+          <td>Densa Labs</td>
+        </tr>
+
+        <tr>
+          <th>Category</th>
+          <td>Agentic Development Environment</td>
+        </tr>
+
+        <tr>
+          <th>Status</th>
+          <td>In development</td>
+        </tr>
+
+        <tr>
+          <th>Source</th>
+          <td>
+            <a href="https://github.com/densa-labs/densa-ade">
+              github.com/densa-labs/densa-ade
+            </a>
+          </td>
+        </tr>
+      </table>
+    </section>
+
+  </main>
+
+  <footer>
+    <div class="container">
+      <p><strong>Densa Labs</strong></p>
+      <p>Independent software and research projects.</p>
+    </div>
+  </footer>
+
+</body>
+</html>
