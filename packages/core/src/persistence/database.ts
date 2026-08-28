@@ -21,6 +21,7 @@ import type {
   ProjectStateTransition,
   TaskStateTransition,
 } from "../state-transitions.js";
+import { buildAcceptanceReport } from "../acceptance-evidence.js";
 import { EventPublisher, type PersistedEvent } from "../event-publisher.js";
 import { EventJournal } from "./event-journal.js";
 import { latestSchemaVersion } from "./migrations.js";
@@ -323,6 +324,20 @@ export class DensaDatabase {
       validation.passed !== true
     ) {
       throw new PersistenceError("Task commit completion requires a passing validation outcome");
+    }
+    if (validation.planId !== undefined) {
+      const acceptanceReport = buildAcceptanceReport({
+        task: transition.entity,
+        run: validation,
+        results: this.repositories.validationResults.listByRunId(validation.id),
+        manualReviews: this.repositories.manualAcceptanceReviews.listByRunId(validation.id),
+        generatedAt: transition.event.occurredAt,
+      });
+      if (!acceptanceReport.canComplete) {
+        throw new PersistenceError(
+          "Task commit completion requires every acceptance criterion to be satisfied",
+        );
+      }
     }
     if (intent?.commitSha !== request.commitSha) {
       throw new PersistenceError("Task commit intent does not record the verified commit SHA");

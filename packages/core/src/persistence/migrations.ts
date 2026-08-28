@@ -475,6 +475,33 @@ CREATE INDEX validation_results_run_position
   ON validation_results (validation_run_id, position);
 `;
 
+const acceptanceCriteriaEvidence = `
+ALTER TABLE validation_runs ADD COLUMN manual_review_criteria_json TEXT NOT NULL DEFAULT '[]'
+  CHECK (json_valid(manual_review_criteria_json));
+
+ALTER TABLE validation_results ADD COLUMN evidence_source TEXT NOT NULL
+  DEFAULT 'legacy_unspecified'
+  CHECK (evidence_source IN (
+    'legacy_unspecified', 'deterministic_validator', 'targeted_check', 'browser_test',
+    'independent_review'
+  ));
+
+CREATE TABLE manual_acceptance_reviews (
+  id TEXT PRIMARY KEY CHECK (length(id) > 0),
+  validation_run_id TEXT NOT NULL REFERENCES validation_runs(id) ON DELETE CASCADE,
+  criterion_position INTEGER NOT NULL CHECK (criterion_position >= 0),
+  criterion TEXT NOT NULL CHECK (length(criterion) > 0),
+  decision TEXT NOT NULL CHECK (decision IN ('approved', 'rejected')),
+  actor TEXT NOT NULL CHECK (length(actor) > 0),
+  reason TEXT NOT NULL CHECK (length(reason) > 0),
+  occurred_at TEXT NOT NULL CHECK (length(occurred_at) >= 20),
+  UNIQUE (validation_run_id, criterion_position)
+) STRICT;
+
+CREATE INDEX manual_acceptance_reviews_run_position
+  ON manual_acceptance_reviews (validation_run_id, criterion_position);
+`;
+
 export const schemaMigrations: readonly SchemaMigration[] = Object.freeze([
   Object.freeze({ version: 1, name: "authoritative_runtime_schema", sql: initialSchema }),
   Object.freeze({ version: 2, name: "ordered_event_journal", sql: orderedEventJournal }),
@@ -505,6 +532,11 @@ export const schemaMigrations: readonly SchemaMigration[] = Object.freeze([
     version: 10,
     name: "validator_plugin_framework",
     sql: validatorPluginFramework,
+  }),
+  Object.freeze({
+    version: 11,
+    name: "acceptance_criteria_evidence",
+    sql: acceptanceCriteriaEvidence,
   }),
 ]);
 

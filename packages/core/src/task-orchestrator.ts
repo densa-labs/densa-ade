@@ -587,6 +587,7 @@ export class SingleTaskOrchestrator {
         taskId: task.id,
         attemptId: attempt.id,
         validatorId: request.validator.validatorId,
+        manualReviewCriteria: [],
         startedAt: validatingAt,
       });
       repositories.events.append({

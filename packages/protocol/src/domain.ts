@@ -101,6 +101,7 @@ export const validationRunSchema = z
     validatorId: nonEmptyText,
     planId: nonEmptyText.optional(),
     planVersion: nonEmptyText.optional(),
+    manualReviewCriteria: z.array(nonEmptyText).default([]),
     startedAt: isoTimestampSchema,
     completedAt: isoTimestampSchema.optional(),
     passed: z.boolean().optional(),

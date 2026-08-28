@@ -15,6 +15,7 @@ import {
 
 import { type DensaDatabase } from "./persistence/database.js";
 import { type TaskCommitIntentRecord } from "./persistence/repositories.js";
+import { buildAcceptanceReport } from "./acceptance-evidence.js";
 import { stateTransitionService } from "./state-transitions.js";
 
 const GIT_TIMEOUT_MS = 10_000;
@@ -338,6 +339,26 @@ export class TaskCommitService {
       validation.passed !== true
     ) {
       return stopped("NOT_VALIDATED", "The selected attempt has no completed passing validation");
+    }
+    if (validation.planId !== undefined) {
+      let acceptanceComplete: boolean;
+      try {
+        acceptanceComplete = buildAcceptanceReport({
+          task,
+          run: validation,
+          results: repositories.validationResults.listByRunId(validation.id),
+          manualReviews: repositories.manualAcceptanceReviews.listByRunId(validation.id),
+          generatedAt: request.committedAt,
+        }).canComplete;
+      } catch {
+        return stopped("NOT_VALIDATED", "Acceptance evidence is internally inconsistent");
+      }
+      if (!acceptanceComplete) {
+        return stopped(
+          "NOT_VALIDATED",
+          "Required acceptance criteria remain failed, unevaluated, or awaiting manual approval",
+        );
+      }
     }
     if (checkpoint.gitHead === undefined || run.status !== "ACTIVE") {
       return stopped("ATTEMPT_MISMATCH", "The selected attempt has no active Git checkpoint");
