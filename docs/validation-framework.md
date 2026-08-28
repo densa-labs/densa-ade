@@ -42,3 +42,30 @@ durable audit sink. Detection fails closed unless that sink records the versione
 the configured plan is returned. Shell-evaluation forms and working directories outside the
 workspace are rejected. Audit facts retain command identity, category, policy, argument count, and
 an argv digest rather than potentially secret argument values.
+
+## Browser validation
+
+Phase 6 Milestone 3 adds browser validation as an explicit `browser_test` plugin. The roadmap/policy
+layer must first classify a task as browser-relevant. Irrelevant tasks return `not_applicable`
+without inspecting project metadata, so the mere presence of a web framework never opts a task in.
+
+Relevant tasks require an explicit credential-free loopback HTTP URL. Core can detect exact
+`dev`, `start`, `serve`, or `preview` package scripts, or consume user-configured structured argv.
+Start commands are spawned without a shell and cannot escape the workspace. URL guessing and remote
+URLs fail closed to manual configuration.
+
+`BrowserValidationValidator` owns the dev-server process group for the whole validation attempt. It
+waits for HTTP readiness, invokes a provider-neutral `PlaywrightRunner`, and terminates the complete
+process group after pass, failure, runner crash, timeout, or cancellation. Playwright Chromium is a
+pinned Core dependency so browser evidence does not depend on an application installing its own
+test runner. The dev server receives a minimal process environment rather than inheriting unrelated
+credentials from Core.
+
+The built-in runner supports page-load, visible-text, and visible-selector checks. It bounds and
+redacts server/browser logs, and strips URL query/fragment data from request-failure diagnostics. A
+failed check records a full-page screenshot and Playwright trace in private local runtime storage,
+never the portable `.densa/` tree; callers may supply an application-support artifact root and Core
+persists its absolute local path. A required plan entry maps that result to task criteria with
+evidence source `browser_test`, so a passing browser check can satisfy acceptance while failed,
+cancelled, or missing evidence continues to block completion. Playwright 1.62.1 is pinned under its
+Apache-2.0 license; `npm run playwright:install` provisions Chromium as a local build/runtime step.
