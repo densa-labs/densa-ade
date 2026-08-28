@@ -98,7 +98,11 @@ function seedGraph(database) {
   return { project, phase, task, attempt };
 }
 
-async function preparePassingAttempt(database, repository, { passed = true } = {}) {
+async function preparePassingAttempt(
+  database,
+  repository,
+  { passed = true, planBased = false } = {},
+) {
   const graph = seedGraph(database);
   const checkpoint = await new RunCheckpointService(database).prepareTask({
     projectId: graph.project.id,
@@ -134,6 +138,7 @@ async function preparePassingAttempt(database, repository, { passed = true } = {
     taskId: task.id,
     attemptId: graph.attempt.id,
     validatorId: "fixture-validator",
+    ...(planBased ? { planId: "fixture-plan", planVersion: "1" } : {}),
     startedAt: "2026-08-26T08:15:00.000Z",
     completedAt: "2026-08-26T08:19:00.000Z",
     passed,
@@ -343,6 +348,35 @@ test("does not stage or commit an attempt whose validation failed", async () => 
 
   assert.equal(result.status, "STOPPED");
   assert.equal(result.code, "NOT_VALIDATED");
+  assert.equal(git(repository, ["rev-parse", "HEAD"]).trim(), checkpointHead);
+  assert.equal(git(repository, ["diff", "--cached", "--name-only"]).trim(), "");
+  assert.equal(
+    database.repositories.taskCommitIntents.findByAttemptId(graph.attempt.id),
+    undefined,
+  );
+  database.close();
+});
+
+test("does not stage or commit when a required criterion has no plan evidence", async () => {
+  const root = createRoot();
+  const repository = createRepository(root);
+  const database = DensaDatabase.open(join(root, "runtime.sqlite"));
+  const graph = await preparePassingAttempt(database, repository, { planBased: true });
+  configureCommitIdentity(repository);
+  const checkpointHead = git(repository, ["rev-parse", "HEAD"]).trim();
+  writeFileSync(
+    join(repository, "task.txt"),
+    "validator passed without criterion evidence\n",
+    "utf8",
+  );
+
+  const result = await new TaskCommitService(database).commitPassingTask(
+    requestFor(graph, repository, "criterion-gate"),
+  );
+
+  assert.equal(result.status, "STOPPED");
+  assert.equal(result.code, "NOT_VALIDATED");
+  assert.match(result.reason, /acceptance criteria remain/u);
   assert.equal(git(repository, ["rev-parse", "HEAD"]).trim(), checkpointHead);
   assert.equal(git(repository, ["diff", "--cached", "--name-only"]).trim(), "");
   assert.equal(

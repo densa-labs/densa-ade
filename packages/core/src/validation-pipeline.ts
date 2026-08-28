@@ -3,6 +3,8 @@ import {
   validationResultIdSchema,
   validatorOutcomeSchema,
   type AttemptId,
+  type AcceptanceEvidenceSource,
+  type AcceptanceReport,
   type JsonObject,
   type ProjectId,
   type TaskId,
@@ -14,6 +16,7 @@ import {
   type ValidatorOutcome,
 } from "@densa/protocol";
 
+import { buildAcceptanceReport } from "./acceptance-evidence.js";
 import type { DensaDatabase } from "./persistence/database.js";
 
 export const MAX_VALIDATION_DIAGNOSTICS_BYTES = 32 * 1_024;
@@ -37,6 +40,10 @@ export interface Validator {
 
 export interface ValidationPlanEntry {
   readonly validator: Validator;
+  readonly evidenceSource: Exclude<
+    AcceptanceEvidenceSource,
+    "legacy_unspecified" | "manual_review"
+  >;
   readonly policy: ValidationPolicy;
   readonly relatedAcceptanceCriteria: readonly string[];
 }
@@ -46,6 +53,8 @@ export interface ValidationPlan {
   readonly version: string;
   /** Array order is authoritative and is persisted as each result's position. */
   readonly validators: readonly ValidationPlanEntry[];
+  /** Criteria unsupported by automatic validators and intentionally routed to audited review. */
+  readonly manualReviewCriteria?: readonly string[];
 }
 
 export interface ExecuteValidationPlanRequest {
@@ -65,6 +74,8 @@ export interface ValidationPipelineReplay {
 
 export interface ValidationPipelineOutcome extends ValidationPipelineReplay {
   readonly passed: boolean;
+  readonly acceptanceReport: AcceptanceReport;
+  readonly canComplete: boolean;
 }
 
 export interface ValidationPipelineOptions {
@@ -152,6 +163,14 @@ function validatePlan(
   }
   const seen = new Set<string>();
   const accepted = new Set(acceptanceCriteria);
+  const manual = new Set(plan.manualReviewCriteria ?? []);
+  if (
+    accepted.size !== acceptanceCriteria.length ||
+    manual.size !== (plan.manualReviewCriteria?.length ?? 0) ||
+    [...manual].some((criterion) => !accepted.has(criterion))
+  ) {
+    throw new Error("Manual-review criteria must be unique task-owned acceptance criteria");
+  }
   for (const entry of plan.validators) {
     const key = `${entry.validator.id}\0${entry.validator.version}`;
     if (
@@ -159,9 +178,13 @@ function validatePlan(
       entry.validator.id.trim().length === 0 ||
       entry.validator.version.trim().length === 0 ||
       typeof entry.validator.validate !== "function" ||
+      !(
+        ["deterministic_validator", "targeted_check", "browser_test", "independent_review"] as const
+      ).includes(entry.evidenceSource) ||
       seen.has(key) ||
       new Set(entry.relatedAcceptanceCriteria).size !== entry.relatedAcceptanceCriteria.length ||
-      entry.relatedAcceptanceCriteria.some((criterion) => !accepted.has(criterion))
+      entry.relatedAcceptanceCriteria.some((criterion) => !accepted.has(criterion)) ||
+      entry.relatedAcceptanceCriteria.some((criterion) => manual.has(criterion))
     ) {
       throw new Error(
         "Validation plan entries require unique versioned validators and task-owned acceptance criteria",
@@ -208,6 +231,7 @@ export class ValidationPipeline {
       validatorId: request.plan.id,
       planId: request.plan.id,
       planVersion: request.plan.version,
+      manualReviewCriteria: [...(request.plan.manualReviewCriteria ?? [])],
       startedAt,
     });
 
@@ -234,6 +258,7 @@ export class ValidationPipeline {
         position,
         validatorId: entry.validator.id,
         validatorVersion: entry.validator.version,
+        evidenceSource: entry.evidenceSource,
         policy: entry.policy,
         status: outcome.status,
         startedAt: resultStartedAt,
@@ -257,7 +282,19 @@ export class ValidationPipeline {
     if (replay === undefined || replay.run.passed === undefined) {
       throw new Error("Completed validation run could not be replayed");
     }
-    return Object.freeze({ ...replay, passed: replay.run.passed });
+    const acceptanceReport = buildAcceptanceReport({
+      task,
+      run: replay.run,
+      results: replay.results,
+      manualReviews: this.database.repositories.manualAcceptanceReviews.listByRunId(request.runId),
+      generatedAt: this.#now(),
+    });
+    return Object.freeze({
+      ...replay,
+      passed: replay.run.passed,
+      acceptanceReport,
+      canComplete: replay.run.passed && acceptanceReport.canComplete,
+    });
   }
 
   replay(runId: ValidationRunId): ValidationPipelineReplay | undefined {

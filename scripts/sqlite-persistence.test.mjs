@@ -112,8 +112,8 @@ test("a file database migrates from zero and reopening does not reapply migratio
   const path = join(directory, "runtime.sqlite");
   try {
     const first = DensaDatabase.open(path, { now: fixedMigrationTime });
-    assert.equal(first.schemaVersion, 10);
-    assert.equal(first.expectedSchemaVersion, 10);
+    assert.equal(first.schemaVersion, 11);
+    assert.equal(first.expectedSchemaVersion, 11);
     assert.deepEqual(first.listUserTables(), [
       "acceptance_criteria",
       "agent_runs",
@@ -123,6 +123,7 @@ test("a file database migrates from zero and reopening does not reapply migratio
       "decisions",
       "densa_run_branches",
       "events",
+      "manual_acceptance_reviews",
       "master_roadmaps",
       "phase_reports",
       "phases",
@@ -139,7 +140,7 @@ test("a file database migrates from zero and reopening does not reapply migratio
     first.close();
 
     const reopened = DensaDatabase.open(path, { now: fixedMigrationTime });
-    assert.equal(reopened.schemaVersion, 10);
+    assert.equal(reopened.schemaVersion, 11);
     reopened.close();
   } finally {
     rmSync(directory, { force: true, recursive: true });
@@ -301,8 +302,13 @@ test("all remaining P2M1 repositories round-trip their runtime records", () => {
     ]);
     assert.deepEqual(repositories.agentRuns.findById(agentRun.id), agentRun);
     assert.deepEqual(repositories.agentRuns.findByAttemptId(attempt.id), agentRun);
-    assert.deepEqual(repositories.validationRuns.findById(validationRun.id), validationRun);
-    assert.deepEqual(repositories.validationRuns.listByTaskId(task.id), [validationRun]);
+    assert.deepEqual(repositories.validationRuns.findById(validationRun.id), {
+      ...validationRun,
+      manualReviewCriteria: [],
+    });
+    assert.deepEqual(repositories.validationRuns.listByTaskId(task.id), [
+      { ...validationRun, manualReviewCriteria: [] },
+    ]);
     assert.deepEqual(repositories.decisions.findById(decision.id), decision);
     assert.deepEqual(repositories.decisions.listByProjectId(project.id), [decision]);
     assert.deepEqual(repositories.roadmapRevisions.findById(revision.id), revision);
@@ -314,7 +320,7 @@ test("all remaining P2M1 repositories round-trip their runtime records", () => {
   });
 });
 
-test("migrations 3 through 10 preserve version-2 runtime rows and convert legacy specifications", () => {
+test("migrations 3 through 11 preserve version-2 runtime rows and convert legacy specifications", () => {
   const directory = mkdtempSync(join(tmpdir(), "densa-p2m4-migration-"));
   const path = join(directory, "runtime.sqlite");
   try {
@@ -398,7 +404,7 @@ test("migrations 3 through 10 preserve version-2 runtime rows and convert legacy
     raw.close();
 
     const database = DensaDatabase.open(path, { now: fixedMigrationTime });
-    assert.equal(database.schemaVersion, 10);
+    assert.equal(database.schemaVersion, 11);
     assert.deepEqual(database.repositories.agentRuns.findById("agent-run-v2"), {
       id: "agent-run-v2",
       attemptId: "attempt-v2",

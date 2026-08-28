@@ -7,6 +7,7 @@ import {
   isoTimestampSchema,
   jsonObjectSchema,
   masterRoadmapRecordSchema,
+  manualAcceptanceReviewSchema,
   phaseReportSchema,
   phaseSchema,
   projectSpecificationSchema,
@@ -22,6 +23,7 @@ import {
   type Event,
   type JsonObject,
   type MasterRoadmapRecord,
+  type ManualAcceptanceReview,
   type Phase,
   type PhaseReport,
   type Project,
@@ -142,6 +144,12 @@ export interface ValidationResultRepository {
   create(result: ValidationResult): ValidationResult;
   findById(id: ValidationResult["id"]): ValidationResult | undefined;
   listByRunId(validationRunId: ValidationRun["id"]): readonly ValidationResult[];
+}
+
+export interface ManualAcceptanceReviewRepository {
+  create(review: ManualAcceptanceReview): ManualAcceptanceReview;
+  findById(id: ManualAcceptanceReview["id"]): ManualAcceptanceReview | undefined;
+  listByRunId(validationRunId: ValidationRun["id"]): readonly ManualAcceptanceReview[];
 }
 
 export interface DecisionRepository {
@@ -288,6 +296,7 @@ export interface DensaRepositories {
   readonly agentRuns: AgentRunRepository;
   readonly validationRuns: ValidationRunRepository;
   readonly validationResults: ValidationResultRepository;
+  readonly manualAcceptanceReviews: ManualAcceptanceReviewRepository;
   readonly decisions: DecisionRepository;
   readonly roadmapRevisions: RoadmapRevisionRepository;
   readonly densaRunBranches: DensaRunBranchRepository;
@@ -816,14 +825,15 @@ class SqliteValidationRunRepository implements ValidationRunRepository {
     this.connection.run(
       `INSERT INTO validation_runs
        (id, task_id, attempt_id, validator_id, plan_id, plan_version,
-        started_at, completed_at, passed)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        manual_review_criteria_json, started_at, completed_at, passed)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       run.id,
       run.taskId,
       run.attemptId ?? null,
       run.validatorId,
       run.planId ?? null,
       run.planVersion ?? null,
+      JSON.stringify(run.manualReviewCriteria),
       run.startedAt,
       run.completedAt ?? null,
       run.passed === undefined ? null : Number(run.passed),
@@ -879,6 +889,7 @@ class SqliteValidationRunRepository implements ValidationRunRepository {
       validatorId: requiredString(row, "validator_id"),
       ...(planId === undefined ? {} : { planId }),
       ...(planVersion === undefined ? {} : { planVersion }),
+      manualReviewCriteria: parseJson(requiredString(row, "manual_review_criteria_json")),
       startedAt: requiredString(row, "started_at"),
       ...(attemptId === undefined ? {} : { attemptId }),
       ...(completedAt === undefined ? {} : { completedAt }),
@@ -896,8 +907,8 @@ class SqliteValidationResultRepository implements ValidationResultRepository {
       `INSERT INTO validation_results
        (id, validation_run_id, position, validator_id, validator_version, policy, status,
         started_at, completed_at, command_json, config_json, exit_code, diagnostics_json,
-        related_acceptance_criteria_json, retry_relevant)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        related_acceptance_criteria_json, retry_relevant, evidence_source)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       result.id,
       result.validationRunId,
       result.position,
@@ -913,6 +924,7 @@ class SqliteValidationResultRepository implements ValidationResultRepository {
       JSON.stringify(result.diagnostics),
       JSON.stringify(result.relatedAcceptanceCriteria),
       Number(result.retryRelevant),
+      result.evidenceSource,
     );
     return result;
   }
@@ -944,6 +956,7 @@ class SqliteValidationResultRepository implements ValidationResultRepository {
       position: requiredNumber(row, "position"),
       validatorId: requiredString(row, "validator_id"),
       validatorVersion: requiredString(row, "validator_version"),
+      evidenceSource: requiredString(row, "evidence_source"),
       policy: requiredString(row, "policy"),
       status: requiredString(row, "status"),
       startedAt: requiredString(row, "started_at"),
@@ -954,6 +967,58 @@ class SqliteValidationResultRepository implements ValidationResultRepository {
       diagnostics: parseJson(requiredString(row, "diagnostics_json")),
       relatedAcceptanceCriteria: parseJson(requiredString(row, "related_acceptance_criteria_json")),
       retryRelevant: requiredNumber(row, "retry_relevant") === 1,
+    });
+  }
+}
+
+class SqliteManualAcceptanceReviewRepository implements ManualAcceptanceReviewRepository {
+  constructor(private readonly connection: SqliteConnection) {}
+
+  create(input: ManualAcceptanceReview): ManualAcceptanceReview {
+    const review = manualAcceptanceReviewSchema.parse(input);
+    this.connection.run(
+      `INSERT INTO manual_acceptance_reviews
+       (id, validation_run_id, criterion_position, criterion, decision, actor, reason, occurred_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      review.id,
+      review.validationRunId,
+      review.criterionPosition,
+      review.criterion,
+      review.decision,
+      review.actor,
+      review.reason,
+      review.occurredAt,
+    );
+    return review;
+  }
+
+  findById(id: ManualAcceptanceReview["id"]): ManualAcceptanceReview | undefined {
+    const row = this.connection.get("SELECT * FROM manual_acceptance_reviews WHERE id = ?", id);
+    return row === undefined ? undefined : this.parse(row);
+  }
+
+  listByRunId(validationRunId: ValidationRun["id"]): readonly ManualAcceptanceReview[] {
+    return Object.freeze(
+      this.connection
+        .all(
+          `SELECT * FROM manual_acceptance_reviews
+           WHERE validation_run_id = ? ORDER BY criterion_position, id`,
+          validationRunId,
+        )
+        .map((row) => this.parse(row)),
+    );
+  }
+
+  private parse(row: SqliteRow): ManualAcceptanceReview {
+    return manualAcceptanceReviewSchema.parse({
+      id: requiredString(row, "id"),
+      validationRunId: requiredString(row, "validation_run_id"),
+      criterionPosition: requiredNumber(row, "criterion_position"),
+      criterion: requiredString(row, "criterion"),
+      decision: requiredString(row, "decision"),
+      actor: requiredString(row, "actor"),
+      reason: requiredString(row, "reason"),
+      occurredAt: requiredString(row, "occurred_at"),
     });
   }
 }
@@ -1731,6 +1796,7 @@ export function createRepositories(
     agentRuns: new SqliteAgentRunRepository(connection),
     validationRuns: new SqliteValidationRunRepository(connection),
     validationResults: new SqliteValidationResultRepository(connection),
+    manualAcceptanceReviews: new SqliteManualAcceptanceReviewRepository(connection),
     decisions: new SqliteDecisionRepository(connection),
     roadmapRevisions: new SqliteRoadmapRevisionRepository(connection),
     densaRunBranches: new SqliteDensaRunBranchRepository(connection),
