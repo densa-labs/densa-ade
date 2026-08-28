@@ -1,5 +1,6 @@
 export * from "./event-publisher.js";
 export * from "./acceptance-evidence.js";
+export * from "./browser-validation.js";
 export * from "./execution-modes.js";
 export * from "./execution-control.js";
 export * from "./adaptive-interview.js";
