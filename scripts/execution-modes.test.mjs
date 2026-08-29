@@ -6,11 +6,13 @@ import { test } from "node:test";
 
 import {
   ExecutionModeService,
+  IndependentReviewService,
   ProjectExecutionOrchestrator,
   StateTransitionService,
 } from "@densa/core";
 import { DensaDatabase } from "@densa/core/persistence";
 import { masterRoadmapSchema } from "@densa/protocol";
+import { FakeAgentAdapter } from "@densa/testing";
 
 const baseTime = Date.parse("2026-08-27T12:00:00.000Z");
 let sequence = 0;
@@ -151,28 +153,76 @@ function completingExecutor(database, order, beforeCompletion = () => undefined)
   };
 }
 
-const validator = {
-  validatorId: "fake-phase-validator",
-  async validate() {
-    return {
-      passed: true,
-      summary: "Phase evidence passed.",
-      checks: [{ validatorId: "phase-suite", passed: true, summary: "Suite passed." }],
-    };
-  },
-};
+function phaseValidator(database) {
+  return {
+    validatorId: "fake-phase-validator",
+    providesIndependentReview: true,
+    async validate({ projectId, phase, validationEventId, workspacePath }) {
+      const reviewId = `review-${phase.id}`;
+      if (database.repositories.independentReviews.findById(reviewId) === undefined) {
+        const roadmapPhase = database.repositories.masterRoadmaps
+          .findByProjectId(projectId)
+          .roadmap.phases.find((entry) => entry.id === phase.id);
+        assert.ok(roadmapPhase);
+        await new IndependentReviewService(database, {
+          now,
+          workspaceFingerprint: async () => "unchanged",
+        }).execute({
+          id: reviewId,
+          projectId,
+          phaseId: phase.id,
+          validationEventId,
+          workspacePath,
+          goal: roadmapPhase.goal,
+          acceptanceCriteria: roadmapPhase.completionCriteria,
+          relevantDiff: "+ execution-mode fixture",
+          deterministicResults: [
+            {
+              validatorId: "phase-suite",
+              status: "passed",
+              required: true,
+              summary: "Suite passed.",
+            },
+          ],
+          architectureConstraints: ["Densa Core owns the phase verdict."],
+          adapter: new FakeAgentAdapter({
+            finalMessage: JSON.stringify({
+              verdict: "pass",
+              summary: "Independent phase review passed.",
+              findings: [],
+              criteria: roadmapPhase.completionCriteria.map((_criterion, criterionPosition) => ({
+                criterionPosition,
+                assessment: "satisfied",
+                rationale: "The fake reviewer inspected the phase evidence.",
+              })),
+              confidence: 0.9,
+              unknowns: [],
+            }),
+          }),
+          reviewerRunId: `reviewer-run-${phase.id}`,
+        });
+      }
+      return {
+        passed: true,
+        independentReviewId: reviewId,
+        summary: "Phase evidence passed.",
+        checks: [{ validatorId: "phase-suite", passed: true, summary: "Suite passed." }],
+      };
+    },
+  };
+}
 
 function emptyGates() {
   return { outstandingUserDecisionIds: [], permissionBlockers: [] };
 }
 
-function request(workspace, taskExecutor, overrides = {}) {
+function request(database, workspace, taskExecutor, overrides = {}) {
   return {
     projectId: "project-modes",
     workspacePath: workspace,
     gates: emptyGates(),
     taskExecutor,
-    validator,
+    validator: phaseValidator(database),
     actor: "execution-mode:test",
     ...overrides,
   };
@@ -196,7 +246,7 @@ test("Guided mode stops durably after every validated task and resumes only with
     const taskExecutor = completingExecutor(database, order);
 
     const first = await new ProjectExecutionOrchestrator(database, { now }).execute(
-      request(workspace, taskExecutor),
+      request(database, workspace, taskExecutor),
     );
     assert.deepEqual(first, {
       status: "AWAITING_TASK_APPROVAL",
@@ -205,25 +255,27 @@ test("Guided mode stops durably after every validated task and resumes only with
       taskId: "task.alpha",
     });
     const restarted = await new ProjectExecutionOrchestrator(database, { now }).execute(
-      request(workspace, taskExecutor),
+      request(database, workspace, taskExecutor),
     );
     assert.equal(restarted.status, "AWAITING_TASK_APPROVAL");
     assert.deepEqual(order, ["task.alpha"]);
 
     const second = await new ProjectExecutionOrchestrator(database, { now }).execute(
-      request(workspace, taskExecutor, { guidedTaskApproval: { taskId: "task.alpha" } }),
+      request(database, workspace, taskExecutor, { guidedTaskApproval: { taskId: "task.alpha" } }),
     );
     assert.equal(second.status, "AWAITING_TASK_APPROVAL");
     assert.equal(second.taskId, "task.beta");
 
     const third = await new ProjectExecutionOrchestrator(database, { now }).execute(
-      request(workspace, taskExecutor, { guidedTaskApproval: { taskId: "task.beta" } }),
+      request(database, workspace, taskExecutor, { guidedTaskApproval: { taskId: "task.beta" } }),
     );
     assert.equal(third.status, "AWAITING_TASK_APPROVAL");
     assert.equal(third.taskId, "task.release");
 
     const completed = await new ProjectExecutionOrchestrator(database, { now }).execute(
-      request(workspace, taskExecutor, { guidedTaskApproval: { taskId: "task.release" } }),
+      request(database, workspace, taskExecutor, {
+        guidedTaskApproval: { taskId: "task.release" },
+      }),
     );
     assert.equal(completed.status, "COMPLETED");
     assert.deepEqual(order, ["task.alpha", "task.beta", "task.release"]);
@@ -242,27 +294,27 @@ test("Phase mode stops after each durable phase report until explicit approval",
     const order = [];
     const taskExecutor = completingExecutor(database, order);
     const first = await new ProjectExecutionOrchestrator(database, { now }).execute(
-      request(workspace, taskExecutor),
+      request(database, workspace, taskExecutor),
     );
     assert.equal(first.status, "AWAITING_PHASE_APPROVAL");
     assert.equal(first.phaseId, "phase.build");
     assert.deepEqual(order, ["task.alpha", "task.beta"]);
 
     const restarted = await new ProjectExecutionOrchestrator(database, { now }).execute(
-      request(workspace, taskExecutor),
+      request(database, workspace, taskExecutor),
     );
     assert.equal(restarted.status, "AWAITING_PHASE_APPROVAL");
     assert.deepEqual(order, ["task.alpha", "task.beta"]);
 
     const release = await new ProjectExecutionOrchestrator(database, { now }).execute(
-      request(workspace, taskExecutor, { phaseApproval: { phaseId: "phase.build" } }),
+      request(database, workspace, taskExecutor, { phaseApproval: { phaseId: "phase.build" } }),
     );
     assert.equal(release.status, "AWAITING_PHASE_APPROVAL");
     assert.equal(release.phaseId, "phase.release");
     assert.deepEqual(order, ["task.alpha", "task.beta", "task.release"]);
 
     const completed = await new ProjectExecutionOrchestrator(database, { now }).execute(
-      request(workspace, taskExecutor, { phaseApproval: { phaseId: "phase.release" } }),
+      request(database, workspace, taskExecutor, { phaseApproval: { phaseId: "phase.release" } }),
     );
     assert.equal(completed.status, "COMPLETED");
   });
@@ -272,7 +324,7 @@ test("Continuous mode validates, reports, and completes every phase in one proje
   await withFixture("continuous", async ({ database, workspace }) => {
     const order = [];
     const completed = await new ProjectExecutionOrchestrator(database, { now }).execute(
-      request(workspace, completingExecutor(database, order)),
+      request(database, workspace, completingExecutor(database, order)),
     );
 
     assert.equal(completed.status, "COMPLETED");
@@ -289,7 +341,7 @@ test("Continuous mode cannot bypass mandatory decisions or non-overridable permi
   await withFixture("continuous", async ({ database, workspace }) => {
     const order = [];
     const blocked = await new ProjectExecutionOrchestrator(database, { now }).execute(
-      request(workspace, completingExecutor(database, order), {
+      request(database, workspace, completingExecutor(database, order), {
         gates: {
           outstandingUserDecisionIds: ["decision.scope-change"],
           permissionBlockers: [
@@ -359,7 +411,7 @@ test("mode changes persist across restart, emit audit facts, and take effect at 
       }
     });
     const guided = await new ProjectExecutionOrchestrator(database, { now }).execute(
-      request(workspace, taskExecutor),
+      request(database, workspace, taskExecutor),
     );
     assert.equal(guided.status, "AWAITING_TASK_APPROVAL");
     assert.equal(guided.taskId, "task.alpha");
@@ -376,7 +428,7 @@ test("mode changes persist across restart, emit audit facts, and take effect at 
       "CHANGED",
     );
     const completed = await new ProjectExecutionOrchestrator(database, { now }).execute(
-      request(workspace, completingExecutor(database, order)),
+      request(database, workspace, completingExecutor(database, order)),
     );
     assert.equal(completed.status, "COMPLETED");
     assert.deepEqual(order, ["task.alpha", "task.beta", "task.release"]);

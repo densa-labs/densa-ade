@@ -5,8 +5,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { SingleTaskOrchestrator, StateTransitionService } from "@densa/core";
+import {
+  FreshContextTaskLifecycleValidator,
+  IndependentReviewService,
+  SingleTaskOrchestrator,
+  StateTransitionService,
+} from "@densa/core";
 import { DensaDatabase } from "@densa/core/persistence";
+import { masterRoadmapSchema } from "@densa/protocol";
 import { FakeAgentAdapter } from "@densa/testing";
 
 const temporaryRoots = new Set();
@@ -132,6 +138,40 @@ function passingValidator(expected) {
   };
 }
 
+function persistRiskyRoadmap(fixture) {
+  fixture.database.persistInitialMasterRoadmap({
+    projectId: fixture.project.id,
+    roadmap: masterRoadmapSchema.parse({
+      formatVersion: 1,
+      projectGoal: "Require independent review for risky work.",
+      phases: [
+        {
+          id: fixture.task.phaseId,
+          title: "Risky phase",
+          goal: "Complete risky work safely.",
+          required: true,
+          completionCriteria: ["The risky task passes independent review."],
+          tasks: [
+            {
+              id: fixture.task.id,
+              title: fixture.task.title,
+              goal: "Write validated output.",
+              executable: true,
+              dependencyIds: [],
+              acceptanceCriteria: fixture.task.acceptanceCriteria,
+              riskLevel: "high",
+              expectedValidators: ["unit_test", "independent_ai_review"],
+            },
+          ],
+        },
+      ],
+    }),
+    revisionNumber: 0,
+    createdAt,
+    updatedAt: createdAt,
+  });
+}
+
 test.after(() => {
   for (const root of temporaryRoots) rmSync(root, { recursive: true, force: true });
 });
@@ -171,6 +211,82 @@ test("passes first try only after independent validation and commits the exact t
       .replay({ projectId: fixture.project.id })
       .some((event) => event.type === "VALIDATION_PASSED"),
     true,
+  );
+  fixture.database.close();
+});
+
+test("high-risk task stops before worker execution without independent-review infrastructure", async () => {
+  const fixture = createFixture("densa-orchestrator-risk-review-");
+  persistRiskyRoadmap(fixture);
+  const adapter = new FakeAgentAdapter({
+    finalMessage: "Done.",
+    onExecute() {
+      writeFileSync(join(fixture.repository, "task.txt"), "accepted\n", "utf8");
+    },
+  });
+
+  const result = await new SingleTaskOrchestrator(fixture.database, { now: clock() }).execute(
+    requestFor(fixture, adapter, passingValidator("accepted\n")),
+  );
+
+  assert.equal(result.status, "STOPPED");
+  assert.equal(result.code, "INVALID_REQUEST");
+  assert.equal(result.attemptCount, 0);
+  assert.equal(fixture.database.repositories.tasks.findById(fixture.task.id).state, "READY");
+  assert.equal(git(fixture.repository, ["status", "--porcelain"]), "");
+  const attempts = fixture.database.repositories.attempts.listByTaskId(fixture.task.id);
+  assert.deepEqual(attempts, []);
+  assert.equal(adapter.requests.length, 0);
+  fixture.database.close();
+});
+
+test("high-risk task completion accepts the enforced fresh review path", async () => {
+  const fixture = createFixture("densa-orchestrator-risk-review-pass-");
+  persistRiskyRoadmap(fixture);
+  const worker = new FakeAgentAdapter({
+    finalMessage: "Done.",
+    onExecute() {
+      writeFileSync(join(fixture.repository, "task.txt"), "accepted\n", "utf8");
+    },
+  });
+  const reviewer = new FakeAgentAdapter({
+    finalMessage: JSON.stringify({
+      verdict: "pass",
+      summary: "The risky task satisfies its criterion.",
+      findings: [],
+      criteria: [
+        {
+          criterionPosition: 0,
+          assessment: "satisfied",
+          rationale: "The deterministic validator and diff agree.",
+        },
+      ],
+      confidence: 0.9,
+      unknowns: [],
+    }),
+  });
+  const lifecycleClock = clock();
+  const validator = new FreshContextTaskLifecycleValidator({
+    deterministic: passingValidator("accepted\n"),
+    service: new IndependentReviewService(fixture.database, { now: lifecycleClock }),
+    adapter: reviewer,
+    buildReviewInput: ({ task }) => ({
+      goal: task.title,
+      relevantDiff: "+accepted",
+      architectureConstraints: ["Densa Core owns the verdict."],
+    }),
+  });
+
+  const result = await new SingleTaskOrchestrator(fixture.database, {
+    now: lifecycleClock,
+  }).execute(requestFor(fixture, worker, validator));
+
+  assert.equal(result.status, "COMPLETED");
+  assert.equal(result.attemptCount, 1);
+  assert.equal(reviewer.requests[0].accessMode, "read-only");
+  assert.equal(
+    fixture.database.repositories.independentReviews.listByTaskId(fixture.task.id).length,
+    1,
   );
   fixture.database.close();
 });

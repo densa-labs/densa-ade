@@ -502,6 +502,45 @@ CREATE INDEX manual_acceptance_reviews_run_position
   ON manual_acceptance_reviews (validation_run_id, criterion_position);
 `;
 
+const freshContextIndependentReview = `
+CREATE TABLE independent_reviews (
+  id TEXT PRIMARY KEY CHECK (length(id) > 0),
+  project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  task_id TEXT,
+  phase_id TEXT,
+  validation_run_id TEXT,
+  validation_event_id TEXT,
+  adapter_id TEXT NOT NULL CHECK (length(adapter_id) > 0),
+  reviewer_run_id TEXT NOT NULL UNIQUE CHECK (length(reviewer_run_id) > 0),
+  context_hash TEXT NOT NULL CHECK (length(context_hash) = 64),
+  requested_at TEXT NOT NULL CHECK (length(requested_at) >= 20),
+  completed_at TEXT CHECK (completed_at IS NULL OR length(completed_at) >= 20),
+  output_json TEXT CHECK (output_json IS NULL OR json_valid(output_json)),
+  FOREIGN KEY (project_id, task_id) REFERENCES tasks(project_id, id) ON DELETE CASCADE,
+  FOREIGN KEY (project_id, phase_id) REFERENCES phases(project_id, id) ON DELETE CASCADE,
+  FOREIGN KEY (validation_run_id) REFERENCES validation_runs(id) ON DELETE CASCADE,
+  FOREIGN KEY (validation_event_id) REFERENCES events(id) ON DELETE CASCADE,
+  CHECK ((task_id IS NOT NULL) <> (phase_id IS NOT NULL)),
+  CHECK (
+    (task_id IS NOT NULL AND validation_run_id IS NOT NULL AND validation_event_id IS NULL) OR
+    (phase_id IS NOT NULL AND validation_event_id IS NOT NULL AND validation_run_id IS NULL)
+  ),
+  CHECK ((completed_at IS NULL) = (output_json IS NULL)),
+  CHECK (completed_at IS NULL OR julianday(completed_at) >= julianday(requested_at))
+) STRICT;
+
+CREATE INDEX independent_reviews_project_requested
+  ON independent_reviews (project_id, requested_at, id);
+CREATE INDEX independent_reviews_task_requested
+  ON independent_reviews (task_id, requested_at, id);
+CREATE INDEX independent_reviews_phase_requested
+  ON independent_reviews (phase_id, requested_at, id);
+CREATE INDEX independent_reviews_validation_run
+  ON independent_reviews (validation_run_id, requested_at, id);
+CREATE INDEX independent_reviews_validation_event
+  ON independent_reviews (validation_event_id, requested_at, id);
+`;
+
 export const schemaMigrations: readonly SchemaMigration[] = Object.freeze([
   Object.freeze({ version: 1, name: "authoritative_runtime_schema", sql: initialSchema }),
   Object.freeze({ version: 2, name: "ordered_event_journal", sql: orderedEventJournal }),
@@ -537,6 +576,11 @@ export const schemaMigrations: readonly SchemaMigration[] = Object.freeze([
     version: 11,
     name: "acceptance_criteria_evidence",
     sql: acceptanceCriteriaEvidence,
+  }),
+  Object.freeze({
+    version: 12,
+    name: "fresh_context_independent_review",
+    sql: freshContextIndependentReview,
   }),
 ]);
 

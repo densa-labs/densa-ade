@@ -69,3 +69,46 @@ persists its absolute local path. A required plan entry maps that result to task
 evidence source `browser_test`, so a passing browser check can satisfy acceptance while failed,
 cancelled, or missing evidence continues to block completion. Playwright 1.62.1 is pinned under its
 Apache-2.0 license; `npm run playwright:install` provisions Chromium as a local build/runtime step.
+
+## Fresh-context independent review
+
+Phase 6 Milestone 4 adds `IndependentReviewService` and a validation-plugin adapter for a logically
+separate Reviewer role. Every validation invocation generates a new review identity and reviewer run
+ID distinct from the implementing worker, starts a new `AgentAdapter.execute()` invocation, and
+builds its goal, criteria, diff, and constraints from the current task or phase request. It supplies
+only the task or phase goal, acceptance criteria, bounded relevant diff, deterministic results, and
+relevant architecture constraints. Task-plan review receives the already persisted result prefix
+from that exact validation run. The prompt asks the reviewer to assess rather than defend or
+continue the worker. Providers that support constrained output receive a strict JSON Schema,
+reviewer runs request read-only workspace access, and Core compares bounded Git workspace
+fingerprints before and after the run. The fingerprint includes HEAD, index state, tracked/untracked
+content, and ignored-file metadata so staging, commits, and ignored workspace writes invalidate the
+result. Lifecycle cancellation is propagated to the reviewer adapter, and an aborted result remains
+failed even if a nonconforming adapter later emits success.
+
+Reviewer output is validated as `pass`, `advisory`, or `fail`, with bounded severity findings,
+position-based criterion mapping, confidence, and unknowns. Positions remain unambiguous when
+criterion text is duplicated or bounded for the model; persisted display text remains readable.
+Mismatched, multiple, late-failing, invalid, missing, or failed provider streams are persisted as a
+structured fail-closed review; raw transcripts are not stored. Migration 12 records
+the review intent before the external call and its immutable structured outcome afterward. A review
+is bound to the exact task validation run or phase-validation-start event that requested it. Core
+atomically appends `INDEPENDENT_REVIEW_STARTED` and `INDEPENDENT_REVIEW_COMPLETED` facts around the
+external call; authoritative completion verifies the matching completion fact and context hash.
+Core redacts every provider-owned output string before SQLite or phase-report persistence. A review
+can contribute `independent_review` evidence, but `ValidationPipeline` still computes the final
+verdict: reviewer prose can never override a required deterministic failure. A review supports
+completion only when its aggregate verdict is not `fail`, every mapped criterion is `satisfied`, and
+no error or critical finding remains.
+
+`withDefaultIndependentReview()` adds required review to task validation plans, while
+`FreshContextTaskLifecycleValidator` composes the task-level deterministic result and Reviewer. The
+authoritative task lifecycle independently refuses high/critical-risk completion without the exact
+current task-review record and stops before worker execution when review infrastructure is absent,
+so callers cannot bypass the default policy or consume retries on a configuration error. Likewise,
+`FreshContextPhaseValidator` composes deterministic phase checks and the Reviewer conjunctively.
+`PhaseLifecycleOrchestrator` verifies the exact review ID returned by the current final validation
+invocation and requires its request timestamp to follow the durable `PHASE_VALIDATION_STARTED`
+boundary. Timestamp comparisons use parsed instants rather than ISO text ordering. Completed
+findings, severities, criterion mappings, and unknowns are included in authoritative and portable
+phase reports.

@@ -25,6 +25,8 @@ export interface AgentRunRequest {
   prompt: string;
   /** Provider-neutral JSON Schema for adapters that support constrained final responses. */
   outputSchema?: JsonObject;
+  /** Least-privilege workspace access requested for this logical agent role. */
+  accessMode?: "read-only" | "workspace-write";
 }
 
 export interface AgentError {

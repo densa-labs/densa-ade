@@ -118,7 +118,7 @@ process.stdin.on("end", () => {
   }) + "\\n");
   process.stdout.write(JSON.stringify({
     type: "item.completed",
-    item: { type: "agent_message", text: "cwd=" + process.cwd() + ";prompt=" + prompt }
+    item: { type: "agent_message", text: "cwd=" + process.cwd() + ";prompt=" + prompt + ";sandbox=" + args[args.indexOf("--sandbox") + 1] }
   }) + "\\n");
   process.stdout.write(JSON.stringify({ type: "turn.completed" }) + "\\n");
 });`,
@@ -134,7 +134,12 @@ process.stdin.on("end", () => {
   assert.deepEqual(await adapter.getStatus(), { status: "available", version: "0.147.0" });
 
   const events = await collect(
-    adapter.execute({ runId: "codex-success-1", cwd: directory, prompt: "respond exactly" }),
+    adapter.execute({
+      runId: "codex-success-1",
+      cwd: directory,
+      prompt: "respond exactly",
+      accessMode: "read-only",
+    }),
   );
   const tool = events.find(({ type }) => type === "tool");
   const terminal = events.find(isTerminalAgentEvent);
@@ -155,6 +160,7 @@ process.stdin.on("end", () => {
   assert.equal(terminal.exitCode, 0);
   assert.match(terminal.finalMessage, new RegExp(`cwd=.*${path.basename(directory)}`));
   assert.match(terminal.finalMessage, /prompt=respond exactly/u);
+  assert.match(terminal.finalMessage, /sandbox=read-only/u);
 });
 
 test("CodexAdapter materializes a constrained output schema and cleans it after the run", async (t) => {

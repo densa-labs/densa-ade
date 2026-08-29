@@ -7,6 +7,7 @@ import {
   isoTimestampSchema,
   phaseReportSchema,
   type EventId,
+  type IndependentReviewId,
   type JsonObject,
   type MasterRoadmapPhase,
   type Phase,
@@ -19,6 +20,10 @@ import {
 } from "@densa/protocol";
 
 import { type DensaDatabase } from "./persistence/database.js";
+import {
+  independentReviewCompletedEventId,
+  independentReviewSupportsCompletion,
+} from "./independent-review.js";
 import { atomicReplaceFile, redactPortableText } from "./persistence/portable-project.js";
 import { DependencyScheduler, type SchedulerGateSnapshot } from "./scheduler.js";
 import { stateTransitionService } from "./state-transitions.js";
@@ -85,6 +90,8 @@ export interface PhaseValidationRequest {
   readonly phase: Phase;
   readonly tasks: readonly Task[];
   readonly workspacePath: string;
+  readonly validationEventId: EventId;
+  readonly signal?: AbortSignal;
 }
 
 export interface PhaseValidationCheck {
@@ -97,12 +104,16 @@ export interface PhaseValidationOutcome {
   readonly passed: boolean;
   readonly summary: string;
   readonly checks: readonly PhaseValidationCheck[];
+  readonly independentReviewId?: IndependentReviewId;
 }
 
-export interface PhaseLifecycleValidator {
+export interface PhaseValidationProvider {
   readonly validatorId: string;
+  readonly providesIndependentReview?: boolean;
   validate(request: PhaseValidationRequest): Promise<PhaseValidationOutcome>;
 }
+
+export type PhaseLifecycleValidator = PhaseValidationProvider;
 
 export interface ExecutePhaseLifecycleRequest {
   readonly projectId: ProjectId;
@@ -215,6 +226,28 @@ function bulletLines(values: readonly string[], empty: string): readonly string[
   return values.length === 0 ? [`- ${empty}`] : values.map((value) => `- ${value}`);
 }
 
+function independentReviewLines(report: PhaseReport): readonly string[] {
+  if (report.independentReviews.length === 0) return ["- No independent review records."];
+  return report.independentReviews.flatMap((review) => [
+    `- ${review.scope === "task" ? `\`${review.taskId}\`` : "Phase"} / \`${review.reviewerId}\`: **${review.output.verdict.toUpperCase()}** (confidence ${review.output.confidence.toFixed(2)}) — ${markdownText(review.output.summary)}`,
+    ...(review.output.findings.length === 0
+      ? ["  - Findings: none."]
+      : review.output.findings.map((finding) => {
+          const criterion = review.output.criteria.find(
+            (entry) => entry.criterionPosition === finding.criterionPosition,
+          )?.criterion;
+          return `  - Finding **${finding.severity.toUpperCase()}** — ${markdownText(finding.title)}: ${markdownText(finding.detail)}${finding.criterionPosition === undefined ? "" : ` (criterion #${String(finding.criterionPosition + 1)}${criterion === undefined ? "" : `: ${markdownText(criterion)}`})`}`;
+        })),
+    ...review.output.criteria.map(
+      (criterion) =>
+        `  - Criterion #${String(criterion.criterionPosition + 1)} **${criterion.assessment.toUpperCase()}**${criterion.criterion === undefined ? "" : ` — ${markdownText(criterion.criterion)}`}: ${markdownText(criterion.rationale)}`,
+    ),
+    ...(review.output.unknowns.length === 0
+      ? []
+      : review.output.unknowns.map((unknown) => `  - Unknown — ${markdownText(unknown)}`)),
+  ]);
+}
+
 export function renderPhaseReportMarkdown(report: PhaseReport): string {
   const lines = [
     `# Phase report: ${markdownText(report.phaseTitle)}`,
@@ -246,6 +279,10 @@ export function renderPhaseReportMarkdown(report: PhaseReport): string {
       ),
       "No validator records.",
     ),
+    "",
+    "## Independent reviews",
+    "",
+    ...independentReviewLines(report),
     "",
     "## Commits",
     "",
@@ -446,6 +483,13 @@ export class PhaseLifecycleOrchestrator {
         "Authoritative roadmap does not contain the persisted phase",
       );
     }
+    if (request.validator.providesIndependentReview !== true) {
+      return stopped(
+        "INVALID_REQUEST",
+        request,
+        "Phase-final validation requires configured independent-review validation",
+      );
+    }
     const key = phaseKey(project.id, phase.id);
     let phaseStartedAt: string;
     if (phase.state === "READY") {
@@ -539,19 +583,76 @@ export class PhaseLifecycleOrchestrator {
       );
     }
 
+    const validationStarted = this.database.eventJournal.findById(
+      phaseEventId(key, "validation-started"),
+    );
+    if (validationStarted === undefined) {
+      return stopped(
+        "PERSISTED_STATE_INCONSISTENT",
+        request,
+        "Validating phase has no durable phase-validation-start fact",
+      );
+    }
+
     const tasks = this.#phaseTasks(request.projectId, roadmapPhase);
     const validation = await this.#validate(request, currentPhase, tasks);
+    const validationCancelled = request.signal?.aborted === true;
+    const latestReview =
+      validation.independentReviewId === undefined
+        ? undefined
+        : this.database.repositories.independentReviews.findById(validation.independentReviewId);
+    const reviewCompletedEvent =
+      latestReview === undefined
+        ? undefined
+        : this.database.eventJournal.findById(independentReviewCompletedEventId(latestReview.id));
+    const currentReview =
+      latestReview?.phaseId === currentPhase.id &&
+      latestReview.validationEventId === validationStarted.id &&
+      reviewCompletedEvent?.type === "INDEPENDENT_REVIEW_COMPLETED" &&
+      reviewCompletedEvent.phaseId === currentPhase.id &&
+      reviewCompletedEvent.payload["contextHash"] === latestReview.contextHash &&
+      Date.parse(latestReview.requestedAt) >= Date.parse(validationStarted.occurredAt) &&
+      latestReview.completedAt !== undefined &&
+      latestReview.output !== undefined
+        ? latestReview
+        : undefined;
+    const verifiedValidation = validationCancelled
+      ? {
+          passed: false,
+          summary: "Phase validation was cancelled before its result could be accepted.",
+          checks: validation.checks,
+        }
+      : currentReview?.output === undefined
+        ? {
+            passed: false,
+            summary: "Phase validation did not persist a fresh-context independent review.",
+            checks: [
+              ...validation.checks,
+              {
+                validatorId: "independent-ai-review",
+                passed: false,
+                summary: "No completed phase-scoped independent review was recorded.",
+              },
+            ],
+          }
+        : !independentReviewSupportsCompletion(currentReview.output)
+          ? {
+              passed: false,
+              summary: `Independent phase review failed: ${currentReview.output.summary}`,
+              checks: validation.checks,
+            }
+          : validation;
     return await this.#finish(
       request,
       roadmapPhase,
       phaseStartedAt,
       {
-        status: validation.passed ? "passed" : "failed",
+        status: verifiedValidation.passed ? "passed" : "failed",
         validatorId: request.validator.validatorId,
-        summary: validation.summary,
+        summary: verifiedValidation.summary,
       },
-      validation.checks,
-      validation.passed ? [] : [`Phase validation failed: ${validation.summary}`],
+      verifiedValidation.checks,
+      verifiedValidation.passed ? [] : [`Phase validation failed: ${verifiedValidation.summary}`],
     );
   }
 
@@ -843,6 +944,11 @@ export class PhaseLifecycleOrchestrator {
         phase,
         tasks,
         workspacePath: request.workspacePath,
+        validationEventId: phaseEventId(
+          phaseKey(request.projectId, phase.id),
+          "validation-started",
+        ),
+        ...(request.signal === undefined ? {} : { signal: request.signal }),
       });
       const checks = outcome.checks.map((check) => ({
         validatorId: cleanText(check.validatorId),
@@ -871,6 +977,9 @@ export class PhaseLifecycleOrchestrator {
         passed: outcome.passed,
         summary: cleanText(outcome.summary),
         checks: Object.freeze(checks),
+        ...(outcome.independentReviewId === undefined
+          ? {}
+          : { independentReviewId: outcome.independentReviewId }),
       });
     } catch (error) {
       return Object.freeze({
@@ -1066,6 +1175,35 @@ export class PhaseLifecycleOrchestrator {
       passed: check.passed,
       summary: cleanText(check.summary),
     }));
+    const independentReviews = [
+      ...tasks.flatMap((task) =>
+        this.database.repositories.independentReviews.listByTaskId(task.id).flatMap((review) =>
+          review.output === undefined
+            ? []
+            : [
+                {
+                  scope: "task" as const,
+                  taskId: task.id,
+                  reviewerId: review.adapterId,
+                  output: review.output,
+                },
+              ],
+        ),
+      ),
+      ...this.database.repositories.independentReviews
+        .listByPhaseId(request.phaseId)
+        .flatMap((review) =>
+          review.output === undefined
+            ? []
+            : [
+                {
+                  scope: "phase" as const,
+                  reviewerId: review.adapterId,
+                  output: review.output,
+                },
+              ],
+        ),
+    ];
     const committedEvents = this.database.eventJournal.replay({
       projectId: request.projectId,
       phaseId: request.phaseId,
@@ -1120,6 +1258,7 @@ export class PhaseLifecycleOrchestrator {
           attemptCount: attempts.get(task.id)?.length ?? 0,
         })),
       validations: [...taskValidations, ...phaseValidationChecks],
+      independentReviews,
       commits: tasks.flatMap((task) =>
         (attempts.get(task.id) ?? []).flatMap((attempt) =>
           attempt.commitSha === undefined ? [] : [{ taskId: task.id, sha: attempt.commitSha }],

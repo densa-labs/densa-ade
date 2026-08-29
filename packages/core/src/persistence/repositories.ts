@@ -5,6 +5,8 @@ import {
   decisionSchema,
   eventSchema,
   isoTimestampSchema,
+  independentReviewOutputSchema,
+  independentReviewSchema,
   jsonObjectSchema,
   masterRoadmapRecordSchema,
   manualAcceptanceReviewSchema,
@@ -22,6 +24,8 @@ import {
   type Decision,
   type Event,
   type JsonObject,
+  type IndependentReview,
+  type IndependentReviewOutput,
   type MasterRoadmapRecord,
   type ManualAcceptanceReview,
   type Phase,
@@ -150,6 +154,18 @@ export interface ManualAcceptanceReviewRepository {
   create(review: ManualAcceptanceReview): ManualAcceptanceReview;
   findById(id: ManualAcceptanceReview["id"]): ManualAcceptanceReview | undefined;
   listByRunId(validationRunId: ValidationRun["id"]): readonly ManualAcceptanceReview[];
+}
+
+export interface IndependentReviewRepository {
+  create(review: IndependentReview): IndependentReview;
+  findById(id: IndependentReview["id"]): IndependentReview | undefined;
+  listByTaskId(taskId: Task["id"]): readonly IndependentReview[];
+  listByPhaseId(phaseId: Phase["id"]): readonly IndependentReview[];
+  complete(
+    id: IndependentReview["id"],
+    completedAt: string,
+    output: IndependentReviewOutput,
+  ): IndependentReview;
 }
 
 export interface DecisionRepository {
@@ -297,6 +313,7 @@ export interface DensaRepositories {
   readonly validationRuns: ValidationRunRepository;
   readonly validationResults: ValidationResultRepository;
   readonly manualAcceptanceReviews: ManualAcceptanceReviewRepository;
+  readonly independentReviews: IndependentReviewRepository;
   readonly decisions: DecisionRepository;
   readonly roadmapRevisions: RoadmapRevisionRepository;
   readonly densaRunBranches: DensaRunBranchRepository;
@@ -967,6 +984,116 @@ class SqliteValidationResultRepository implements ValidationResultRepository {
       diagnostics: parseJson(requiredString(row, "diagnostics_json")),
       relatedAcceptanceCriteria: parseJson(requiredString(row, "related_acceptance_criteria_json")),
       retryRelevant: requiredNumber(row, "retry_relevant") === 1,
+    });
+  }
+}
+
+class SqliteIndependentReviewRepository implements IndependentReviewRepository {
+  constructor(private readonly connection: SqliteConnection) {}
+
+  create(input: IndependentReview): IndependentReview {
+    const review = independentReviewSchema.parse(input);
+    this.connection.run(
+      `INSERT INTO independent_reviews
+       (id, project_id, task_id, phase_id, validation_run_id, validation_event_id, adapter_id,
+        reviewer_run_id, context_hash, requested_at, completed_at, output_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      review.id,
+      review.projectId,
+      review.taskId ?? null,
+      review.phaseId ?? null,
+      review.validationRunId ?? null,
+      review.validationEventId ?? null,
+      review.adapterId,
+      review.reviewerRunId,
+      review.contextHash,
+      review.requestedAt,
+      review.completedAt ?? null,
+      review.output === undefined ? null : JSON.stringify(review.output),
+    );
+    return review;
+  }
+
+  findById(id: IndependentReview["id"]): IndependentReview | undefined {
+    const row = this.connection.get("SELECT * FROM independent_reviews WHERE id = ?", id);
+    return row === undefined ? undefined : this.parse(row);
+  }
+
+  listByTaskId(taskId: Task["id"]): readonly IndependentReview[] {
+    return Object.freeze(
+      this.connection
+        .all(
+          `SELECT * FROM independent_reviews
+           WHERE task_id = ? ORDER BY requested_at, id`,
+          taskId,
+        )
+        .map((row) => this.parse(row)),
+    );
+  }
+
+  listByPhaseId(phaseId: Phase["id"]): readonly IndependentReview[] {
+    return Object.freeze(
+      this.connection
+        .all(
+          `SELECT * FROM independent_reviews
+           WHERE phase_id = ? ORDER BY requested_at, id`,
+          phaseId,
+        )
+        .map((row) => this.parse(row)),
+    );
+  }
+
+  complete(
+    id: IndependentReview["id"],
+    completedAt: string,
+    output: IndependentReviewOutput,
+  ): IndependentReview {
+    isoTimestampSchema.parse(completedAt);
+    const parsedOutput = independentReviewOutputSchema.parse(output);
+    const existing = this.findById(id);
+    if (existing === undefined) throw new PersistenceError("Independent review is missing");
+    if (existing.completedAt !== undefined || existing.output !== undefined) {
+      if (
+        existing.completedAt !== completedAt ||
+        JSON.stringify(existing.output) !== JSON.stringify(parsedOutput)
+      ) {
+        throw new PersistenceError("Independent review already records a different outcome");
+      }
+      return existing;
+    }
+    const changes = this.connection.run(
+      `UPDATE independent_reviews SET completed_at = ?, output_json = ?
+       WHERE id = ? AND completed_at IS NULL AND output_json IS NULL`,
+      completedAt,
+      JSON.stringify(parsedOutput),
+      id,
+    );
+    if (changes !== 1) throw new PersistenceError("Could not complete independent review");
+    const stored = this.findById(id);
+    if (stored === undefined) throw new PersistenceError("Completed independent review is missing");
+    return stored;
+  }
+
+  private parse(row: SqliteRow): IndependentReview {
+    const taskId = optionalString(row, "task_id");
+    const phaseId = optionalString(row, "phase_id");
+    const completedAt = optionalString(row, "completed_at");
+    const output = optionalString(row, "output_json");
+    const validationRunId = optionalString(row, "validation_run_id");
+    const validationEventId = optionalString(row, "validation_event_id");
+    return independentReviewSchema.parse({
+      id: requiredString(row, "id"),
+      projectId: requiredString(row, "project_id"),
+      ...(taskId === undefined ? {} : { taskId }),
+      ...(phaseId === undefined ? {} : { phaseId }),
+      ...(validationRunId === undefined ? {} : { validationRunId }),
+      ...(validationEventId === undefined ? {} : { validationEventId }),
+      adapterId: requiredString(row, "adapter_id"),
+      reviewerRunId: requiredString(row, "reviewer_run_id"),
+      contextHash: requiredString(row, "context_hash"),
+      requestedAt: requiredString(row, "requested_at"),
+      ...(completedAt === undefined ? {} : { completedAt }),
+      ...(output === undefined ? {} : { output: parseJson(output) }),
     });
   }
 }
@@ -1797,6 +1924,7 @@ export function createRepositories(
     validationRuns: new SqliteValidationRunRepository(connection),
     validationResults: new SqliteValidationResultRepository(connection),
     manualAcceptanceReviews: new SqliteManualAcceptanceReviewRepository(connection),
+    independentReviews: new SqliteIndependentReviewRepository(connection),
     decisions: new SqliteDecisionRepository(connection),
     roadmapRevisions: new SqliteRoadmapRevisionRepository(connection),
     densaRunBranches: new SqliteDensaRunBranchRepository(connection),

@@ -326,12 +326,16 @@ export class CodexAdapter implements AgentAdapter {
     }
     let child: ChildProcessWithoutNullStreams;
     try {
-      child = spawn(this.command, this.executionArguments(request.cwd, outputSchemaPath), {
-        cwd: request.cwd,
-        detached: process.platform !== "win32",
-        env: process.env,
-        stdio: ["pipe", "pipe", "pipe"],
-      });
+      child = spawn(
+        this.command,
+        this.executionArguments(request.cwd, outputSchemaPath, request.accessMode),
+        {
+          cwd: request.cwd,
+          detached: process.platform !== "win32",
+          env: process.env,
+          stdio: ["pipe", "pipe", "pipe"],
+        },
+      );
     } catch (error) {
       if (outputSchemaDirectory !== undefined) {
         await rm(outputSchemaDirectory, { recursive: true, force: true }).catch(() => undefined);
@@ -465,12 +469,16 @@ export class CodexAdapter implements AgentAdapter {
     };
   }
 
-  private executionArguments(cwd: string, outputSchemaPath?: string): string[] {
+  private executionArguments(
+    cwd: string,
+    outputSchemaPath?: string,
+    accessMode: "read-only" | "workspace-write" = "workspace-write",
+  ): string[] {
     const arguments_ = [
       "--ask-for-approval",
       "never",
       "--sandbox",
-      "workspace-write",
+      accessMode,
       "exec",
       "--json",
       "--ephemeral",

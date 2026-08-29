@@ -25,7 +25,16 @@ nonterminal no-work boundaries stop without guessing a lifecycle outcome.
 
 After every executable task in the phase is complete, Core persists `RUNNING -> VALIDATING` before
 calling the phase validation hook. Structured validation evidence must include at least one check,
-and a passing aggregate cannot contain a failing check.
+and a passing aggregate cannot contain a failing check. The hook must include a fresh logical
+Reviewer context. `FreshContextPhaseValidator` runs the deterministic phase suite and independent
+review as separate evidence sources; both must avoid a blocking failure, and reviewer prose cannot
+reverse failed deterministic checks. The hook returns the exact persisted review ID; Core accepts it
+only when it targets and is foreign-key-bound to the current durable validation-start fact. A phase
+validator that does not declare independent-review support is rejected before task execution.
+The project cancellation signal is threaded through the phase hook to the reviewer adapter.
+Reviewer execution is read-only, and a before/after Git fingerprint covering HEAD, index, normal
+workspace changes, and ignored-file metadata prevents phase completion if an adapter nevertheless
+changes the validated workspace.
 
 - Phase mode persists `AWAITING_APPROVAL` after validation passes.
 - Guided and Continuous modes persist `COMPLETED` and make only the immediately following
@@ -67,8 +76,8 @@ survives Core restart without a separate in-memory setting.
 Migration 9 adds authoritative, versioned `phase_reports` JSON records. Report creation, validation
 outcome events, the current phase transition, and any continuous-mode next-phase eligibility change
 commit atomically. Reports contain completed tasks, task and phase validators, commits, changed-file
-paths from `TASK_COMMITTED` facts, decisions, roadmap revisions, retry/failure counts, unresolved
-issues, and the next-phase summary.
+paths from `TASK_COMMITTED` facts, structured task/phase independent-review findings, decisions,
+roadmap revisions, retry/failure counts, unresolved issues, and the next-phase summary.
 
 After the SQLite transaction commits, Core renders the immutable report to a deterministic file
 under `.densa/reports/` using a durable temp-file-and-rename write. Real-directory and regular-file

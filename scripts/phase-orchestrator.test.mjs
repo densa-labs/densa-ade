@@ -5,9 +5,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { PhaseLifecycleOrchestrator, StateTransitionService } from "@densa/core";
+import {
+  IndependentReviewService,
+  PhaseLifecycleOrchestrator,
+  StateTransitionService,
+} from "@densa/core";
 import { DensaDatabase } from "@densa/core/persistence";
 import { masterRoadmapSchema } from "@densa/protocol";
+import { FakeAgentAdapter } from "@densa/testing";
 
 const baseTime = Date.parse("2026-08-27T10:00:00.000Z");
 let globalSequence = 0;
@@ -171,13 +176,88 @@ function completingExecutor(database, order) {
   };
 }
 
-function passingValidator(calls) {
+async function recordPhaseReview(
+  database,
+  projectId,
+  phaseId,
+  validationEventId,
+  workspacePath,
+  verdict = "pass",
+) {
+  const id = `review-confirmed-${phaseId}`;
+  if (database.repositories.independentReviews.findById(id) !== undefined) return id;
+  const roadmapPhase = database.repositories.masterRoadmaps
+    .findByProjectId(projectId)
+    .roadmap.phases.find((entry) => entry.id === phaseId);
+  assert.ok(roadmapPhase);
+  const reviewOutput = {
+    verdict,
+    summary: verdict === "fail" ? "Independent review failed." : "Independent review passed.",
+    findings:
+      verdict === "advisory"
+        ? [
+            {
+              severity: "warning",
+              title: "Bounded observation",
+              detail: "Follow up after phase completion.",
+              criterionPosition: 0,
+            },
+          ]
+        : [],
+    criteria: [
+      {
+        criterionPosition: 0,
+        assessment: verdict === "fail" ? "failed" : "satisfied",
+        rationale: "The fake reviewer inspected the structured phase evidence.",
+      },
+    ],
+    confidence: 0.9,
+    unknowns: [],
+  };
+  await new IndependentReviewService(database, {
+    now,
+    workspaceFingerprint: async () => "unchanged",
+  }).execute({
+    id,
+    projectId,
+    phaseId,
+    validationEventId,
+    workspacePath,
+    goal: roadmapPhase.goal,
+    acceptanceCriteria: roadmapPhase.completionCriteria,
+    relevantDiff: "+ phase fixture",
+    deterministicResults: [
+      {
+        validatorId: "fake-phase-suite",
+        status: "passed",
+        required: true,
+        summary: "The deterministic phase suite passed.",
+      },
+    ],
+    architectureConstraints: ["Densa Core owns the phase verdict."],
+    adapter: new FakeAgentAdapter({ finalMessage: JSON.stringify(reviewOutput) }),
+    reviewerRunId: `reviewer-run-confirmed-${phaseId}`,
+  });
+  return id;
+}
+
+function passingValidator(calls, database, verdict = "pass") {
   return {
     validatorId: "fake-phase-validator",
-    async validate({ tasks }) {
+    providesIndependentReview: true,
+    async validate({ projectId, phase, tasks, validationEventId, workspacePath }) {
       calls.push(tasks.map((task) => task.id));
+      const independentReviewId = await recordPhaseReview(
+        database,
+        projectId,
+        phase.id,
+        validationEventId,
+        workspacePath,
+        verdict,
+      );
       return {
         passed: true,
+        independentReviewId,
         summary: "All phase acceptance checks passed.",
         checks: [
           {
@@ -218,7 +298,7 @@ test("phase-by-phase mode executes a multi-task phase serially and persists its 
       workspacePath: workspace,
       gates: emptyGates(),
       taskExecutor: completingExecutor(database, order),
-      validator: passingValidator(validationCalls),
+      validator: passingValidator(validationCalls, database, "advisory"),
       actor: "phase:test",
     };
 
@@ -242,9 +322,14 @@ test("phase-by-phase mode executes a multi-task phase serially and persists its 
       database.repositories.phaseReports.findByPhaseId("phase.build"),
       result.report,
     );
+    assert.equal(result.report.independentReviews[0].output.verdict, "advisory");
     const markdown = readFileSync(join(workspace, result.report.reportPath), "utf8");
     assert.match(markdown, /## Tasks completed/u);
     assert.match(markdown, /## Tests and validators/u);
+    assert.match(markdown, /## Independent reviews/u);
+    assert.match(markdown, /ADVISORY/u);
+    assert.match(markdown, /Finding \*\*WARNING\*\*/u);
+    assert.match(markdown, /Criterion #1 \*\*SATISFIED\*\*/u);
     assert.match(markdown, /## Next phase/u);
 
     const resumed = await orchestrator.execute(request);
@@ -262,7 +347,7 @@ test("continuous mode completes the validated phase and only then makes the next
       workspacePath: workspace,
       gates: emptyGates(),
       taskExecutor: completingExecutor(database, order),
-      validator: passingValidator([]),
+      validator: passingValidator([], database),
       actor: "phase:test",
     });
 
@@ -303,7 +388,7 @@ test("a blocked required task blocks the phase, skips phase validation, and reco
       workspacePath: workspace,
       gates: emptyGates(),
       taskExecutor,
-      validator: passingValidator(validationCalls),
+      validator: passingValidator(validationCalls, database),
       actor: "phase:test",
     });
 
@@ -327,9 +412,18 @@ test("failed phase validation blocks completion and never unlocks the next phase
       taskExecutor: completingExecutor(database, []),
       validator: {
         validatorId: "failing-phase-validator",
-        async validate() {
+        providesIndependentReview: true,
+        async validate({ projectId, phase, validationEventId, workspacePath }) {
+          const independentReviewId = await recordPhaseReview(
+            database,
+            projectId,
+            phase.id,
+            validationEventId,
+            workspacePath,
+          );
           return {
             passed: false,
+            independentReviewId,
             summary: "Integration acceptance failed.",
             checks: [
               {
@@ -347,6 +441,154 @@ test("failed phase validation blocks completion and never unlocks the next phase
     assert.equal(result.status, "BLOCKED");
     assert.equal(result.report.phaseValidation.status, "failed");
     assert.equal(database.repositories.phases.findById("phase.release").state, "PENDING");
+  });
+});
+
+test("phase completion fails closed without a durable fresh-context review", async () => {
+  await withFixture("continuous", async ({ database, workspace }) => {
+    const result = await new PhaseLifecycleOrchestrator(database, { now }).execute({
+      projectId: "project-phase",
+      phaseId: "phase.build",
+      workspacePath: workspace,
+      gates: emptyGates(),
+      taskExecutor: completingExecutor(database, []),
+      validator: {
+        validatorId: "deterministic-only",
+        providesIndependentReview: true,
+        async validate() {
+          return {
+            passed: true,
+            summary: "Deterministic checks passed.",
+            checks: [{ validatorId: "suite", passed: true, summary: "Suite passed." }],
+          };
+        },
+      },
+      actor: "phase:test",
+    });
+
+    assert.equal(result.status, "BLOCKED");
+    assert.match(result.report.phaseValidation.summary, /did not persist/u);
+    assert.equal(database.repositories.phases.findById("phase.release").state, "PENDING");
+  });
+});
+
+test("a phase review from before final validation cannot satisfy phase completion", async () => {
+  await withFixture("continuous", async ({ database, workspace }) => {
+    const staleValidationEventId = "event-stale-phase-validation";
+    database.repositories.events.append({
+      id: staleValidationEventId,
+      projectId: "project-phase",
+      phaseId: "phase.build",
+      type: "PHASE_VALIDATION_STARTED",
+      eventVersion: 1,
+      occurredAt: now(),
+      actor: "phase:test",
+      payload: { validatorId: "stale-review-validator" },
+    });
+    const staleReviewId = await recordPhaseReview(
+      database,
+      "project-phase",
+      "phase.build",
+      staleValidationEventId,
+      workspace,
+      "pass",
+    );
+    const result = await new PhaseLifecycleOrchestrator(database, { now }).execute({
+      projectId: "project-phase",
+      phaseId: "phase.build",
+      workspacePath: workspace,
+      gates: emptyGates(),
+      taskExecutor: completingExecutor(database, []),
+      validator: {
+        validatorId: "stale-review-validator",
+        providesIndependentReview: true,
+        async validate() {
+          return {
+            passed: true,
+            independentReviewId: staleReviewId,
+            summary: "Deterministic checks passed.",
+            checks: [{ validatorId: "suite", passed: true, summary: "Suite passed." }],
+          };
+        },
+      },
+      actor: "phase:test",
+    });
+
+    assert.equal(result.status, "BLOCKED");
+    assert.match(result.report.phaseValidation.summary, /did not persist/u);
+  });
+});
+
+test("phase lifecycle propagates its cancellation signal into final validation", async () => {
+  await withFixture("continuous", async ({ database, workspace }) => {
+    const controller = new globalThis.AbortController();
+    const result = await new PhaseLifecycleOrchestrator(database, { now }).execute({
+      projectId: "project-phase",
+      phaseId: "phase.build",
+      workspacePath: workspace,
+      gates: emptyGates(),
+      taskExecutor: completingExecutor(database, []),
+      validator: {
+        validatorId: "signal-aware-validator",
+        providesIndependentReview: true,
+        async validate({ projectId, phase, signal, validationEventId, workspacePath }) {
+          assert.equal(signal, controller.signal);
+          const independentReviewId = await recordPhaseReview(
+            database,
+            projectId,
+            phase.id,
+            validationEventId,
+            workspacePath,
+          );
+          return {
+            passed: true,
+            independentReviewId,
+            summary: "Validation received the lifecycle signal.",
+            checks: [{ validatorId: "suite", passed: true, summary: "Suite passed." }],
+          };
+        },
+      },
+      actor: "phase:test",
+      signal: controller.signal,
+    });
+
+    assert.equal(result.status, "COMPLETED");
+  });
+});
+
+test("a persisted failing Reviewer cannot be overridden by passing deterministic phase prose", async () => {
+  await withFixture("continuous", async ({ database, workspace }) => {
+    const result = await new PhaseLifecycleOrchestrator(database, { now }).execute({
+      projectId: "project-phase",
+      phaseId: "phase.build",
+      workspacePath: workspace,
+      gates: emptyGates(),
+      taskExecutor: completingExecutor(database, []),
+      validator: {
+        validatorId: "contradictory-composite",
+        providesIndependentReview: true,
+        async validate({ projectId, phase, validationEventId, workspacePath }) {
+          const independentReviewId = await recordPhaseReview(
+            database,
+            projectId,
+            phase.id,
+            validationEventId,
+            workspacePath,
+            "fail",
+          );
+          return {
+            passed: true,
+            independentReviewId,
+            summary: "The validator claims the phase passed.",
+            checks: [{ validatorId: "suite", passed: true, summary: "Suite passed." }],
+          };
+        },
+      },
+      actor: "phase:test",
+    });
+
+    assert.equal(result.status, "BLOCKED");
+    assert.match(result.report.phaseValidation.summary, /Independent phase review failed/u);
   });
 });
 
@@ -376,7 +618,7 @@ test("phase report and state outcomes roll back together when an audit fact cann
         workspacePath: workspace,
         gates: emptyGates(),
         taskExecutor: completingExecutor(database, []),
-        validator: passingValidator([]),
+        validator: passingValidator([], database),
         actor: "phase:test",
       }),
     );

@@ -10,6 +10,7 @@ import {
   type AttemptId,
   type CheckpointId,
   type EventId,
+  type IndependentReviewId,
   type JsonObject,
   type ProjectId,
   type Task,
@@ -19,6 +20,10 @@ import {
 } from "@densa/protocol";
 
 import { AttemptRollbackService, type AttemptRollbackStopCode } from "./attempt-rollback.js";
+import {
+  independentReviewCompletedEventId,
+  independentReviewSupportsCompletion,
+} from "./independent-review.js";
 import { type DensaDatabase } from "./persistence/database.js";
 import { RunCheckpointService, type RunCheckpointStopCode } from "./run-checkpoint.js";
 import { stateTransitionService } from "./state-transitions.js";
@@ -31,16 +36,20 @@ export interface TaskLifecycleValidationRequest {
   readonly projectId: ProjectId;
   readonly task: Task;
   readonly attempt: Attempt;
+  readonly validationRunId: ValidationRunId;
   readonly workspacePath: string;
+  readonly signal?: AbortSignal;
 }
 
 export interface TaskLifecycleValidationOutcome {
   readonly passed: boolean;
   readonly diagnostics: Readonly<JsonObject>;
+  readonly independentReviewId?: IndependentReviewId;
 }
 
 export interface TaskLifecycleValidator {
   readonly validatorId: string;
+  readonly providesIndependentReview?: boolean;
   validate(request: TaskLifecycleValidationRequest): Promise<TaskLifecycleValidationOutcome>;
 }
 
@@ -123,6 +132,16 @@ function lifecycleId(key: string, scope: string): InternalLifecycleId {
 
 function signalAborted(signal: AbortSignal | undefined): boolean {
   return signal?.aborted === true;
+}
+
+function taskRiskLevel(
+  database: DensaDatabase,
+  projectId: ProjectId,
+  taskId: TaskId,
+): "low" | "medium" | "high" | "critical" | undefined {
+  const roadmap = database.repositories.masterRoadmaps.findByProjectId(projectId)?.roadmap;
+  return roadmap?.phases.flatMap((phase) => phase.tasks).find((task) => task.id === taskId)
+    ?.riskLevel;
 }
 
 function boundedDiagnostics(value: Readonly<JsonObject>): string {
@@ -282,6 +301,18 @@ export class SingleTaskOrchestrator {
         request,
         this.database.repositories.attempts.listByTaskId(task.id).length,
         `Task must be READY or RETRYING, not ${task.state}`,
+      );
+    }
+    const configuredRiskLevel = taskRiskLevel(this.database, request.projectId, request.taskId);
+    if (
+      (configuredRiskLevel === "high" || configuredRiskLevel === "critical") &&
+      request.validator.providesIndependentReview !== true
+    ) {
+      return stopped(
+        "INVALID_REQUEST",
+        request,
+        this.database.repositories.attempts.listByTaskId(task.id).length,
+        "High/critical-risk tasks require independent-review validation before worker execution",
       );
     }
 
@@ -609,11 +640,16 @@ export class SingleTaskOrchestrator {
         projectId: request.projectId,
         task,
         attempt,
+        validationRunId: validationId,
         workspacePath: request.workspacePath,
+        ...(request.signal === undefined ? {} : { signal: request.signal }),
       });
       validation = Object.freeze({
         passed: result.passed,
         diagnostics: Object.freeze(jsonObjectSchema.parse(result.diagnostics)),
+        ...(result.independentReviewId === undefined
+          ? {}
+          : { independentReviewId: result.independentReviewId }),
       });
     } catch (error) {
       validation = Object.freeze({
@@ -623,6 +659,36 @@ export class SingleTaskOrchestrator {
           message: errorMessage(error),
         }),
       });
+    }
+    const riskLevel = taskRiskLevel(this.database, request.projectId, request.taskId);
+    if (validation.passed && (riskLevel === "high" || riskLevel === "critical")) {
+      const review =
+        validation.independentReviewId === undefined
+          ? undefined
+          : this.database.repositories.independentReviews.findById(validation.independentReviewId);
+      const reviewCompletedEvent =
+        review === undefined
+          ? undefined
+          : this.database.eventJournal.findById(independentReviewCompletedEventId(review.id));
+      if (
+        review?.taskId !== task.id ||
+        review.validationRunId !== validationId ||
+        review.completedAt === undefined ||
+        review.output === undefined ||
+        reviewCompletedEvent?.type !== "INDEPENDENT_REVIEW_COMPLETED" ||
+        reviewCompletedEvent.taskId !== task.id ||
+        reviewCompletedEvent.payload["contextHash"] !== review.contextHash ||
+        Date.parse(review.requestedAt) < Date.parse(validatingAt) ||
+        !independentReviewSupportsCompletion(review.output)
+      ) {
+        validation = Object.freeze({
+          passed: false,
+          diagnostics: Object.freeze({
+            kind: "required_independent_review_missing_or_blocking",
+            riskLevel,
+          }),
+        });
+      }
     }
     const validationCompletedAt = this.#now();
     this.database.transaction((repositories) => {

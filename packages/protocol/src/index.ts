@@ -3,6 +3,7 @@ export * from "./adaptive-interview.js";
 export * from "./envelope.js";
 export * from "./errors.js";
 export * from "./ids.js";
+export * from "./independent-review.js";
 export * from "./json.js";
 export * from "./master-roadmap.js";
 export * from "./phase-report.js";

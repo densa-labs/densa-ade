@@ -26,8 +26,11 @@ export interface ValidatorContext {
   readonly projectId: ProjectId;
   readonly taskId: TaskId;
   readonly attemptId?: AttemptId;
+  readonly validationRunId: ValidationRunId;
   readonly workspacePath: string;
   readonly relatedAcceptanceCriteria: readonly string[];
+  /** Immutable evidence persisted for validators earlier in this same plan run. */
+  readonly priorResults: readonly ValidationResult[];
   readonly signal?: AbortSignal;
 }
 
@@ -239,13 +242,18 @@ export class ValidationPipeline {
       const resultStartedAt = this.#now();
       let outcome: ValidatorOutcome;
       try {
+        const priorResults = this.database.repositories.validationResults.listByRunId(
+          request.runId,
+        );
         outcome = normalizeOutcome(
           await entry.validator.validate({
             projectId: request.projectId,
             taskId: request.taskId,
+            validationRunId: request.runId,
             ...(request.attemptId === undefined ? {} : { attemptId: request.attemptId }),
             workspacePath: request.workspacePath,
             relatedAcceptanceCriteria: Object.freeze([...entry.relatedAcceptanceCriteria]),
+            priorResults: Object.freeze(priorResults),
             ...(request.signal === undefined ? {} : { signal: request.signal }),
           }),
         );

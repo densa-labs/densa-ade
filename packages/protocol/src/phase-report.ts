@@ -13,6 +13,7 @@ import {
   phaseStateSchema,
   roadmapMutationClassificationSchema,
 } from "./states.js";
+import { independentReviewOutputSchema } from "./independent-review.js";
 
 const nonEmptyText = z.string().trim().min(1);
 
@@ -63,6 +64,27 @@ export const phaseReportSchema = z
         .readonly(),
     ),
     validations: z.array(phaseReportValidationCheckSchema),
+    independentReviews: z
+      .array(
+        z
+          .strictObject({
+            scope: z.enum(["task", "phase"]),
+            taskId: taskIdSchema.optional(),
+            reviewerId: nonEmptyText,
+            output: independentReviewOutputSchema,
+          })
+          .superRefine((review, context) => {
+            if ((review.scope === "task") !== (review.taskId !== undefined)) {
+              context.addIssue({
+                code: "custom",
+                message: "Task reviews require taskId and phase reviews must omit it",
+                path: ["taskId"],
+              });
+            }
+          })
+          .readonly(),
+      )
+      .default([]),
     commits: z.array(
       z
         .strictObject({

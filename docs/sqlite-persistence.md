@@ -85,6 +85,17 @@ relevance. Each plugin result commits before the next plugin begins, so a restar
 the completed prefix of an interrupted plan. The aggregate policy and provider boundary are
 documented in [validation-framework.md](./validation-framework.md).
 
+Migration 11 maps acceptance criteria to detailed validator or audited manual evidence. Migration
+12 adds `independent_reviews`, persisting the fresh-context Reviewer intent before agent execution
+and the validated structured verdict, findings, criterion mapping, confidence, and unknowns after
+completion. Task and phase foreign keys keep each review within its authoritative project graph;
+the unique reviewer run ID prevents accidental logical-session reuse. Each task review is also bound
+to its exact `validation_runs` row, while each phase review is bound to the exact persisted
+`PHASE_VALIDATION_STARTED` event; the authoritative orchestrators require those IDs to match the
+current validation boundary. Reviewer-owned text is redacted in Core before it reaches these rows.
+Matching append-only start/completion events carry the review ID, reviewer run ID, context hash, and
+validation boundary so task/phase completion does not accept an unproven standalone row.
+
 The project-scoped list queries added for portable export retain repository isolation and stable
 ordering. Phase 2 Milestone 3 uses them to create `.densa/` snapshots without exposing raw SQL or
 making the filesystem authoritative; see [portable-project.md](./portable-project.md).
@@ -104,9 +115,13 @@ only the specification table and carries non-empty old free-form content lossles
 1 goal. Migration 8 is additive: existing projects begin without a persisted Master Roadmap and
 legacy roadmap revisions retain null operation/session/approval metadata. Migration 10 is also
 additive: existing validation runs retain their aggregate outcome with null plan identity and no
-detailed child results. There is no downgrade path; a newer database must not be opened by an older
-Core build. Future destructive or data-transforming migrations must document backup, forward, and
-rollback assumptions alongside their migration tests.
+detailed child results. Migrations 11 and 12 are additive; existing validations and phase reports
+remain readable with no fabricated review evidence. There is no downgrade path; a newer database
+must not be opened by an older Core build. Future destructive or data-transforming migrations must
+document backup, forward, and rollback assumptions alongside their migration tests.
+
+Migration 12 compares review request/completion timestamps with SQLite `julianday()` so valid
+ISO-8601 numeric offsets are ordered by instant rather than lexically.
 
 ## Data and secret boundary
 

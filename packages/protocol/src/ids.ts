@@ -26,6 +26,9 @@ export type ValidationResultId = z.infer<typeof validationResultIdSchema>;
 export const manualAcceptanceReviewIdSchema = id().brand<"ManualAcceptanceReviewId">();
 export type ManualAcceptanceReviewId = z.infer<typeof manualAcceptanceReviewIdSchema>;
 
+export const independentReviewIdSchema = id().brand<"IndependentReviewId">();
+export type IndependentReviewId = z.infer<typeof independentReviewIdSchema>;
+
 export const checkpointIdSchema = id().brand<"CheckpointId">();
 export type CheckpointId = z.infer<typeof checkpointIdSchema>;
 
