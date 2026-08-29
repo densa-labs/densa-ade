@@ -19,5 +19,6 @@ export * from "./task-packet.js";
 export * from "./task-orchestrator.js";
 export * from "./state-transitions.js";
 export * from "./task-proof-harness.js";
+export * from "./usage-auto-resume.js";
 export * from "./validation-pipeline.js";
 export * from "./workspace-preflight.js";

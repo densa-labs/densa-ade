@@ -42,7 +42,29 @@ fresh state and workspace checks.
 If classification is unknown, authentication failed, cleanup cannot be proven, or the authoritative
 state changed concurrently, the usage-wait transition does not occur. Persisted state plus the
 usage event reconstruct the waiting result after restart. `resetAt` is absent unless the adapter
-actually observed and validated it; P7M0 does not schedule probes or auto-resume.
+actually observed and validated it.
+
+P7M1 adds the separate `UsageAutoResumeService`. Auto-resume is disabled until an explicit
+per-project `enable` call records the workspace and actor in `project_settings`. When opted-in
+execution reaches `WAITING_FOR_USAGE`, the Core owner calls `handleUsageWait`; after a Core restart
+it calls `restore` for that project. The setting retains the exact task, probe attempt, and
+`nextProbeAt`, so process restarts do not reset or accelerate the schedule.
+
+A reliable future `resetAt` is the first allowed verification time, never proof that usage returned.
+Without one, probes begin after five minutes and use bounded exponential backoff up to one hour and
+eight attempts by default. Every due probe revalidates, in order:
+
+1. the single `WAITING_FOR_USAGE` task has a completed agent run and applied rollback;
+2. workspace preflight and recovery both prove a clean checkpoint;
+3. no mandatory user decision or permission blocker remains;
+4. the adapter independently reports `UsageState { status: "available" }`.
+
+Only then does one transaction move the task to `RETRYING`, move the project to `RUNNING`, persist
+the completed schedule, and append `USAGE_AVAILABILITY_CONFIRMED` plus `PROJECT_RESUMED`. A caller
+may use `onResumed` to wake its serial orchestration loop; callback failure is audited while the
+recoverable `RETRYING` boundary remains authoritative. Workspace divergence, malformed evidence,
+or exhausted probes durably block auto-resume without modifying user files. `cancel`, `disable`,
+and in-flight cancellation checks prevent stale backend results from resuming a project.
 
 The orchestrator enforces one active worker per instance. Dependency selection remains the separate,
 read-only scheduler responsibility, and Phase 5's later execution-mode and intervention milestones
