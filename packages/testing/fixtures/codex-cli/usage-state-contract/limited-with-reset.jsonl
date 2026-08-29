@@ -1,0 +1,4 @@
+{"type":"thread.started","thread_id":"<thread-id>"}
+{"type":"turn.started"}
+{"type":"error","message":"account usage is unavailable","codex_error_info":"usage_limit_exceeded","reset_at":1787677200}
+{"type":"turn.failed","error":{"message":"account usage is unavailable","codex_error_info":"usage_limit_exceeded","reset_at":1787677200}}

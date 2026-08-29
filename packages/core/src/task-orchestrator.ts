@@ -5,6 +5,7 @@ import { isTerminalAgentEvent, type AgentAdapter, type AgentEvent } from "@densa
 import {
   isoTimestampSchema,
   jsonObjectSchema,
+  usageStateSchema,
   type AgentRunId,
   type Attempt,
   type AttemptId,
@@ -16,6 +17,7 @@ import {
   type Task,
   type TaskId,
   type TaskState,
+  type UsageState,
   type ValidationRunId,
 } from "@densa/protocol";
 
@@ -93,6 +95,12 @@ export type TaskLifecycleResult =
       taskId: TaskId;
       attemptCount: number;
       reason: string;
+    }>
+  | Readonly<{
+      status: "WAITING_FOR_USAGE";
+      taskId: TaskId;
+      attemptCount: number;
+      usageState: Extract<UsageState, { status: "limited" }>;
     }>
   | Readonly<{
       status: "STOPPED";
@@ -208,6 +216,16 @@ function stopped(
     attemptCount,
     reason,
   });
+}
+
+function usageStateJson(
+  usageState: Extract<UsageState, { status: "limited" }>,
+): Readonly<JsonObject> {
+  return Object.freeze(
+    usageState.resetAt === undefined
+      ? { status: "limited" }
+      : { status: "limited", resetAt: usageState.resetAt },
+  );
 }
 
 /**
@@ -588,6 +606,10 @@ export class SingleTaskOrchestrator {
         message: processFailure,
       });
     }
+    const usageState = await this.#limitedUsageState(request.adapter, terminal);
+    if (usageState !== undefined) {
+      return await this.#handleUsageLimit(request, task, identity, agentRunId, usageState);
+    }
     if (terminal?.outcome !== "succeeded") {
       return await this.#handleWorkerFailure(request, task, identity, "agent_failed", {
         kind: "agent_failure",
@@ -775,6 +797,119 @@ export class SingleTaskOrchestrator {
       if (plan?.failureRecordedAt !== undefined) return plan.diagnostics;
     }
     return undefined;
+  }
+
+  async #limitedUsageState(
+    adapter: AgentAdapter,
+    terminal: Extract<AgentEvent, { type: "run.terminal" }> | undefined,
+  ): Promise<Extract<UsageState, { status: "limited" }> | undefined> {
+    if (terminal?.outcome !== "failed" || terminal.error?.code !== "USAGE_LIMITED") {
+      return undefined;
+    }
+    try {
+      const parsed = usageStateSchema.safeParse(await adapter.getUsageState());
+      return parsed.success && parsed.data.status === "limited" ? parsed.data : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  async #handleUsageLimit(
+    request: ExecuteTaskLifecycleRequest,
+    taskSnapshot: Task,
+    identity: AttemptIdentity,
+    agentRunId: AgentRunId,
+    usageState: Extract<UsageState, { status: "limited" }>,
+  ): Promise<TaskLifecycleResult> {
+    const { attempt, key } = identity;
+    let task = this.database.repositories.tasks.findById(taskSnapshot.id);
+    if (task?.state !== "RUNNING") {
+      return stopped(
+        "TASK_STATE_MISMATCH",
+        request,
+        attempt.number,
+        "Usage-limit classification no longer matches a RUNNING task",
+      );
+    }
+    const interruptedAt = this.#now();
+    this.database.persistStateTransition(
+      stateTransitionService.transitionTask(task, "INTERRUPTED", {
+        actor: request.actor,
+        occurredAt: interruptedAt,
+        reason: "Worker stopped after a reliable usage-limit signal",
+      }),
+      lifecycleId(key, "task-usage-interrupted") as EventId,
+    );
+    task = this.database.repositories.tasks.findById(task.id);
+    if (task === undefined) throw new Error("Task disappeared after usage-limit interruption");
+    const rollbackFailure = await this.#recordAndRollback(request, task, identity, {
+      kind: "usage_limited",
+      usageState: usageStateJson(usageState),
+    });
+    if (rollbackFailure !== undefined) return rollbackFailure;
+
+    task = this.database.repositories.tasks.findById(task.id);
+    const project = this.database.repositories.projects.findById(request.projectId);
+    if (
+      task?.state !== "INTERRUPTED" ||
+      project === undefined ||
+      !stateTransitionService.canTransitionProject(project.state, "WAITING_FOR_USAGE")
+    ) {
+      return stopped(
+        "RECOVERY_REQUIRED",
+        request,
+        attempt.number,
+        "Authoritative project/task state changed before usage waiting could persist",
+      );
+    }
+
+    const occurredAt = this.#now();
+    const taskTransition = stateTransitionService.transitionTask(task, "WAITING_FOR_USAGE", {
+      actor: request.actor,
+      occurredAt,
+      reason: "The agent backend reported a reliable usage-limit condition",
+    });
+    const projectTransition = stateTransitionService.transitionProject(
+      project,
+      "WAITING_FOR_USAGE",
+      {
+        actor: request.actor,
+        occurredAt,
+        reason: `Task ${task.id} is waiting for agent usage availability`,
+      },
+    );
+    this.database.transaction((repositories) => {
+      repositories.events.append({
+        id: lifecycleId(key, "usage-limit-reached"),
+        projectId: request.projectId,
+        phaseId: task.phaseId,
+        taskId: task.id,
+        type: "USAGE_LIMIT_REACHED",
+        eventVersion: 1,
+        occurredAt,
+        actor: request.actor,
+        payload: { attemptId: attempt.id, agentRunId, usageState: usageStateJson(usageState) },
+      });
+      this.database.persistAttemptCompletion({
+        attemptId: attempt.id,
+        completedAt: occurredAt,
+        outcome: "interrupted",
+        eventId: lifecycleId(key, "attempt-completed"),
+        actor: request.actor,
+        transition: taskTransition,
+      });
+      this.database.persistStateTransition(
+        projectTransition,
+        lifecycleId(key, "project-waiting-for-usage") as EventId,
+      );
+    });
+
+    return Object.freeze({
+      status: "WAITING_FOR_USAGE" as const,
+      taskId: task.id,
+      attemptCount: attempt.number,
+      usageState,
+    });
   }
 
   async #handleWorkerFailure(

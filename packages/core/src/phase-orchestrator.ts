@@ -17,6 +17,7 @@ import {
   type ProjectId,
   type Task,
   type TaskId,
+  type UsageState,
 } from "@densa/protocol";
 
 import { type DensaDatabase } from "./persistence/database.js";
@@ -153,6 +154,12 @@ export type PhaseLifecycleResult =
       status: "AWAITING_TASK_APPROVAL";
       phaseId: PhaseId;
       taskId: TaskId;
+    }>
+  | Readonly<{
+      status: "WAITING_FOR_USAGE";
+      phaseId: PhaseId;
+      taskId: TaskId;
+      usageState: Extract<UsageState, { status: "limited" }>;
     }>
   | Readonly<{
       status: "STOPPED";
@@ -523,6 +530,14 @@ export class PhaseLifecycleOrchestrator {
             taskId: taskResult.taskId,
           });
         }
+        if (taskResult.status === "waiting_for_usage") {
+          return Object.freeze({
+            status: "WAITING_FOR_USAGE" as const,
+            phaseId: request.phaseId,
+            taskId: taskResult.taskId,
+            usageState: taskResult.usageState,
+          });
+        }
         if (taskResult.status === "blocked") {
           return await this.#finish(
             request,
@@ -663,6 +678,11 @@ export class PhaseLifecycleOrchestrator {
   ): Promise<
     | { readonly status: "blocked"; readonly issues: readonly string[] }
     | { readonly status: "awaiting_task_approval"; readonly taskId: TaskId }
+    | {
+        readonly status: "waiting_for_usage";
+        readonly taskId: TaskId;
+        readonly usageState: Extract<UsageState, { status: "limited" }>;
+      }
     | { readonly status: "stopped"; readonly code: PhaseLifecycleStopCode; readonly reason: string }
     | undefined
   > {
@@ -739,6 +759,20 @@ export class PhaseLifecycleOrchestrator {
             status: "stopped",
             code: "TASK_EXECUTION_STOPPED",
             reason: `${result.code}: ${result.reason}`,
+          };
+        }
+        if (result.status === "WAITING_FOR_USAGE") {
+          if (persisted?.state !== "WAITING_FOR_USAGE") {
+            return {
+              status: "stopped",
+              code: "PERSISTED_STATE_INCONSISTENT",
+              reason: "Task executor reported usage waiting without matching persisted task state",
+            };
+          }
+          return {
+            status: "waiting_for_usage",
+            taskId: result.taskId,
+            usageState: result.usageState,
           };
         }
         if (

@@ -124,6 +124,19 @@ equivalent was established by this spike. Densa must therefore report usage stat
 unless a future supported CLI version or an actual structured execution error supplies a reliable
 limited/reset signal. It must not scrape interactive presentation text or invent a countdown.
 
+### Phase 7 follow-up
+
+P7M0 retains the spike's prohibition on presentation-text parsing and the same `codex exec --json`
+process boundary. The version-scoped Codex event model exposes the structured
+`codex_error_info` discriminator. Densa recognizes only the exact `usage_limit_exceeded` value as a
+usage-limited execution; `unauthorized` remains authentication failure, and every other failure
+leaves usage unknown. If that same structured event supplies a valid Unix `reset_at`, Densa may
+surface its ISO timestamp. It never derives a reset from messages, stderr, token counts, or a fixed
+timer.
+
+The P7M0 usage-state fixtures are explicitly synthetic adapter-contract fixtures because exhausting
+a real account remains deliberately unforced. They do not claim to be real account transcripts.
+
 ## Unknowns and deliberately unforced cases
 
 - A real account usage-limit exhaustion was not induced; doing so would consume or disrupt the

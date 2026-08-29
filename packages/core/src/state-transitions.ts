@@ -89,7 +89,7 @@ export const taskStateTransitions: TransitionTable<TaskState> = Object.freeze({
     "CANCELLED",
   ),
   BLOCKED: targets("PENDING", "READY", "RUNNING", "VALIDATING", "RETRYING", "CANCELLED"),
-  INTERRUPTED: targets("READY", "RETRYING", "BLOCKED", "CANCELLED"),
+  INTERRUPTED: targets("READY", "RETRYING", "WAITING_FOR_USAGE", "BLOCKED", "CANCELLED"),
   COMPLETED: targets<TaskState>(),
   CANCELLED: targets<TaskState>(),
 });

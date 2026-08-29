@@ -30,6 +30,20 @@ remains `INTERRUPTED`; it is never silently retried. Existing `RUNNING` or `VALI
 orchestrator invocation returns `RECOVERY_REQUIRED` so recovery inspection can determine the safe
 next action without guessing an external process outcome.
 
+## Usage waiting
+
+P7M0 treats usage exhaustion as a pause boundary, not as worker success. Core requires both a
+terminal `USAGE_LIMITED` error and a provider-neutral `UsageState { status: "limited" }` from the
+same adapter. It captures and rolls back attempt-owned output, then atomically closes the attempt,
+transitions the task and project to `WAITING_FOR_USAGE`, and appends `USAGE_LIMIT_REACHED` with the
+observed usage data. The active phase remains `RUNNING` so a later milestone can resume it after
+fresh state and workspace checks.
+
+If classification is unknown, authentication failed, cleanup cannot be proven, or the authoritative
+state changed concurrently, the usage-wait transition does not occur. Persisted state plus the
+usage event reconstruct the waiting result after restart. `resetAt` is absent unless the adapter
+actually observed and validated it; P7M0 does not schedule probes or auto-resume.
+
 The orchestrator enforces one active worker per instance. Dependency selection remains the separate,
 read-only scheduler responsibility, and Phase 5's later execution-mode and intervention milestones
 remain out of scope.

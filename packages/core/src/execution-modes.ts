@@ -5,6 +5,7 @@ import {
   eventIdSchema,
   executionModeSchema,
   isoTimestampSchema,
+  usageStateSchema,
   type EventId,
   type ExecutionMode,
   type Phase,
@@ -13,6 +14,7 @@ import {
   type Project,
   type ProjectId,
   type TaskId,
+  type UsageState,
 } from "@densa/protocol";
 
 import { type DensaDatabase } from "./persistence/database.js";
@@ -124,6 +126,13 @@ export type ProjectLifecycleResult =
       report: PhaseReport;
     }>
   | Readonly<{
+      status: "WAITING_FOR_USAGE";
+      projectId: ProjectId;
+      phaseId: PhaseId;
+      taskId: TaskId;
+      usageState: Extract<UsageState, { status: "limited" }>;
+    }>
+  | Readonly<{
       status: "BLOCKED" | "STOPPED";
       projectId: ProjectId;
       reason: string;
@@ -184,6 +193,32 @@ export class ProjectExecutionOrchestrator {
       if (project === undefined) return this.#stopped(request, "Project does not exist");
       if (project.state === "COMPLETED") {
         return Object.freeze({ status: "COMPLETED" as const, projectId: project.id });
+      }
+      if (project.state === "WAITING_FOR_USAGE") {
+        const waitingTask = this.database.repositories.tasks
+          .listByProjectId(project.id)
+          .find((task) => task.state === "WAITING_FOR_USAGE");
+        const usageEvent = this.database.eventJournal
+          .replay({ projectId: project.id, types: ["USAGE_LIMIT_REACHED"], limit: 1_000 })
+          .findLast((event) => event.taskId === waitingTask?.id);
+        const parsedUsage = usageStateSchema.safeParse(usageEvent?.payload["usageState"]);
+        if (
+          waitingTask === undefined ||
+          !parsedUsage.success ||
+          parsedUsage.data.status !== "limited"
+        ) {
+          return this.#stopped(
+            request,
+            "Project usage-wait state is missing its matching task or durable usage evidence",
+          );
+        }
+        return Object.freeze({
+          status: "WAITING_FOR_USAGE" as const,
+          projectId: project.id,
+          phaseId: waitingTask.phaseId,
+          taskId: waitingTask.id,
+          usageState: parsedUsage.data,
+        });
       }
       if (project.state !== "RUNNING") {
         return this.#stopped(request, `Project must be RUNNING, not ${project.state}`);
@@ -271,6 +306,23 @@ export class ProjectExecutionOrchestrator {
           projectId: request.projectId,
           phaseId: phaseResult.phaseId,
           report: phaseResult.report,
+        });
+      }
+      if (phaseResult.status === "WAITING_FOR_USAGE") {
+        const waitingProject = this.database.repositories.projects.findById(request.projectId);
+        if (waitingProject?.state !== "WAITING_FOR_USAGE") {
+          return this.#stopped(
+            request,
+            "Phase reported usage waiting without matching persisted project state",
+            phaseResult.phaseId,
+          );
+        }
+        return Object.freeze({
+          status: "WAITING_FOR_USAGE" as const,
+          projectId: request.projectId,
+          phaseId: phaseResult.phaseId,
+          taskId: phaseResult.taskId,
+          usageState: phaseResult.usageState,
         });
       }
       if (phaseResult.status === "BLOCKED") {

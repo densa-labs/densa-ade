@@ -1,0 +1,4 @@
+{"type":"thread.started","thread_id":"<thread-id>"}
+{"type":"turn.started"}
+{"type":"error","message":"usage limit reached maybe at five o'clock","codex_error_info":"server_overloaded","reset_at":1787677200}
+{"type":"turn.failed","error":{"message":"usage limit reached maybe at five o'clock","codex_error_info":"server_overloaded","reset_at":1787677200}}

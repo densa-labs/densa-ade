@@ -125,6 +125,21 @@ function requestFor(fixture, adapter, validator, overrides = {}) {
   };
 }
 
+function transitionProjectToRunning(fixture) {
+  const transitions = ["PLANNING", "READY", "RUNNING"];
+  const service = new StateTransitionService();
+  for (const [index, state] of transitions.entries()) {
+    const project = fixture.database.repositories.projects.findById(fixture.project.id);
+    fixture.database.persistStateTransition(
+      service.transitionProject(project, state, {
+        actor: "densa-core:test",
+        occurredAt: new Date(Date.parse(createdAt) + (index + 1) * 100).toISOString(),
+      }),
+      `event-project-${state.toLowerCase()}`,
+    );
+  }
+}
+
 function passingValidator(expected) {
   return {
     validatorId: "fixture-validator",
@@ -462,6 +477,104 @@ test("project pause cancels the adapter run without orphaning or terminally canc
       .replay({ projectId: fixture.project.id, types: ["AGENT_FINISHED"] })
       .at(-1).payload.outcome,
     "cancelled",
+  );
+  fixture.database.close();
+});
+
+test("a reliable usage limit rolls back output and atomically persists task/project waiting state", async () => {
+  const fixture = createFixture("densa-orchestrator-usage-wait-");
+  transitionProjectToRunning(fixture);
+  let validationCalls = 0;
+  const usageState = {
+    status: "limited",
+    resetAt: "2026-08-27T05:00:00.000Z",
+  };
+  const adapter = new FakeAgentAdapter({
+    outcome: "failed",
+    error: { code: "USAGE_LIMITED", message: "Structured usage limit" },
+    usageState,
+    onExecute() {
+      writeFileSync(join(fixture.repository, "task.txt"), "partial limited output\n", "utf8");
+    },
+  });
+  const validator = {
+    validatorId: "must-not-run",
+    async validate() {
+      validationCalls += 1;
+      return { passed: true, diagnostics: {} };
+    },
+  };
+
+  const result = await new SingleTaskOrchestrator(fixture.database, { now: clock() }).execute(
+    requestFor(fixture, adapter, validator),
+  );
+
+  assert.deepEqual(result, {
+    status: "WAITING_FOR_USAGE",
+    taskId: fixture.task.id,
+    attemptCount: 1,
+    usageState,
+  });
+  assert.equal(validationCalls, 0);
+  assert.equal(
+    fixture.database.repositories.tasks.findById(fixture.task.id).state,
+    "WAITING_FOR_USAGE",
+  );
+  assert.equal(
+    fixture.database.repositories.projects.findById(fixture.project.id).state,
+    "WAITING_FOR_USAGE",
+  );
+  assert.equal(readFileSync(join(fixture.repository, "task.txt"), "utf8"), "baseline\n");
+  assert.equal(git(fixture.repository, ["status", "--porcelain"]), "");
+  const [attempt] = fixture.database.repositories.attempts.listByTaskId(fixture.task.id);
+  assert.ok(attempt.completedAt);
+  const usageEvent = fixture.database.repositories.events
+    .replay({ projectId: fixture.project.id, types: ["USAGE_LIMIT_REACHED"] })
+    .at(-1);
+  assert.deepEqual(usageEvent.payload.usageState, usageState);
+  fixture.database.close();
+
+  const reopened = DensaDatabase.open(fixture.databasePath);
+  assert.equal(reopened.repositories.tasks.findById(fixture.task.id).state, "WAITING_FOR_USAGE");
+  assert.equal(
+    reopened.repositories.projects.findById(fixture.project.id).state,
+    "WAITING_FOR_USAGE",
+  );
+  assert.deepEqual(
+    reopened.repositories.events
+      .replay({ projectId: fixture.project.id, types: ["USAGE_LIMIT_REACHED"] })
+      .at(-1).payload.usageState,
+    usageState,
+  );
+  reopened.close();
+});
+
+test("USAGE_LIMITED without a matching limited UsageState never enters waiting", async () => {
+  const fixture = createFixture("densa-orchestrator-usage-unknown-");
+  transitionProjectToRunning(fixture);
+  const adapter = new FakeAgentAdapter({
+    outcome: "failed",
+    error: { code: "USAGE_LIMITED", message: "Uncorroborated classification" },
+    usageState: { status: "unknown", reason: "No reliable machine-readable signal" },
+  });
+
+  const result = await new SingleTaskOrchestrator(fixture.database, { now: clock() }).execute(
+    requestFor(fixture, adapter, passingValidator("baseline\n")),
+  );
+
+  assert.equal(result.status, "BLOCKED");
+  assert.equal(result.attemptCount, 4);
+  assert.equal(fixture.database.repositories.tasks.findById(fixture.task.id).state, "BLOCKED");
+  assert.equal(
+    fixture.database.repositories.projects.findById(fixture.project.id).state,
+    "RUNNING",
+  );
+  assert.equal(
+    fixture.database.repositories.events.replay({
+      projectId: fixture.project.id,
+      types: ["USAGE_LIMIT_REACHED"],
+    }).length,
+    0,
   );
   fixture.database.close();
 });

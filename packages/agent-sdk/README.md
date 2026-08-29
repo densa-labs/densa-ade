@@ -26,5 +26,9 @@ authenticated Codex smoke test is deliberately opt-in:
 npm run test:live:codex
 ```
 
-The installed CLI exposes no supported machine-readable subscription usage/reset endpoint, so the
-adapter returns `unknown` rather than deriving availability from presentation text.
+The installed CLI exposes no standalone supported subscription usage/reset endpoint. P7M0 therefore
+keeps usage `unknown` until an execution supplies the exact machine-readable
+`codex_error_info: "usage_limit_exceeded"` discriminator. That signal maps to provider-neutral
+`USAGE_LIMITED`; an optional structured `reset_at` Unix timestamp is converted to `resetAt`, while
+missing or invalid reset data is omitted. Authentication and arbitrary provider failures remain
+distinct, and message/stderr prose never changes usage state.

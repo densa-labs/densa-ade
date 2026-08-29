@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { Buffer } from "node:buffer";
-import { chmod, mkdtemp, rm, stat, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import process from "node:process";
@@ -45,6 +45,21 @@ ${execProgram}
   await writeFile(executable, source, "utf8");
   await chmod(executable, 0o755);
   return { directory, executable };
+}
+
+async function adapterForUsageFixture(t, name) {
+  const fixture = await readFile(
+    new globalThis.URL(
+      `../packages/testing/fixtures/codex-cli/usage-state-contract/${name}`,
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const { executable } = await createFakeCodex(
+    t,
+    `process.stdout.write(${JSON.stringify(fixture)});\nprocess.exit(1);`,
+  );
+  return new CodexAdapter({ command: executable, now: () => fixedTime });
 }
 
 test("FakeAgentAdapter satisfies detection, status, execution, and usage contracts", async () => {
@@ -239,6 +254,10 @@ test("CodexAdapter classifies an invalid cwd and keeps unverified version signal
     version: "99.0.0",
     reason: "Codex authentication signals are not verified for version 99.0.0",
   });
+  const futureEvents = await collect(
+    futureVersion.execute({ runId: "future-version-1", cwd: tmpdir(), prompt: "task" }),
+  );
+  assert.equal(futureEvents.at(-1).error.code, "PROTOCOL_VERSION_MISMATCH");
 });
 
 test("CodexAdapter bounds and redacts streamed and terminal text", async (t) => {
@@ -364,11 +383,49 @@ setInterval(() => {}, 1000);`,
   assert.throws(() => process.kill(parentPid, 0), { code: "ESRCH" });
 });
 
-test("CodexAdapter reports usage as unknown without fabricating a reset", async () => {
+test("CodexAdapter starts with unknown usage and does not fabricate a reset", async () => {
   const adapter = new CodexAdapter({ command: "unused" });
   const usage = await adapter.getUsageState();
 
   assert.equal(usage.status, "unknown");
-  assert.match(usage.reason, /no supported machine-readable usage\/reset status/u);
+  assert.match(usage.reason, /No reliable Codex usage signal/u);
   assert.equal("resetAt" in usage, false);
+});
+
+test("CodexAdapter maps only structured usage-limit signals and preserves observed reset time", async (t) => {
+  const withReset = await adapterForUsageFixture(t, "limited-with-reset.jsonl");
+  const withResetEvents = await collect(
+    withReset.execute({ runId: "usage-reset-1", cwd: tmpdir(), prompt: "task" }),
+  );
+  assert.equal(withResetEvents.at(-1).error.code, "USAGE_LIMITED");
+  assert.deepEqual(await withReset.getUsageState(), {
+    status: "limited",
+    resetAt: "2026-08-25T17:00:00.000Z",
+  });
+
+  const withoutReset = await adapterForUsageFixture(t, "limited-without-reset.jsonl");
+  const withoutResetEvents = await collect(
+    withoutReset.execute({ runId: "usage-no-reset-1", cwd: tmpdir(), prompt: "task" }),
+  );
+  assert.equal(withoutResetEvents.at(-1).error.code, "USAGE_LIMITED");
+  assert.deepEqual(await withoutReset.getUsageState(), { status: "limited" });
+  assert.equal("resetAt" in (await withoutReset.getUsageState()), false);
+});
+
+test("CodexAdapter leaves prose-like unknown failures unknown and keeps auth distinct", async (t) => {
+  const unknown = await adapterForUsageFixture(t, "unknown-failure.jsonl");
+  const unknownEvents = await collect(
+    unknown.execute({ runId: "usage-unknown-1", cwd: tmpdir(), prompt: "task" }),
+  );
+  assert.equal(unknownEvents.at(-1).error.code, "PROCESS_FAILURE");
+  assert.equal((await unknown.getUsageState()).status, "unknown");
+  assert.equal("resetAt" in (await unknown.getUsageState()), false);
+
+  const auth = await adapterForUsageFixture(t, "authentication-failure.jsonl");
+  const authEvents = await collect(
+    auth.execute({ runId: "usage-auth-1", cwd: tmpdir(), prompt: "task" }),
+  );
+  assert.equal(authEvents.at(-1).error.code, "AUTHENTICATION_REQUIRED");
+  assert.equal((await auth.getUsageState()).status, "unknown");
+  assert.equal("resetAt" in (await auth.getUsageState()), false);
 });

@@ -337,6 +337,73 @@ test("Continuous mode validates, reports, and completes every phase in one proje
   });
 });
 
+test("project execution surfaces durable WAITING_FOR_USAGE without inventing resetAt", async () => {
+  await withFixture("continuous", async ({ database, workspace }) => {
+    let executions = 0;
+    const taskExecutor = {
+      async execute({ projectId, taskId }) {
+        executions += 1;
+        const task = database.repositories.tasks.findById(taskId);
+        const project = database.repositories.projects.findById(projectId);
+        assert.equal(task.state, "READY");
+        assert.equal(project.state, "RUNNING");
+        const occurredAt = now();
+        database.transaction((repositories) => {
+          repositories.events.append({
+            id: "event-project-usage-limited",
+            projectId,
+            phaseId: task.phaseId,
+            taskId,
+            type: "USAGE_LIMIT_REACHED",
+            eventVersion: 1,
+            occurredAt,
+            actor: "execution-mode:test",
+            payload: { usageState: { status: "limited" } },
+          });
+          database.persistStateTransition(
+            new StateTransitionService().transitionTask(task, "WAITING_FOR_USAGE", {
+              actor: "execution-mode:test",
+              occurredAt,
+            }),
+            "event-task-waiting-for-usage",
+          );
+          database.persistStateTransition(
+            new StateTransitionService().transitionProject(project, "WAITING_FOR_USAGE", {
+              actor: "execution-mode:test",
+              occurredAt,
+            }),
+            "event-project-waiting-for-usage",
+          );
+        });
+        return {
+          status: "WAITING_FOR_USAGE",
+          taskId,
+          attemptCount: 1,
+          usageState: { status: "limited" },
+        };
+      },
+    };
+
+    const waiting = await new ProjectExecutionOrchestrator(database, { now }).execute(
+      request(database, workspace, taskExecutor),
+    );
+    assert.deepEqual(waiting, {
+      status: "WAITING_FOR_USAGE",
+      projectId: "project-modes",
+      phaseId: "phase.build",
+      taskId: "task.alpha",
+      usageState: { status: "limited" },
+    });
+    assert.equal("resetAt" in waiting.usageState, false);
+
+    const restarted = await new ProjectExecutionOrchestrator(database, { now }).execute(
+      request(database, workspace, taskExecutor),
+    );
+    assert.deepEqual(restarted, waiting);
+    assert.equal(executions, 1);
+  });
+});
+
 test("Continuous mode cannot bypass mandatory decisions or non-overridable permission blockers", async () => {
   await withFixture("continuous", async ({ database, workspace }) => {
     const order = [];

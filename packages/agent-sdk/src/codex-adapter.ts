@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import process from "node:process";
 
-import type { UsageState } from "@densa/protocol";
+import { usageStateSchema, type UsageState } from "@densa/protocol";
 
 import type {
   AgentAdapter,
@@ -51,6 +51,8 @@ interface ActiveRun {
 interface TerminalSignal {
   kind: "completed" | "failed";
   message?: string;
+  errorCode?: AgentError["code"];
+  usageState?: Extract<UsageState, { status: "limited" }>;
 }
 
 class AsyncEventQueue<T> implements AsyncIterable<T> {
@@ -138,6 +140,40 @@ function numberValue(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
+function usageResetAt(value: unknown): string | undefined {
+  const resetAtSeconds = numberValue(value);
+  if (resetAtSeconds === undefined || !Number.isInteger(resetAtSeconds) || resetAtSeconds < 0) {
+    return undefined;
+  }
+  try {
+    const parsed = usageStateSchema.safeParse({
+      status: "limited",
+      resetAt: new Date(resetAtSeconds * 1_000).toISOString(),
+    });
+    return parsed.success && parsed.data.status === "limited" ? parsed.data.resetAt : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Exact machine-readable Codex signal mapping; presentation text is deliberately ignored. */
+function usageStateFromCodexError(
+  value: unknown,
+): Extract<UsageState, { status: "limited" }> | undefined {
+  const error = objectValue(value);
+  if (stringValue(error?.["codex_error_info"]) !== "usage_limit_exceeded") return undefined;
+  const resetAt = usageResetAt(error?.["reset_at"]);
+  return resetAt === undefined ? { status: "limited" } : { status: "limited", resetAt };
+}
+
+function errorCodeFromCodexError(value: unknown): AgentError["code"] | undefined {
+  const error = objectValue(value);
+  const code = stringValue(error?.["codex_error_info"]);
+  if (code === "usage_limit_exceeded") return "USAGE_LIMITED";
+  if (code === "unauthorized") return "AUTHENTICATION_REQUIRED";
+  return undefined;
+}
+
 function normalizeVersion(stdout: string): string | undefined {
   const value = stdout.trim();
   if (value.length === 0) return undefined;
@@ -171,6 +207,10 @@ export class CodexAdapter implements AgentAdapter {
   private readonly now: () => string;
   private readonly activeRuns = new Map<string, ActiveRun>();
   private readonly startingRunIds = new Set<string>();
+  private usageState: UsageState = Object.freeze({
+    status: "unknown",
+    reason: "No reliable Codex usage signal has been observed",
+  });
 
   constructor(options: CodexAdapterOptions = {}) {
     this.command = options.command ?? "codex";
@@ -296,6 +336,15 @@ export class CodexAdapter implements AgentAdapter {
       });
       return;
     }
+    if (status.status === "unknown") {
+      this.startingRunIds.delete(request.runId);
+      yield this.startedEvent(request.runId);
+      yield this.failureEvent(request.runId, {
+        code: "PROTOCOL_VERSION_MISMATCH",
+        message: status.reason,
+      });
+      return;
+    }
 
     const queue = new AsyncEventQueue<AgentEvent>();
     const stderr = new BoundedText(this.captureLimitBytes);
@@ -355,6 +404,8 @@ export class CodexAdapter implements AgentAdapter {
     this.startingRunIds.delete(request.runId);
 
     let terminalSignal: TerminalSignal | undefined;
+    let observedUsageState: Extract<UsageState, { status: "limited" }> | undefined;
+    let observedErrorCode: AgentError["code"] | undefined;
     let spawnError: NodeJS.ErrnoException | undefined;
     let malformedJson = false;
     let stdoutBuffer = "";
@@ -363,6 +414,8 @@ export class CodexAdapter implements AgentAdapter {
     const emitMappedEvent = (value: unknown): void => {
       const mapped = this.mapCodexEvent(request.runId, value, finalMessage);
       if (mapped.event !== undefined) queue.push(mapped.event);
+      if (mapped.usageState !== undefined) observedUsageState = mapped.usageState;
+      if (mapped.errorCode !== undefined) observedErrorCode = mapped.errorCode;
       if (mapped.terminal !== undefined) terminalSignal = mapped.terminal;
     };
 
@@ -428,6 +481,8 @@ export class CodexAdapter implements AgentAdapter {
         active,
         exitCode,
         terminalSignal,
+        observedUsageState,
+        observedErrorCode,
         spawnError,
         malformedJson,
         stderr: stderr.snapshot(),
@@ -463,10 +518,7 @@ export class CodexAdapter implements AgentAdapter {
   }
 
   async getUsageState(): Promise<UsageState> {
-    return {
-      status: "unknown",
-      reason: "Installed Codex CLI exposes no supported machine-readable usage/reset status",
-    };
+    return this.usageState;
   }
 
   private executionArguments(
@@ -542,7 +594,12 @@ export class CodexAdapter implements AgentAdapter {
     runId: string,
     value: unknown,
     finalMessage: BoundedText,
-  ): { event?: AgentEvent; terminal?: TerminalSignal } {
+  ): {
+    event?: AgentEvent;
+    terminal?: TerminalSignal;
+    usageState?: Extract<UsageState, { status: "limited" }>;
+    errorCode?: AgentError["code"];
+  } {
     const record = objectValue(value);
     const type = stringValue(record?.["type"]);
     if (record === undefined || type === undefined) return {};
@@ -551,14 +608,29 @@ export class CodexAdapter implements AgentAdapter {
     if (type === "turn.failed") {
       const error = objectValue(record["error"]);
       const message = stringValue(error?.["message"]);
+      const usageState = usageStateFromCodexError(error);
+      const errorCode = errorCodeFromCodexError(error);
       return {
-        terminal: message === undefined ? { kind: "failed" } : { kind: "failed", message },
+        terminal: {
+          kind: "failed",
+          ...(message === undefined ? {} : { message }),
+          ...(errorCode === undefined ? {} : { errorCode }),
+          ...(usageState === undefined ? {} : { usageState }),
+        },
+        ...(usageState === undefined ? {} : { usageState }),
+        ...(errorCode === undefined ? {} : { errorCode }),
       };
     }
     if (type === "error") {
       const message = stringValue(record["message"]);
       if (message === undefined) return {};
-      return { event: this.diagnosticEvent(runId, "adapter", message, false) };
+      const usageState = usageStateFromCodexError(record);
+      const errorCode = errorCodeFromCodexError(record);
+      return {
+        event: this.diagnosticEvent(runId, "adapter", message, false),
+        ...(usageState === undefined ? {} : { usageState }),
+        ...(errorCode === undefined ? {} : { errorCode }),
+      };
     }
     if (type === "turn.started" || type === "thread.started") {
       return {
@@ -633,6 +705,8 @@ export class CodexAdapter implements AgentAdapter {
     active: ActiveRun;
     exitCode: number | null;
     terminalSignal: TerminalSignal | undefined;
+    observedUsageState: Extract<UsageState, { status: "limited" }> | undefined;
+    observedErrorCode: AgentError["code"] | undefined;
     spawnError: NodeJS.ErrnoException | undefined;
     malformedJson: boolean;
     stderr: { text: string; truncated: boolean };
@@ -662,12 +736,53 @@ export class CodexAdapter implements AgentAdapter {
       };
     }
     if (input.exitCode === 0 && input.terminalSignal.kind === "completed") {
+      this.usageState = Object.freeze({ status: "available" });
       return {
         ...base,
         outcome: "succeeded",
         ...(input.finalMessage.text.length === 0 ? {} : { finalMessage: input.finalMessage.text }),
       };
     }
+
+    const limited = input.terminalSignal.usageState ?? input.observedUsageState;
+    if (limited !== undefined) {
+      this.usageState = Object.freeze(limited);
+      return {
+        ...base,
+        outcome: "failed",
+        error: {
+          code: "USAGE_LIMITED",
+          message: "Codex reported that usage is limited",
+          details: {
+            usageState:
+              limited.resetAt === undefined
+                ? { status: "limited" }
+                : { status: "limited", resetAt: limited.resetAt },
+          },
+        },
+      };
+    }
+
+    const structuredErrorCode = input.terminalSignal.errorCode ?? input.observedErrorCode;
+    if (structuredErrorCode === "AUTHENTICATION_REQUIRED") {
+      this.usageState = Object.freeze({
+        status: "unknown",
+        reason: "Codex authentication is required",
+      });
+      return {
+        ...base,
+        outcome: "failed",
+        error: {
+          code: "AUTHENTICATION_REQUIRED",
+          message: "Codex authentication is required",
+        },
+      };
+    }
+
+    this.usageState = Object.freeze({
+      status: "unknown",
+      reason: "Codex execution failed without a reliable usage classification",
+    });
 
     const failureMessage = redactSecrets(input.terminalSignal.message ?? "Codex execution failed");
     return {
