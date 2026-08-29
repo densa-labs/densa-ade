@@ -33,4 +33,9 @@ tmp/
 .DS_Store
 *.swp
 
+# Local Densa development instructions and roadmap
+/AGENTS.md
+/MASTER_ROADMAP.md
+/MODEL_POLICY.md
+
 # The portable .densa/ representation is intentionally not ignored.
