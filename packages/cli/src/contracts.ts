@@ -13,6 +13,9 @@ export type CliExitCode =
 
 export type CliCommandName =
   | "help"
+  | "core start"
+  | "core status"
+  | "core stop"
   | "doctor"
   | "project init"
   | "project status"

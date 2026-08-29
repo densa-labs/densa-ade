@@ -4,6 +4,7 @@ export * from "./envelope.js";
 export * from "./errors.js";
 export * from "./ids.js";
 export * from "./independent-review.js";
+export * from "./ipc.js";
 export * from "./json.js";
 export * from "./keep-awake.js";
 export * from "./master-roadmap.js";

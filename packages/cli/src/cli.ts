@@ -24,7 +24,8 @@ import {
 } from "./contracts.js";
 import {
   LocalDoctorService,
-  PlaceholderCoreClient,
+  LocalCoreClient,
+  LocalCoreLifecycleService,
   type CliServices,
   type DoctorCheck,
 } from "./services.js";
@@ -34,6 +35,9 @@ const HELP_TEXT = `Usage: densa [--json] <command>
 Headless client shell for Densa Core.
 
 Commands:
+  core start             Start the user-local Densa Core daemon
+  core status            Show daemon connectivity and process status
+  core stop              Stop the Densa Core daemon cleanly
   doctor                 Check Node, Git, platform, agent, and Core readiness
   project init           Initialize a Densa project through Core
   project status         Show the current project status
@@ -123,6 +127,15 @@ function parseInvocation(arguments_: readonly string[]): ParsedInvocation {
     return { command: tokens[0], json };
   }
 
+  if (tokens[0] === "core") {
+    const subcommand = tokens[1];
+    if (subcommand === "start" || subcommand === "status" || subcommand === "stop") {
+      assertNoExtraArguments(tokens, 2);
+      return { command: `core ${subcommand}`, json };
+    }
+    throw usageError(`Unknown core command: ${subcommand ?? ""}`);
+  }
+
   if (tokens[0] === "project") {
     if (tokens.length === 1 || tokens[1] === "--help" || tokens[1] === "-h") {
       assertNoExtraArguments(tokens, tokens.length === 1 ? 1 : 2);
@@ -173,6 +186,12 @@ async function executeCommand(
       };
     case "doctor":
       return runDoctor(services);
+    case "core start":
+      return runCoreLifecycle(command, await services.coreLifecycle.start());
+    case "core status":
+      return runCoreLifecycle(command, await services.coreLifecycle.status());
+    case "core stop":
+      return runCoreLifecycle(command, await services.coreLifecycle.stop());
     case "events":
       return requestCore(command, "events.list", services);
     case "project init":
@@ -190,6 +209,14 @@ async function executeCommand(
     case "project stop":
       return requestCore(command, "project.stop", services);
   }
+}
+
+function runCoreLifecycle(
+  command: "core start" | "core status" | "core stop",
+  status: Awaited<ReturnType<CliServices["coreLifecycle"]["status"]>>,
+): CommandResult {
+  const data = jsonValueSchema.parse(status);
+  return { data, human: `${command}: ${formatHumanValue(data)}` };
 }
 
 async function runDoctor(services: CliServices): Promise<CommandResult> {
@@ -286,9 +313,11 @@ function processIo(): CliIo {
 }
 
 function createDefaultServices(): CliServices {
+  const coreLifecycle = new LocalCoreLifecycleService();
   return {
-    coreClient: new PlaceholderCoreClient(),
-    doctorService: new LocalDoctorService(),
+    coreClient: new LocalCoreClient(),
+    coreLifecycle,
+    doctorService: new LocalDoctorService(coreLifecycle),
     createRequestId: () => randomUUID(),
   };
 }

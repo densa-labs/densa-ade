@@ -12,6 +12,14 @@
     "./persistence": {
       "types": "./dist/persistence/index.d.ts",
       "default": "./dist/persistence/index.js"
+    },
+    "./daemon": {
+      "types": "./dist/daemon.d.ts",
+      "default": "./dist/daemon.js"
+    },
+    "./daemon-bin": {
+      "types": "./dist/daemon-bin.d.ts",
+      "default": "./dist/daemon-bin.js"
     }
   },
   "files": [

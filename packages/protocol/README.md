@@ -12,6 +12,12 @@ is validated before use.
 - Payloads are JSON values only. Dates cross the wire as ISO-8601 strings with an explicit offset;
   `Date`, `bigint`, `undefined`, non-finite numbers, and class instances are invalid.
 - Unknown object fields are rejected for domain records and protocol envelopes.
+- Core transport frames carry a per-instance authentication token around a versioned request.
+- Event replay uses an exclusive per-project sequence cursor and a bounded page size; live committed
+  facts use `core.event` notifications.
+
+On macOS the Core transport is a user-local Unix-domain socket. No TCP listener is part of the v0.1
+protocol contract.
 
 ## Compatibility policy
 

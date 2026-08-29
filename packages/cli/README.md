@@ -1,10 +1,13 @@
 # `@densa/cli`
 
-The `densa` executable is a headless client shell for proving Densa Core before IDE integration.
-It does not own project state. Project and event commands construct requests from
-`@densa/protocol` and currently stop at an explicit unavailable-Core placeholder.
+The `densa` executable is a headless, non-authoritative client for Densa Core. Project and event
+commands use `@densa/protocol` over the authenticated local Unix socket. Exiting the CLI does not
+stop an active Core process.
 
 ```text
+densa core start
+densa core status
+densa core stop
 densa doctor
 densa project init
 densa project status
@@ -21,5 +24,6 @@ Human-readable output is the default. Pass `--json` anywhere in the command to e
 object with `schemaVersion`, `command`, `ok`, and either `data` or `error`. JSON failures are
 written to stdout for predictable machine consumption and use a nonzero process exit code.
 
-The command runner accepts injected Core, doctor, ID, and I/O services. Tests can therefore prove
-command behavior without starting Core or an agent process.
+The command runner accepts injected Core lifecycle, client, doctor, ID, and I/O services. Tests can
+therefore prove command behavior without starting Core or an agent process, while process-level
+tests exercise the real daemon lifecycle separately.

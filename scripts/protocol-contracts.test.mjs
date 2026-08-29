@@ -4,12 +4,15 @@ import { test } from "node:test";
 import {
   PROTOCOL_VERSION,
   ProtocolVersionMismatchError,
+  authenticatedRequestFrameSchema,
   attemptSchema,
   checkpointSchema,
+  coreDaemonStatusSchema,
   densaErrorCodeSchema,
   deserializeProtocolEnvelope,
   executionModeSchema,
   eventSchema,
+  eventReplayRequestSchema,
   phaseStateSchema,
   parseProtocolEnvelope,
   projectStateSchema,
@@ -173,6 +176,41 @@ test("reports a protocol version mismatch with a stable error code", () => {
       assert.equal(error.receivedVersion, "99.0.0");
       return true;
     },
+  );
+});
+
+test("Core IPC contracts require authenticated requests and bounded replay cursors", () => {
+  const request = {
+    protocolVersion: PROTOCOL_VERSION,
+    kind: "request",
+    requestId: "request-core-1",
+    method: "events.replay",
+    payload: { projectId: "project-1", afterSequence: 4 },
+  };
+  assert.equal(
+    authenticatedRequestFrameSchema.safeParse({ authToken: "x".repeat(32), envelope: request })
+      .success,
+    true,
+  );
+  assert.equal(
+    authenticatedRequestFrameSchema.safeParse({ authToken: "short", envelope: request }).success,
+    false,
+  );
+  assert.equal(
+    eventReplayRequestSchema.safeParse({ projectId: "project-1", afterSequence: -1 }).success,
+    false,
+  );
+  assert.equal(
+    coreDaemonStatusSchema.safeParse({
+      state: "running",
+      instanceId: "instance-1",
+      pid: 123,
+      startedAt: timestamp,
+      socketPath: "/tmp/densa/core.sock",
+      connectedClients: 2,
+      protocolVersion: PROTOCOL_VERSION,
+    }).success,
+    true,
   );
 });
 

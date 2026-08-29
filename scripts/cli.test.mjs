@@ -3,6 +3,7 @@ import { test } from "node:test";
 
 import {
   CLI_OUTPUT_SCHEMA_VERSION,
+  CliCommandError,
   EXIT_SUCCESS,
   EXIT_UNAVAILABLE,
   EXIT_USAGE,
@@ -33,6 +34,25 @@ function createServices(overrides = {}) {
         return { method: request.method, accepted: true };
       },
     },
+    coreLifecycle: {
+      async start() {
+        return {
+          state: "running",
+          instanceId: "instance-test",
+          pid: 123,
+          startedAt: "2026-08-29T00:00:00.000Z",
+          socketPath: "/tmp/densa-test/core.sock",
+          connectedClients: 0,
+          protocolVersion: PROTOCOL_VERSION,
+        };
+      },
+      async status() {
+        return { state: "stopped" };
+      },
+      async stop() {
+        return { state: "stopped" };
+      },
+    },
     doctorService: {
       async inspect() {
         return [
@@ -59,6 +79,9 @@ test("top-level help coherently lists every milestone command", async () => {
   assert.equal(output.stderr, "");
   assert.equal(output.stdout, `${cliHelpText}\n`);
   for (const command of [
+    "core start",
+    "core status",
+    "core stop",
     "doctor",
     "project init",
     "project status",
@@ -71,6 +94,24 @@ test("top-level help coherently lists every milestone command", async () => {
     "version",
   ]) {
     assert.match(output.stdout, new RegExp(command));
+  }
+});
+
+test("Core lifecycle commands use the daemon lifecycle boundary", async () => {
+  for (const expected of [
+    { arguments: ["core", "start"], command: "core start", state: "running" },
+    { arguments: ["core", "status"], command: "core status", state: "stopped" },
+    { arguments: ["core", "stop"], command: "core stop", state: "stopped" },
+  ]) {
+    const { io, output } = captureIo();
+    const exitCode = await runCli(["--json", ...expected.arguments], {
+      io,
+      services: createServices(),
+    });
+    assert.equal(exitCode, EXIT_SUCCESS);
+    const parsed = JSON.parse(output.stdout);
+    assert.equal(parsed.command, expected.command);
+    assert.equal(parsed.data.state, expected.state);
   }
 });
 
@@ -147,17 +188,29 @@ test("every Core command uses a versioned shared-protocol request", async () => 
   }
 });
 
-test("the default Core placeholder fails clearly without starting an agent", async () => {
+test("an unavailable Core client fails clearly without starting an agent", async () => {
   const { io, output } = captureIo();
-  const exitCode = await runCli(["events", "--json"], { io });
+  const exitCode = await runCli(["events", "--json"], {
+    io,
+    services: createServices({
+      coreClient: {
+        async request() {
+          throw new CliCommandError(
+            "PROCESS_FAILURE",
+            "Densa Core is unavailable",
+            EXIT_UNAVAILABLE,
+          );
+        },
+      },
+    }),
+  });
   const json = JSON.parse(output.stdout);
 
   assert.equal(exitCode, EXIT_UNAVAILABLE);
   assert.equal(output.stderr, "");
   assert.equal(json.ok, false);
   assert.equal(json.error.code, "PROCESS_FAILURE");
-  assert.match(json.error.message, /Core is not available/u);
-  assert.deepEqual(json.error.details, { method: "events.list" });
+  assert.match(json.error.message, /Core is unavailable/u);
 });
 
 test("invalid commands use a stable usage error and nonzero exit", async () => {

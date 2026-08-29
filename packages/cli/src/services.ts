@@ -2,7 +2,8 @@ import { execFile } from "node:child_process";
 import process from "node:process";
 import { promisify } from "node:util";
 
-import type { JsonValue, RequestEnvelope } from "@densa/protocol";
+import { CoreDaemonManager, CoreIpcClient, CoreIpcError } from "@densa/core";
+import type { CoreDaemonLifecycleStatus, JsonValue, RequestEnvelope } from "@densa/protocol";
 
 import { CliCommandError, EXIT_UNAVAILABLE } from "./contracts.js";
 
@@ -23,10 +24,59 @@ export interface CoreClient {
   request(request: RequestEnvelope): Promise<JsonValue>;
 }
 
+export interface CoreLifecycleService {
+  start(): Promise<CoreDaemonLifecycleStatus>;
+  status(): Promise<CoreDaemonLifecycleStatus>;
+  stop(): Promise<CoreDaemonLifecycleStatus>;
+}
+
 export interface CliServices {
   coreClient: CoreClient;
+  coreLifecycle: CoreLifecycleService;
   doctorService: DoctorService;
   createRequestId(): string;
+}
+
+export class LocalCoreClient implements CoreClient {
+  readonly #client = new CoreIpcClient();
+
+  async request(request: RequestEnvelope): Promise<JsonValue> {
+    try {
+      return await this.#client.request(request);
+    } catch (error) {
+      if (error instanceof CoreIpcError) {
+        throw new CliCommandError(
+          error.protocolError.code,
+          error.protocolError.message,
+          EXIT_UNAVAILABLE,
+          error.protocolError.details,
+        );
+      }
+      throw new CliCommandError(
+        "PROCESS_FAILURE",
+        error instanceof Error ? error.message : "Densa Core is unavailable",
+        EXIT_UNAVAILABLE,
+      );
+    } finally {
+      this.#client.disconnect();
+    }
+  }
+}
+
+export class LocalCoreLifecycleService implements CoreLifecycleService {
+  readonly #manager = new CoreDaemonManager();
+
+  async start(): Promise<CoreDaemonLifecycleStatus> {
+    return await this.#manager.start();
+  }
+
+  async status(): Promise<CoreDaemonLifecycleStatus> {
+    return await this.#manager.status();
+  }
+
+  async stop(): Promise<CoreDaemonLifecycleStatus> {
+    return await this.#manager.stop();
+  }
 }
 
 export class PlaceholderCoreClient implements CoreClient {
@@ -41,8 +91,11 @@ export class PlaceholderCoreClient implements CoreClient {
 }
 
 export class LocalDoctorService implements DoctorService {
+  constructor(private readonly coreLifecycle?: CoreLifecycleService) {}
+
   async inspect(): Promise<readonly DoctorCheck[]> {
     const git = await inspectGit();
+    const core = await this.#inspectCore();
 
     return [
       {
@@ -61,12 +114,23 @@ export class LocalDoctorService implements DoctorService {
         status: "placeholder",
         detail: "agent detection begins in Phase 1",
       },
-      {
-        name: "core",
-        status: "placeholder",
-        detail: "local Core connectivity begins in Phase 2",
-      },
+      core,
     ];
+  }
+
+  async #inspectCore(): Promise<DoctorCheck> {
+    if (this.coreLifecycle === undefined) {
+      return { name: "core", status: "placeholder", detail: "Core lifecycle not configured" };
+    }
+    const status = await this.coreLifecycle.status();
+    return {
+      name: "core",
+      status: "available",
+      detail:
+        status.state === "running"
+          ? `running (pid ${String(status.pid)})`
+          : "installed (not running)",
+    };
   }
 }
 
