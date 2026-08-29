@@ -7,6 +7,7 @@ export * from "./independent-review.js";
 export * from "./ipc.js";
 export * from "./json.js";
 export * from "./keep-awake.js";
+export * from "./master-agent.js";
 export * from "./master-roadmap.js";
 export * from "./permission-policy.js";
 export * from "./phase-report.js";

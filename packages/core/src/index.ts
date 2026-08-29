@@ -6,6 +6,7 @@ export * from "./execution-modes.js";
 export * from "./independent-review.js";
 export * from "./keep-awake.js";
 export * from "./execution-control.js";
+export * from "./master-agent.js";
 export * from "./adaptive-interview.js";
 export * from "./master-roadmap.js";
 export * from "./phase-orchestrator.js";

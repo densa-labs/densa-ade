@@ -38,3 +38,9 @@ rendering and contradiction detection remain editor- and model-neutral Core conc
 the complete dependency graph and supersession references. Mutation requests carry typed operation,
 classification proposal, rationale, actor/session, application mode, and optional explicit approval
 evidence; Core policy and persistence decide whether a request may apply.
+
+`MasterAgentProposal` is the structured project-steering response contract. It separates explanatory
+responses from roadmap proposals, project-constraint proposals, and pause/resume/mode commands.
+Responses may cite typed internal IDs, but Core validates those citations against the requested
+project and translates actions through authoritative domain services; the agent never receives a
+direct state-mutation capability.

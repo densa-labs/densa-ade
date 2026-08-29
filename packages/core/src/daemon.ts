@@ -678,8 +678,14 @@ export class CoreDaemonManager {
     const deadline = Date.now() + (this.#options.startTimeoutMs ?? START_TIMEOUT_MS);
     let wait = 20;
     while (Date.now() < deadline) {
-      const status = await this.status();
-      if (status.state === "running") return status;
+      try {
+        const status = await this.status();
+        if (status.state === "running") return status;
+      } catch (error) {
+        const startingState = await readProcessState(this.#paths);
+        if (child.pid === undefined || startingState?.pid !== child.pid) throw error;
+        // This exact child may persist its PID just before its authenticated socket starts listening.
+      }
       await delay(wait);
       wait = Math.min(wait * 2, 250);
     }
