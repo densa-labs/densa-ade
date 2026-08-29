@@ -1,0 +1,28 @@
+version: 2
+
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "16:00"
+      timezone: "Asia/Manila"
+    open-pull-requests-limit: 5
+    groups:
+      npm-dependencies:
+        patterns:
+          - "*"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "16:15"
+      timezone: "Asia/Manila"
+    open-pull-requests-limit: 5
+    groups:
+      actions:
+        patterns:
+          - "*"
