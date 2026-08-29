@@ -215,8 +215,14 @@ test("pause between tasks and stop are immediate, durable, idempotent, and prese
   const database = DensaDatabase.openInMemory();
   const now = clock();
   const project = seed(database, now);
+  const keepAwakeReleases = [];
   const service = new ProjectExecutionControlService(database, {
     now,
+    keepAwake: {
+      async releaseProject(releasedProjectId, actor) {
+        keepAwakeReleases.push({ projectId: releasedProjectId, actor });
+      },
+    },
     workspaceProbe: {
       async inspect() {
         return { status: "available", snapshot: snapshot("idle") };
@@ -232,6 +238,7 @@ test("pause between tasks and stop are immediate, durable, idempotent, and prese
   assert.equal(events.filter((event) => event.type === "PROJECT_PAUSED").length, 1);
   assert.equal(events.filter((event) => event.type === "PROJECT_STOPPED").length, 1);
   assert.equal(events.find((event) => event.type === "PROJECT_STOPPED").payload.workDeleted, false);
+  assert.deepEqual(keepAwakeReleases, [{ projectId: project.id, actor: "execution-control:test" }]);
   database.close();
 });
 

@@ -5,6 +5,7 @@ export * from "./errors.js";
 export * from "./ids.js";
 export * from "./independent-review.js";
 export * from "./json.js";
+export * from "./keep-awake.js";
 export * from "./master-roadmap.js";
 export * from "./permission-policy.js";
 export * from "./phase-report.js";

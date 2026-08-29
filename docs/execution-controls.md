@@ -14,7 +14,9 @@ that the headless CLI names as `project.pause`, `project.cancel`, `project.resum
   output, and leaves the task `INTERRUPTED` rather than permanently cancelled.
 - Stop is graceful. It does not delete, reset, stash, or roll back completed work. Core records a
   stopped execution-control disposition while using the canonical project state `PAUSED`; the
-  control record makes stop distinct and prevents an ordinary resume.
+  control record makes stop distinct and prevents an ordinary resume. Stop also releases the
+  project's built-in keep-awake assertion immediately, even when worker shutdown must wait for the
+  next safe boundary.
 - Repeated pause and stop commands observe the durable control record and return unchanged instead
   of appending conflicting facts or repeating state transitions.
 

@@ -292,6 +292,7 @@ export interface EventRepository {
 export interface ProjectSettingsRepository {
   set(settings: ProjectSettingsRecord): ProjectSettingsRecord;
   findByProjectId(projectId: Project["id"]): ProjectSettingsRecord | undefined;
+  list(): readonly ProjectSettingsRecord[];
 }
 
 export interface PhaseReportRepository {
@@ -1860,6 +1861,18 @@ class SqliteProjectSettingsRepository implements ProjectSettingsRepository {
           values: jsonObjectSchema.parse(parseJson(requiredString(row, "values_json"))),
           updatedAt: requiredString(row, "updated_at"),
         });
+  }
+
+  list(): readonly ProjectSettingsRecord[] {
+    return Object.freeze(
+      this.connection.all("SELECT * FROM project_settings ORDER BY project_id").map((row) =>
+        validateSettings({
+          projectId: requiredString(row, "project_id") as Project["id"],
+          values: jsonObjectSchema.parse(parseJson(requiredString(row, "values_json"))),
+          updatedAt: requiredString(row, "updated_at"),
+        }),
+      ),
+    );
   }
 }
 

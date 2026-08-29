@@ -14,6 +14,7 @@ import {
   ProjectExecutionOrchestrator,
   type ProjectLifecycleResult,
 } from "./execution-modes.js";
+import { KeepAwakeManager } from "./keep-awake.js";
 import { type DensaDatabase } from "./persistence/database.js";
 import {
   GitWorkspaceProbe,
@@ -102,6 +103,11 @@ export interface ProjectExecutionControlOptions {
   readonly workspaceProbe?: WorkspaceProbe;
   readonly preflight?: ReadonlyInspector<WorkspacePreflightResult>;
   readonly recoveryInspector?: RecoveryInspectionBoundary;
+  readonly keepAwake?: ProjectKeepAwakeBoundary;
+}
+
+export interface ProjectKeepAwakeBoundary {
+  releaseProject(projectId: ProjectId, actor: string): Promise<unknown>;
 }
 
 interface ActiveExecution {
@@ -269,6 +275,7 @@ export class ProjectExecutionControlService {
   readonly #workspaceProbe: WorkspaceProbe;
   readonly #preflight: ReadonlyInspector<WorkspacePreflightResult>;
   readonly #recovery: RecoveryInspectionBoundary;
+  readonly #keepAwake: ProjectKeepAwakeBoundary;
 
   constructor(
     private readonly database: DensaDatabase,
@@ -284,6 +291,7 @@ export class ProjectExecutionControlService {
       new RecoveryInspector(database.repositories, {
         workspaceProbe: this.#workspaceProbe,
       });
+    this.#keepAwake = options.keepAwake ?? new KeepAwakeManager(database);
   }
 
   async execute(
@@ -369,7 +377,11 @@ export class ProjectExecutionControlService {
   }
 
   async stop(request: ProjectControlRequest): Promise<ProjectControlCommandResult> {
-    return await this.#requestBoundary(request, "stop_requested");
+    const result = await this.#requestBoundary(request, "stop_requested");
+    if (result.status === "REQUESTED" || result.status === "STOPPED") {
+      await this.#keepAwake.releaseProject(request.projectId, request.actor);
+    }
+    return result;
   }
 
   async resume(request: ResumeProjectRequest): Promise<ResumeProjectResult> {
