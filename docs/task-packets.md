@@ -14,6 +14,10 @@ focused summaries; raw file contents are not accepted by this boundary. The buil
 references and stale roadmap/runtime mappings instead of guessing. Every included source is listed
 in `contextSources` by kind and stable source identifier.
 
+Durable project constraints are included without caller selection: every active constraint whose
+project, phase, or task scope applies to the current task is injected from SQLite. Superseded
+constraints and old Master/worker conversation events are never treated as authoritative memory.
+
 The packet always includes the roadmap project summary, current phase and exact task goals,
 acceptance criteria, direct dependencies with their persisted state, the permission envelope, and a
 scope guard forbidding unrelated changes. For a retry, it includes only the latest relevant prior

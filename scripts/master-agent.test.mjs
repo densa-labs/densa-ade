@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { rm, writeFile } from "node:fs/promises";
+import { readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { test } from "node:test";
 
@@ -81,8 +81,16 @@ function seed() {
   database.repositories.decisions.create({
     id: "decision-architecture",
     projectId: "project-master",
+    kind: "decision",
+    statement: "Keep Core authoritative.",
     title: "Keep Core authoritative",
     rationale: "All mutations must pass through Core domain services.",
+    category: "architecture.authority",
+    source: "system",
+    scope: "project",
+    status: "active",
+    affectedPhaseIds: [],
+    affectedTaskIds: [],
     createdAt,
   });
   database.repositories.events.append({
@@ -372,18 +380,18 @@ test("scope roadmap proposals cannot bypass Core permission policy", async () =>
   database.close();
 });
 
-test("constraint actions remain non-authoritative proposals until the P8M1 persistence workflow", async () => {
+test("constraint actions persist through Core and update the portable decision record", async () => {
+  await rm(workspacePath, { force: true, recursive: true });
   const database = seed();
   const structured = proposal("propose_project_constraint_change", {
     kind: "propose_project_constraint_change",
     change: {
-      operation: "replace",
+      operation: "add",
       path: "platformRuntimeConstraints.target",
       value: { target: "macOS" },
     },
     rationale: "Keep the v0.1 target explicit.",
   });
-  const before = database.repositories.projectSettings.findByProjectId("project-master");
   const { service } = serviceWithGateway(
     database,
     structured,
@@ -392,10 +400,19 @@ test("constraint actions remain non-authoritative proposals until the P8M1 persi
 
   const response = await service.handle(request("Propose a macOS-only constraint."));
 
-  assert.equal(response.commandResult.status, "PROPOSED");
-  assert.equal(response.commandResult.details.persistenceRequired, true);
-  assert.deepEqual(database.repositories.projectSettings.findByProjectId("project-master"), before);
+  assert.equal(response.commandResult.status, "APPLIED");
+  const constraint = database.repositories.decisions
+    .listByProjectId("project-master")
+    .find((decision) => decision.kind === "constraint");
+  assert.ok(constraint);
+  assert.equal(constraint.category, "platformRuntimeConstraints.target");
+  assert.equal(constraint.source, "master");
+  assert.equal(constraint.status, "active");
+  const portable = await readFile(path.join(workspacePath, ".densa", "DECISIONS.md"), "utf8");
+  assert.match(portable, /platformRuntimeConstraints\.target/u);
+  assert.match(portable, /Status: active/u);
   database.close();
+  await rm(workspacePath, { force: true, recursive: true });
 });
 
 test("unknown citations fail closed before any Core command is invoked", async () => {

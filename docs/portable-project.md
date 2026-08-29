@@ -25,7 +25,8 @@ schema-versioned JSON block for lossless round-trips. `ROADMAP.md` renders the a
 Roadmap when one has been stored, including phase goals, risks, validators, supersession,
 dependencies, acceptance criteria, its canonical JSON block, and roadmap-revision history. Older
 projects without that record continue to render their runtime phase/task projection. `DECISIONS.md` renders the
-project's durable decisions. `config.json` contains non-secret portable project settings. The
+project's durable decisions and constraints, including scope, source, active/superseded status,
+supersession links, and affected roadmap/task references. `config.json` contains non-secret portable project settings. The
 reports and logs directories are created for later bounded artifacts; P2M3 does not invent report
 or log records that do not yet exist.
 

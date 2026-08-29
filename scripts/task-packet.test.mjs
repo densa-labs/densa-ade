@@ -1,8 +1,14 @@
 import assert from "node:assert/strict";
 import { Buffer } from "node:buffer";
+import { readFile, rm } from "node:fs/promises";
 import { test } from "node:test";
 
-import { TASK_PACKET_MAX_BYTES, TaskPacketBuilder, renderTaskPacketPrompt } from "@densa/core";
+import {
+  ProjectDecisionService,
+  TASK_PACKET_MAX_BYTES,
+  TaskPacketBuilder,
+  renderTaskPacketPrompt,
+} from "@densa/core";
 import { DensaDatabase } from "@densa/core/persistence";
 import { masterRoadmapSchema } from "@densa/protocol";
 
@@ -125,15 +131,31 @@ function seed(database, options = {}) {
   database.repositories.decisions.create({
     id: "decision.relevant",
     projectId,
+    kind: "decision",
+    statement: "Keep Core independent.",
     title: "Keep Core independent",
     rationale: "The adapter token is <secret>decision-secret</secret> and must stay hidden.",
+    category: "architecture.core",
+    source: "system",
+    scope: "project",
+    status: "active",
+    affectedPhaseIds: [],
+    affectedTaskIds: [],
     createdAt: "2026-08-27T09:00:01.000Z",
   });
   database.repositories.decisions.create({
     id: "decision.irrelevant",
     projectId,
+    kind: "decision",
+    statement: "IRRELEVANT_DECISION_SENTINEL",
     title: "IRRELEVANT_DECISION_SENTINEL",
     rationale: "This applies only to a future UI phase.",
+    category: "ux.future",
+    source: "system",
+    scope: "project",
+    status: "active",
+    affectedPhaseIds: [],
+    affectedTaskIds: [],
     createdAt: "2026-08-27T09:00:02.000Z",
   });
   database.repositories.events.append({
@@ -367,4 +389,101 @@ test("stale or unsafe context selections fail closed", () => {
     assert.equal(unsafePath.status, "rejected");
     assert.equal(unsafePath.code, "INVALID_CONTEXT_SELECTION");
   });
+});
+
+test("durable active constraints affect future packets while conflicts and supersession stay auditable", async () => {
+  const workspacePath = "/tmp/densa-p8m1-task-packet";
+  await rm(workspacePath, { force: true, recursive: true });
+  const database = DensaDatabase.openInMemory();
+  try {
+    seed(database);
+    let tick = 0;
+    let decisionNumber = 0;
+    let eventNumber = 0;
+    const service = new ProjectDecisionService(database, {
+      workspacePath,
+      now: () => new Date(Date.parse(createdAt) + ++tick * 1_000).toISOString(),
+      decisionIdFactory: () => `decision.constraint.${String(++decisionNumber)}`,
+      eventIdFactory: () => `event-constraint-${String(++eventNumber)}`,
+    });
+    const base = {
+      projectId,
+      kind: "constraint",
+      title: "Database constraint",
+      rationale: "The user wants one durable persistence boundary.",
+      category: "architecture.database",
+      source: "user",
+      scope: "project",
+      affectedPhaseIds: [],
+      affectedTaskIds: [],
+      actor: "user:test",
+    };
+
+    const first = await service.record({
+      ...base,
+      statement: "Do not use Firebase anywhere in this project.",
+    });
+    assert.equal(first.status, "RECORDED");
+    const firstPacket = new TaskPacketBuilder(database.repositories).build(request());
+    assert.equal(firstPacket.status, "built");
+    assert.deepEqual(
+      firstPacket.packet.projectConstraints.map(({ id, statement }) => ({ id, statement })),
+      [
+        {
+          id: "decision.constraint.1",
+          statement: "Do not use Firebase anywhere in this project.",
+        },
+      ],
+    );
+
+    database.repositories.events.append({
+      id: "event-old-worker-session",
+      projectId,
+      type: "WORKER_MESSAGE_RECORDED",
+      eventVersion: 1,
+      occurredAt: "2026-08-27T09:00:10.000Z",
+      actor: "worker:old-session",
+      payload: { rememberedConstraint: "Use Firebase instead." },
+    });
+    const conflict = await service.record({
+      ...base,
+      statement: "Use Firebase for all project persistence.",
+    });
+    assert.equal(conflict.status, "CONFLICT_REQUIRES_USER_DECISION");
+    assert.deepEqual(conflict.conflictDecisionIds, ["decision.constraint.1"]);
+    assert.equal(conflict.event.type, "PROJECT_CONSTRAINT_CONFLICT_DETECTED");
+
+    const replacement = await service.record({
+      ...base,
+      statement: "Use SQLite for authoritative runtime state.",
+      supersedesId: "decision.constraint.1",
+    });
+    assert.equal(replacement.status, "RECORDED");
+    assert.equal(replacement.decision.supersedesId, "decision.constraint.1");
+    assert.equal(
+      database.repositories.decisions.findById("decision.constraint.1").status,
+      "superseded",
+    );
+
+    const futurePacket = new TaskPacketBuilder(database.repositories).build(request());
+    assert.equal(futurePacket.status, "built");
+    assert.deepEqual(
+      futurePacket.packet.projectConstraints.map(({ id, statement }) => ({ id, statement })),
+      [
+        {
+          id: "decision.constraint.2",
+          statement: "Use SQLite for authoritative runtime state.",
+        },
+      ],
+    );
+    assert.equal(JSON.stringify(futurePacket.packet).includes("Use Firebase instead"), false);
+
+    const portable = await readFile(`${workspacePath}/.densa/DECISIONS.md`, "utf8");
+    assert.match(portable, /Status: superseded/u);
+    assert.match(portable, /Supersedes: `decision\.constraint\.1`/u);
+    assert.match(portable, /Use SQLite for authoritative runtime state\./u);
+  } finally {
+    database.close();
+    await rm(workspacePath, { force: true, recursive: true });
+  }
 });

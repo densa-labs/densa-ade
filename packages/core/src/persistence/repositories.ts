@@ -172,6 +172,7 @@ export interface DecisionRepository {
   create(decision: Decision): Decision;
   findById(id: Decision["id"]): Decision | undefined;
   listByProjectId(projectId: Project["id"]): readonly Decision[];
+  markSuperseded(id: Decision["id"], supersededAt: string): Decision;
 }
 
 export interface RoadmapRevisionRepository {
@@ -1157,13 +1158,25 @@ class SqliteDecisionRepository implements DecisionRepository {
   create(input: Decision): Decision {
     const decision = decisionSchema.parse(input);
     this.connection.run(
-      `INSERT INTO decisions (id, project_id, title, rationale, created_at)
-       VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO decisions
+       (id, project_id, kind, statement, title, rationale, category, source, scope, status,
+        supersedes_id, affected_phase_ids_json, affected_task_ids_json, created_at, superseded_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       decision.id,
       decision.projectId,
+      decision.kind,
+      decision.statement,
       decision.title,
       decision.rationale,
+      decision.category,
+      decision.source,
+      decision.scope,
+      decision.status,
+      decision.supersedesId ?? null,
+      JSON.stringify(decision.affectedPhaseIds),
+      JSON.stringify(decision.affectedTaskIds),
       decision.createdAt,
+      decision.supersededAt ?? null,
     );
     return decision;
   }
@@ -1181,13 +1194,43 @@ class SqliteDecisionRepository implements DecisionRepository {
     );
   }
 
+  markSuperseded(id: Decision["id"], supersededAtInput: string): Decision {
+    const supersededAt = isoTimestampSchema.parse(supersededAtInput);
+    const changes = this.connection.run(
+      `UPDATE decisions SET status = 'superseded', superseded_at = ?
+       WHERE id = ? AND status = 'active'`,
+      supersededAt,
+      id,
+    );
+    if (changes !== 1) {
+      throw new PersistenceError(`Decision ${id} is missing or is no longer active`);
+    }
+    const decision = this.findById(id);
+    if (decision === undefined) {
+      throw new PersistenceError(`Decision ${id} disappeared after supersession`);
+    }
+    return decision;
+  }
+
   private parse(row: SqliteRow): Decision {
+    const supersedesId = optionalString(row, "supersedes_id");
+    const supersededAt = optionalString(row, "superseded_at");
     return decisionSchema.parse({
       id: requiredString(row, "id"),
       projectId: requiredString(row, "project_id"),
+      kind: requiredString(row, "kind"),
+      statement: requiredString(row, "statement"),
       title: requiredString(row, "title"),
       rationale: requiredString(row, "rationale"),
+      category: requiredString(row, "category"),
+      source: requiredString(row, "source"),
+      scope: requiredString(row, "scope"),
+      status: requiredString(row, "status"),
+      ...(supersedesId === undefined ? {} : { supersedesId }),
+      affectedPhaseIds: parseJson(requiredString(row, "affected_phase_ids_json")),
+      affectedTaskIds: parseJson(requiredString(row, "affected_task_ids_json")),
       createdAt: requiredString(row, "created_at"),
+      ...(supersededAt === undefined ? {} : { supersededAt }),
     });
   }
 }

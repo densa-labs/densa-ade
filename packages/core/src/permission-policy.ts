@@ -355,9 +355,13 @@ export class PermissionPolicyService {
     let source: PermissionDecision["source"] = evaluated.source;
     if (request.approvalDecisionId !== undefined) {
       const approval = this.database.repositories.decisions.findById(request.approvalDecisionId);
-      if (approval?.projectId !== request.projectId) {
+      if (
+        approval?.projectId !== request.projectId ||
+        approval.source !== "user" ||
+        approval.status !== "active"
+      ) {
         throw new PermissionPolicyError(
-          `Approval decision ${request.approvalDecisionId} is not recorded for project ${request.projectId}`,
+          `Approval decision ${request.approvalDecisionId} is not an active user decision for project ${request.projectId}`,
         );
       }
       if (disposition === "ask_user") {

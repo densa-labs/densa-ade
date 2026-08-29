@@ -24,8 +24,10 @@ services:
   transitions;
 - execution-mode requests go through `ExecutionModeService` and its atomic event persistence.
 
-Project-constraint actions are non-authoritative proposals in P8M0. They do not update project
-settings or specifications; the decision and constraint persistence workflow is P8M1 scope.
+Project-constraint actions pass through `ProjectDecisionService`. Adds, replacements, and removals
+become durable, audited records and regenerate `.densa/DECISIONS.md`; overlapping contradictory
+constraints return a blocked user-decision flow. The Master still receives no repository or state
+mutation API and cannot bypass this Core validation boundary.
 
 Worker orchestration has no dependency on `MasterAgentService`, a Master session, or a Master
 conversation transcript. Master responses are coordination input, not completion evidence, and the

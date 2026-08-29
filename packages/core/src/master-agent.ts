@@ -11,6 +11,7 @@ import {
   type Event,
   type ExecutionMode,
   type JsonObject,
+  type JsonValue,
   type MasterAgentCitation,
   type MasterAgentProposal,
   type Phase,
@@ -30,6 +31,7 @@ import {
 } from "./execution-control.js";
 import type { PersistedEvent } from "./event-publisher.js";
 import type { DensaDatabase } from "./persistence/database.js";
+import { ProjectDecisionService } from "./project-decisions.js";
 import { RoadmapMutationService } from "./roadmap-mutations.js";
 import { SecretRedactor } from "./secret-redaction.js";
 
@@ -292,21 +294,90 @@ export class ValidatedMasterCoreCommandGateway implements MasterCoreCommandGatew
           }),
         });
       }
-      case "propose_project_constraint_change":
-        // P8M0 establishes the safe proposal boundary. P8M1 will persist decisions and constraints.
+      case "propose_project_constraint_change": {
+        const active = this.database.repositories.decisions
+          .listByProjectId(command.projectId)
+          .filter(
+            (decision) =>
+              decision.kind === "constraint" &&
+              decision.status === "active" &&
+              decision.category === command.change.path,
+          );
+        if (command.change.operation !== "add" && active.length === 0) {
+          return Object.freeze({
+            command: command.kind,
+            status: "NOT_FOUND" as const,
+            details: Object.freeze({ category: command.change.path }),
+          });
+        }
+        if (command.change.operation !== "add" && active.length > 1) {
+          return Object.freeze({
+            command: command.kind,
+            status: "BLOCKED" as const,
+            details: Object.freeze({
+              category: command.change.path,
+              reason: "Multiple active constraints require an explicit user decision",
+              conflictDecisionIds: active.map(({ id }) => id),
+            }),
+          });
+        }
+        const replacing = active[0];
+        const removing = command.change.operation === "remove";
+        const result = await new ProjectDecisionService(this.database, {
+          workspacePath: command.workspacePath,
+          ...(this.#now === undefined ? {} : { now: this.#now }),
+        }).record({
+          projectId: command.projectId,
+          kind: removing ? "decision" : "constraint",
+          statement: removing
+            ? `Removed project constraint ${command.change.path}`
+            : constraintStatement(command.change.path, command.change.value),
+          title: removing
+            ? `Remove constraint: ${command.change.path}`
+            : `Project constraint: ${command.change.path}`,
+          rationale: command.rationale,
+          category: command.change.path,
+          source: "master",
+          scope: "project",
+          affectedPhaseIds: [],
+          affectedTaskIds: [],
+          ...(command.change.operation === "add" || replacing === undefined
+            ? {}
+            : { supersedesId: replacing.id }),
+          actor: command.actor,
+        });
+        if (result.status === "UNCHANGED") {
+          return Object.freeze({
+            command: command.kind,
+            status: "UNCHANGED" as const,
+            details: Object.freeze({ decisionId: result.decision.id }),
+          });
+        }
+        if (result.status === "CONFLICT_REQUIRES_USER_DECISION") {
+          return Object.freeze({
+            command: command.kind,
+            status: "BLOCKED" as const,
+            details: Object.freeze({
+              conflictDecisionIds: [...result.conflictDecisionIds],
+              decisionFlowEventId: result.event.id,
+              reason: "Conflicting active constraints require an explicit user decision",
+            }),
+          });
+        }
         return Object.freeze({
           command: command.kind,
-          status: "PROPOSED" as const,
+          status: "APPLIED" as const,
           details: Object.freeze({
-            rationale: command.rationale,
-            change: {
-              operation: command.change.operation,
-              path: command.change.path,
-              ...(command.change.value === undefined ? {} : { value: command.change.value }),
-            },
-            persistenceRequired: true,
+            decisionId: result.decision.id,
+            eventId: result.event.id,
+            decisionStatus: result.decision.status,
+            ...(result.decision.supersedesId === undefined
+              ? {}
+              : { supersedesId: result.decision.supersedesId }),
+            portableSyncStatus: result.portableSync.status,
           }),
         });
+      }
       case "request_pause":
         return controlResult(command.kind, await this.#executionControl.pause(command));
       case "request_resume":
@@ -338,6 +409,28 @@ export class ValidatedMasterCoreCommandGateway implements MasterCoreCommandGatew
       );
     }
   }
+}
+
+function constraintStatement(path: string, value: ProjectConstraintChange["value"]): string {
+  if (typeof value === "string") return value;
+  if (value === undefined) {
+    throw new MasterAgentError(
+      "INTERNAL_INVARIANT_VIOLATION",
+      "A non-removal constraint change reached Core without a value",
+    );
+  }
+  return `${path} = ${stableConstraintValue(value)}`;
+}
+
+function stableConstraintValue(value: JsonValue): string {
+  if (Array.isArray(value)) return `[${value.map(stableConstraintValue).join(",")}]`;
+  if (value !== null && typeof value === "object") {
+    return `{${Object.keys(value)
+      .sort((left, right) => left.localeCompare(right))
+      .map((key) => `${JSON.stringify(key)}:${stableConstraintValue(value[key] ?? null)}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(value) ?? "null";
 }
 
 function controlResult(

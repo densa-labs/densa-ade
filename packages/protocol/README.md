@@ -44,3 +44,8 @@ responses from roadmap proposals, project-constraint proposals, and pause/resume
 Responses may cite typed internal IDs, but Core validates those citations against the requested
 project and translates actions through authoritative domain services; the agent never receives a
 direct state-mutation capability.
+
+`Decision` is the durable steering record. Its strict contract distinguishes decisions from
+constraints and records the statement, category, source, scope, active/superseded status,
+supersession link, timestamps, and affected phase/task references used to construct future worker
+context.

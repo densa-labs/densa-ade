@@ -541,6 +541,50 @@ CREATE INDEX independent_reviews_validation_event
   ON independent_reviews (validation_event_id, requested_at, id);
 `;
 
+const durableProjectDecisions = `
+CREATE TABLE decisions_v13 (
+  id TEXT PRIMARY KEY CHECK (length(id) > 0),
+  project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL CHECK (kind IN ('decision', 'constraint')),
+  statement TEXT NOT NULL CHECK (length(trim(statement)) > 0),
+  title TEXT NOT NULL CHECK (length(title) > 0),
+  rationale TEXT NOT NULL CHECK (length(rationale) > 0),
+  category TEXT NOT NULL CHECK (length(trim(category)) > 0),
+  source TEXT NOT NULL CHECK (source IN ('user', 'master', 'system')),
+  scope TEXT NOT NULL CHECK (scope IN ('project', 'phase', 'task')),
+  status TEXT NOT NULL CHECK (status IN ('active', 'superseded')),
+  supersedes_id TEXT,
+  affected_phase_ids_json TEXT NOT NULL CHECK (json_valid(affected_phase_ids_json)),
+  affected_task_ids_json TEXT NOT NULL CHECK (json_valid(affected_task_ids_json)),
+  created_at TEXT NOT NULL CHECK (length(created_at) >= 20),
+  superseded_at TEXT CHECK (superseded_at IS NULL OR length(superseded_at) >= 20),
+  UNIQUE (project_id, id),
+  UNIQUE (supersedes_id),
+  FOREIGN KEY (project_id, supersedes_id) REFERENCES decisions_v13(project_id, id) ON DELETE RESTRICT,
+  CHECK (id <> supersedes_id),
+  CHECK ((status = 'superseded') = (superseded_at IS NOT NULL)),
+  CHECK (scope <> 'phase' OR json_array_length(affected_phase_ids_json) > 0),
+  CHECK (scope <> 'task' OR json_array_length(affected_task_ids_json) > 0)
+) STRICT;
+
+INSERT INTO decisions_v13 (
+  id, project_id, kind, statement, title, rationale, category, source, scope, status,
+  supersedes_id, affected_phase_ids_json, affected_task_ids_json, created_at, superseded_at
+)
+SELECT
+  id, project_id, 'decision', title, title, rationale, 'legacy', 'system', 'project', 'active',
+  NULL, '[]', '[]', created_at, NULL
+FROM decisions;
+
+DROP TABLE decisions;
+ALTER TABLE decisions_v13 RENAME TO decisions;
+
+CREATE INDEX decisions_project_status_created
+  ON decisions (project_id, status, created_at, id);
+CREATE INDEX decisions_project_kind_category
+  ON decisions (project_id, kind, category, status, created_at, id);
+`;
+
 export const schemaMigrations: readonly SchemaMigration[] = Object.freeze([
   Object.freeze({ version: 1, name: "authoritative_runtime_schema", sql: initialSchema }),
   Object.freeze({ version: 2, name: "ordered_event_journal", sql: orderedEventJournal }),
@@ -581,6 +625,11 @@ export const schemaMigrations: readonly SchemaMigration[] = Object.freeze([
     version: 12,
     name: "fresh_context_independent_review",
     sql: freshContextIndependentReview,
+  }),
+  Object.freeze({
+    version: 13,
+    name: "durable_project_decisions",
+    sql: durableProjectDecisions,
   }),
 ]);
 

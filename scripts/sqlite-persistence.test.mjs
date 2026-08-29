@@ -112,8 +112,8 @@ test("a file database migrates from zero and reopening does not reapply migratio
   const path = join(directory, "runtime.sqlite");
   try {
     const first = DensaDatabase.open(path, { now: fixedMigrationTime });
-    assert.equal(first.schemaVersion, 12);
-    assert.equal(first.expectedSchemaVersion, 12);
+    assert.equal(first.schemaVersion, 13);
+    assert.equal(first.expectedSchemaVersion, 13);
     assert.deepEqual(first.listUserTables(), [
       "acceptance_criteria",
       "agent_runs",
@@ -141,7 +141,7 @@ test("a file database migrates from zero and reopening does not reapply migratio
     first.close();
 
     const reopened = DensaDatabase.open(path, { now: fixedMigrationTime });
-    assert.equal(reopened.schemaVersion, 12);
+    assert.equal(reopened.schemaVersion, 13);
     reopened.close();
   } finally {
     rmSync(directory, { force: true, recursive: true });
@@ -208,7 +208,7 @@ test("repository creation cannot bypass canonical initial states", () => {
 
 test("all remaining P2M1 repositories round-trip their runtime records", () => {
   withDatabase(({ repositories }) => {
-    const { project, task } = seedTaskGraph(repositories);
+    const { project, phase, task } = seedTaskGraph(repositories);
     const specification = {
       projectId: project.id,
       specification: makeSpecification(),
@@ -243,8 +243,16 @@ test("all remaining P2M1 repositories round-trip their runtime records", () => {
     const decision = {
       id: "decision-1",
       projectId: project.id,
+      kind: "decision",
+      statement: "Use SQLite for authoritative runtime state.",
       title: "Use SQLite",
       rationale: "Runtime state needs transactions and foreign keys.",
+      category: "architecture.persistence",
+      source: "system",
+      scope: "project",
+      status: "active",
+      affectedPhaseIds: [phase.id],
+      affectedTaskIds: [task.id],
       createdAt,
     };
     const revision = {
@@ -321,7 +329,7 @@ test("all remaining P2M1 repositories round-trip their runtime records", () => {
   });
 });
 
-test("migrations 3 through 12 preserve version-2 runtime rows and convert legacy specifications", () => {
+test("migrations 3 through 13 preserve version-2 runtime rows and convert legacy specifications", () => {
   const directory = mkdtempSync(join(tmpdir(), "densa-p2m4-migration-"));
   const path = join(directory, "runtime.sqlite");
   try {
@@ -392,6 +400,12 @@ test("migrations 3 through 12 preserve version-2 runtime rows and convert legacy
       .run(createdAt);
     raw
       .prepare(
+        `INSERT INTO decisions (id, project_id, title, rationale, created_at)
+         VALUES ('decision-v2', 'project-v2', 'Keep legacy choice', 'Preserve audit history', ?)`,
+      )
+      .run(createdAt);
+    raw
+      .prepare(
         `INSERT INTO specifications (project_id, content, created_at, updated_at)
          VALUES ('project-v2', ?, ?, ?)`,
       )
@@ -405,7 +419,7 @@ test("migrations 3 through 12 preserve version-2 runtime rows and convert legacy
     raw.close();
 
     const database = DensaDatabase.open(path, { now: fixedMigrationTime });
-    assert.equal(database.schemaVersion, 12);
+    assert.equal(database.schemaVersion, 13);
     assert.deepEqual(database.repositories.agentRuns.findById("agent-run-v2"), {
       id: "agent-run-v2",
       attemptId: "attempt-v2",
@@ -419,6 +433,21 @@ test("migrations 3 through 12 preserve version-2 runtime rows and convert legacy
       description: "pre-recovery metadata",
     });
     assert.equal(database.repositories.attempts.findById("attempt-v2").commitSha, undefined);
+    assert.deepEqual(database.repositories.decisions.findById("decision-v2"), {
+      id: "decision-v2",
+      projectId: "project-v2",
+      kind: "decision",
+      statement: "Keep legacy choice",
+      title: "Keep legacy choice",
+      rationale: "Preserve audit history",
+      category: "legacy",
+      source: "system",
+      scope: "project",
+      status: "active",
+      affectedPhaseIds: [],
+      affectedTaskIds: [],
+      createdAt,
+    });
     assert.deepEqual(database.repositories.specifications.findByProjectId("project-v2"), {
       projectId: "project-v2",
       specification: {

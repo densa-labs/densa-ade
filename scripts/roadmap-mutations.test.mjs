@@ -502,8 +502,16 @@ test("accepted mutations atomically persist history and event, then regenerate R
     database.repositories.decisions.create({
       id: "decision-remove-optional-phase",
       projectId,
+      kind: "decision",
+      statement: "Remove the optional phase.",
       title: "Remove optional phase",
       rationale: "The user explicitly approved removal after reviewing the scope impact.",
+      category: "approval.roadmap-scope-change",
+      source: "user",
+      scope: "phase",
+      status: "active",
+      affectedPhaseIds: ["phase.optional"],
+      affectedTaskIds: [],
       createdAt: changedAt,
     });
     const approved = await service.apply(projectId, {

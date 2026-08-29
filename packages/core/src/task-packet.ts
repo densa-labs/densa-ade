@@ -24,6 +24,7 @@ const MAX_ACCEPTANCE_CRITERIA = 16;
 const MAX_DEPENDENCIES = 16;
 const MAX_GLOBAL_CONSTRAINTS = 12;
 const MAX_ARCHITECTURAL_DECISIONS = 8;
+const MAX_PROJECT_CONSTRAINTS = 32;
 const MAX_FILE_CONTEXTS = 8;
 const MAX_PERMISSION_ENTRIES = 12;
 
@@ -98,6 +99,14 @@ export interface TaskPacketDecision {
   readonly rationale: string;
 }
 
+export interface TaskPacketProjectConstraint {
+  readonly id: Decision["id"];
+  readonly statement: string;
+  readonly category: string;
+  readonly source: Decision["source"];
+  readonly scope: Decision["scope"];
+}
+
 export interface TaskPacketFileContext {
   readonly path: string;
   readonly summary: string;
@@ -123,6 +132,7 @@ export interface TaskPacketPermissionEnvelope {
 export type TaskPacketSourceKind =
   | "architectural_decision"
   | "global_constraint"
+  | "project_constraint"
   | "permission_envelope"
   | "phase_goal"
   | "previous_attempt_diagnostics"
@@ -157,6 +167,7 @@ export interface TaskPacket {
     dependencies: readonly TaskPacketDependency[];
   }>;
   readonly globalConstraints: readonly TaskPacketConstraint[];
+  readonly projectConstraints: readonly TaskPacketProjectConstraint[];
   readonly architecturalDecisions: readonly TaskPacketDecision[];
   readonly relevantFiles: readonly TaskPacketFileContext[];
   readonly previousAttemptFailure?: TaskPacketPreviousFailure;
@@ -356,10 +367,17 @@ function selectDecisions(
   }
   const byId = new Map(decisions.map((decision) => [decision.id, decision]));
   for (const decisionId of requested) {
-    if (!byId.has(decisionId)) {
+    const decision = byId.get(decisionId);
+    if (decision === undefined) {
       return rejected(
         "INVALID_CONTEXT_SELECTION",
         `Architectural decision ${decisionId} does not exist for the project`,
+      );
+    }
+    if (decision.status !== "active") {
+      return rejected(
+        "INVALID_CONTEXT_SELECTION",
+        `Architectural decision ${decisionId} has been superseded`,
       );
     }
   }
@@ -376,6 +394,41 @@ function selectDecisions(
     addSource(sources, "architectural_decision", `decision:${decision.id}`, tracker);
   }
   return Object.freeze(selected);
+}
+
+function selectProjectConstraints(
+  decisions: readonly Decision[],
+  phase: Phase,
+  task: Task,
+  sources: TaskPacketContextSource[],
+  tracker: TruncationTracker,
+): readonly TaskPacketProjectConstraint[] | TaskPacketRejectedResult {
+  const relevant = decisions.filter(
+    (decision) =>
+      decision.kind === "constraint" &&
+      decision.status === "active" &&
+      (decision.scope === "project" ||
+        (decision.scope === "phase" && decision.affectedPhaseIds.includes(phase.id)) ||
+        (decision.scope === "task" && decision.affectedTaskIds.includes(task.id))),
+  );
+  if (relevant.length > MAX_PROJECT_CONSTRAINTS) {
+    return rejected(
+      "PACKET_TOO_LARGE",
+      `Task packet has more than ${String(MAX_PROJECT_CONSTRAINTS)} relevant active project constraints`,
+    );
+  }
+  return Object.freeze(
+    relevant.map((decision) => {
+      addSource(sources, "project_constraint", `decision:${decision.id}`, tracker);
+      return Object.freeze({
+        id: decision.id,
+        statement: boundedText(decision.statement, MAX_GOAL_BYTES, tracker),
+        category: boundedText(decision.category, MAX_LIST_ENTRY_BYTES, tracker),
+        source: decision.source,
+        scope: decision.scope,
+      });
+    }),
+  );
 }
 
 function selectFiles(
@@ -617,13 +670,22 @@ export class TaskPacketBuilder {
       tracker,
     );
     if ("status" in constraints) return constraints;
+    const projectDecisions = this.repositories.decisions.listByProjectId(project.id);
     const decisions = selectDecisions(
-      this.repositories.decisions.listByProjectId(project.id),
+      projectDecisions,
       request.selection.architecturalDecisionIds,
       sources,
       tracker,
     );
     if ("status" in decisions) return decisions;
+    const projectConstraints = selectProjectConstraints(
+      projectDecisions,
+      phase,
+      task,
+      sources,
+      tracker,
+    );
+    if ("status" in projectConstraints) return projectConstraints;
     const files = selectFiles(request.relevantFiles, sources, tracker);
     if ("status" in files) return files;
     const permissions = normalizePermissionEnvelope(request.permissionEnvelope, tracker);
@@ -733,6 +795,7 @@ export class TaskPacketBuilder {
         dependencies: Object.freeze(dependencies),
       }),
       globalConstraints: constraints,
+      projectConstraints,
       architecturalDecisions: decisions,
       relevantFiles: files,
       ...(previousFailure === undefined ? {} : { previousAttemptFailure: previousFailure }),
@@ -769,6 +832,15 @@ export function renderTaskPacketPrompt(packet: TaskPacket): string {
     ...markdownList(
       packet.globalConstraints.map((constraint) => constraint.text),
       "No additional selected constraints.",
+    ),
+    "",
+    "## Active project constraints",
+    ...markdownList(
+      packet.projectConstraints.map(
+        (constraint) =>
+          `[${constraint.category}; ${constraint.scope}; ${constraint.source}] ${constraint.statement}`,
+      ),
+      "No additional active project constraints apply to this task.",
     ),
     "",
     "## Relevant architectural decisions",

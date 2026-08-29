@@ -302,7 +302,30 @@ function renderDecisions(snapshot: PortableProjectSnapshot, redactor: SecretReda
       `## ${inlineText(redactor.text(decision.title))}`,
       "",
       `- ID: \`${redactor.text(decision.id)}\``,
+      `- Kind: ${decision.kind}`,
+      `- Category: ${inlineText(redactor.text(decision.category))}`,
+      `- Source: ${decision.source}`,
+      `- Scope: ${decision.scope}`,
+      `- Status: ${decision.status}`,
       `- Recorded: ${decision.createdAt}`,
+      ...(decision.supersedesId === undefined
+        ? []
+        : [`- Supersedes: \`${redactor.text(decision.supersedesId)}\``]),
+      ...(decision.supersededAt === undefined ? [] : [`- Superseded: ${decision.supersededAt}`]),
+      `- Affected phases: ${
+        decision.affectedPhaseIds.length === 0
+          ? "none"
+          : decision.affectedPhaseIds.map((id) => `\`${redactor.text(id)}\``).join(", ")
+      }`,
+      `- Affected tasks: ${
+        decision.affectedTaskIds.length === 0
+          ? "none"
+          : decision.affectedTaskIds.map((id) => `\`${redactor.text(id)}\``).join(", ")
+      }`,
+      "",
+      normalizeMarkdown(redactor.text(decision.statement)).trimEnd(),
+      "",
+      "Rationale:",
       "",
       normalizeMarkdown(redactor.text(decision.rationale)).trimEnd(),
       "",

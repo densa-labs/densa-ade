@@ -148,13 +148,81 @@ export const checkpointSchema = z
   });
 export type Checkpoint = z.infer<typeof checkpointSchema>;
 
-export const decisionSchema = z.strictObject({
-  id: decisionIdSchema,
-  projectId: projectIdSchema,
-  title: nonEmptyText,
-  rationale: nonEmptyText,
-  createdAt: isoTimestampSchema,
-});
+export const decisionKindSchema = z.enum(["decision", "constraint"]);
+export type DecisionKind = z.infer<typeof decisionKindSchema>;
+
+export const decisionSourceSchema = z.enum(["user", "master", "system"]);
+export type DecisionSource = z.infer<typeof decisionSourceSchema>;
+
+export const decisionScopeSchema = z.enum(["project", "phase", "task"]);
+export type DecisionScope = z.infer<typeof decisionScopeSchema>;
+
+export const decisionStatusSchema = z.enum(["active", "superseded"]);
+export type DecisionStatus = z.infer<typeof decisionStatusSchema>;
+
+export const decisionSchema = z
+  .strictObject({
+    id: decisionIdSchema,
+    projectId: projectIdSchema,
+    kind: decisionKindSchema,
+    statement: nonEmptyText,
+    title: nonEmptyText,
+    rationale: nonEmptyText,
+    category: nonEmptyText,
+    source: decisionSourceSchema,
+    scope: decisionScopeSchema,
+    status: decisionStatusSchema,
+    supersedesId: decisionIdSchema.optional(),
+    affectedPhaseIds: z.array(phaseIdSchema),
+    affectedTaskIds: z.array(taskIdSchema),
+    createdAt: isoTimestampSchema,
+    supersededAt: isoTimestampSchema.optional(),
+  })
+  .superRefine((decision, context) => {
+    if (decision.supersedesId === decision.id) {
+      context.addIssue({
+        code: "custom",
+        message: "A decision cannot supersede itself",
+        path: ["supersedesId"],
+      });
+    }
+    if (new Set(decision.affectedPhaseIds).size !== decision.affectedPhaseIds.length) {
+      context.addIssue({
+        code: "custom",
+        message: "Affected phase references must be unique",
+        path: ["affectedPhaseIds"],
+      });
+    }
+    if (new Set(decision.affectedTaskIds).size !== decision.affectedTaskIds.length) {
+      context.addIssue({
+        code: "custom",
+        message: "Affected task references must be unique",
+        path: ["affectedTaskIds"],
+      });
+    }
+    if (decision.scope === "phase" && decision.affectedPhaseIds.length === 0) {
+      context.addIssue({
+        code: "custom",
+        message: "Phase-scoped decisions require an affected phase reference",
+        path: ["affectedPhaseIds"],
+      });
+    }
+    if (decision.scope === "task" && decision.affectedTaskIds.length === 0) {
+      context.addIssue({
+        code: "custom",
+        message: "Task-scoped decisions require an affected task reference",
+        path: ["affectedTaskIds"],
+      });
+    }
+    if ((decision.status === "superseded") !== (decision.supersededAt !== undefined)) {
+      context.addIssue({
+        code: "custom",
+        message:
+          "Superseded decisions require a superseded timestamp and active decisions forbid it",
+        path: ["supersededAt"],
+      });
+    }
+  });
 export type Decision = z.infer<typeof decisionSchema>;
 
 export const roadmapRevisionSchema = z.strictObject({

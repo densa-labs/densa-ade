@@ -42,8 +42,16 @@ function approvedDatabase() {
   database.repositories.decisions.create({
     id: "decision-secret-use-approved",
     projectId,
+    kind: "decision",
+    statement: "Approve one bounded secret operation.",
     title: "Approve one bounded secret operation",
     rationale: "The user approved the credential operation for this proof.",
+    category: "approval.secret-access",
+    source: "user",
+    scope: "project",
+    status: "active",
+    affectedPhaseIds: [],
+    affectedTaskIds: [],
     createdAt,
   });
   return database;

@@ -137,8 +137,16 @@ test("ask and deny decisions are audited, while explicit approvals issue unforge
   database.repositories.decisions.create({
     id: "decision-user-approved-scope",
     projectId,
+    kind: "decision",
+    statement: "Approve one scope change.",
     title: "Approve one scope change",
     rationale: "The user explicitly accepted this bounded operation.",
+    category: "approval.roadmap-scope-change",
+    source: "user",
+    scope: "project",
+    status: "active",
+    affectedPhaseIds: [],
+    affectedTaskIds: [],
     createdAt,
   });
   const policy = service(database, "event-policy-decision");

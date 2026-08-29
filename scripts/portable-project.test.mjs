@@ -104,8 +104,16 @@ function seedPortableProject(repositories) {
   repositories.decisions.create({
     id: "decision-portable",
     projectId,
+    kind: "decision",
+    statement: "Keep authoritative state local.",
     title: "Keep state local",
     rationale: "Use SQLite. Bearer abcdefghijklmnopqrstuvwxyz must remain private.",
+    category: "architecture.persistence",
+    source: "system",
+    scope: "project",
+    status: "active",
+    affectedPhaseIds: ["phase-portable"],
+    affectedTaskIds: ["task-portable"],
     createdAt,
   });
   repositories.roadmapRevisions.create({
