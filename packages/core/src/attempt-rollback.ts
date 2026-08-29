@@ -22,6 +22,11 @@ import {
   type RollbackPathSnapshot,
 } from "./persistence/repositories.js";
 import { GitWorkspaceProbe } from "./recovery-inspector.js";
+import {
+  PermissionPolicyService,
+  assertAuthorizedOperation,
+  type AuthorizedOperationContext,
+} from "./permission-policy.js";
 
 const GIT_TIMEOUT_MS = 10_000;
 const GIT_OUTPUT_LIMIT_BYTES = 16 * 1024 * 1024;
@@ -39,6 +44,8 @@ interface GitResult {
 
 export type AttemptRollbackStopCode =
   | "INVALID_REQUEST"
+  | "POLICY_ASK_USER"
+  | "POLICY_DENIED"
   | "ATTEMPT_MISMATCH"
   | "NOT_FAILED"
   | "WORKSPACE_MISMATCH"
@@ -159,6 +166,27 @@ async function runGit(cwd: string, args: readonly string[]): Promise<GitResult> 
     }, GIT_TIMEOUT_MS);
     timeoutHandle.unref();
   });
+}
+
+async function runAuthorizedRollbackGit(
+  destructiveAuthorization: AuthorizedOperationContext,
+  gitAuthorization: AuthorizedOperationContext,
+  projectId: ProjectId,
+  cwd: string,
+  args: readonly string[],
+): Promise<GitResult> {
+  assertAuthorizedOperation(destructiveAuthorization, projectId, "destructive_file_operation");
+  assertAuthorizedOperation(gitAuthorization, projectId, "git_mutation");
+  return await runGit(cwd, args);
+}
+
+async function authorizedUnlink(
+  authorization: AuthorizedOperationContext,
+  projectId: ProjectId,
+  path: string,
+): Promise<void> {
+  assertAuthorizedOperation(authorization, projectId, "destructive_file_operation");
+  await unlink(path);
 }
 
 function gitFailure(command: string, result: GitResult): string {
@@ -873,6 +901,39 @@ export class AttemptRollbackService {
           recoveredExistingRollback: true,
         });
       }
+      const policy = new PermissionPolicyService(this.database);
+      const destructivePermission = policy.authorize({
+        projectId: request.projectId,
+        operation: "destructive_file_operation",
+        actor: request.actor,
+        reason: `Restore only the persisted owned paths for failed attempt ${request.attemptId}`,
+        occurredAt: request.rolledBackAt,
+      });
+      if (destructivePermission.authorization === undefined) {
+        return stopped(
+          destructivePermission.decision.disposition === "deny"
+            ? "POLICY_DENIED"
+            : "POLICY_ASK_USER",
+          destructivePermission.decision.reason,
+          [],
+          preservedHumanPaths,
+        );
+      }
+      const gitPermission = policy.authorize({
+        projectId: request.projectId,
+        operation: "git_mutation",
+        actor: request.actor,
+        reason: `Restore the Git index and worktree for failed attempt ${request.attemptId}`,
+        occurredAt: request.rolledBackAt,
+      });
+      if (gitPermission.authorization === undefined) {
+        return stopped(
+          gitPermission.decision.disposition === "deny" ? "POLICY_DENIED" : "POLICY_ASK_USER",
+          gitPermission.decision.reason,
+          [],
+          preservedHumanPaths,
+        );
+      }
       const restored: string[] = [];
       const cleanedTemporary: string[] = [];
       for (const snapshot of plan.ownedPaths) {
@@ -902,13 +963,19 @@ export class AttemptRollbackService {
             literalPathspec(snapshot.path),
           ]);
           if (staged.exitCode === 1) {
-            const unstage = await runGit(identity.root, [
-              "restore",
-              `--source=${plan.checkpointHead}`,
-              "--staged",
-              "--",
-              literalPathspec(snapshot.path),
-            ]);
+            const unstage = await runAuthorizedRollbackGit(
+              destructivePermission.authorization,
+              gitPermission.authorization,
+              request.projectId,
+              identity.root,
+              [
+                "restore",
+                `--source=${plan.checkpointHead}`,
+                "--staged",
+                "--",
+                literalPathspec(snapshot.path),
+              ],
+            );
             if (unstage.exitCode !== 0)
               return stopped(
                 "GIT_COMMAND_FAILED",
@@ -924,17 +991,29 @@ export class AttemptRollbackService {
               preservedHumanPaths,
             );
           }
-          if (current.kind !== "ABSENT") await unlink(resolve(identity.root, snapshot.path));
+          if (current.kind !== "ABSENT") {
+            await authorizedUnlink(
+              destructivePermission.authorization,
+              request.projectId,
+              resolve(identity.root, snapshot.path),
+            );
+          }
           if (snapshot.temporary) cleanedTemporary.push(snapshot.path);
         } else {
-          const restore = await runGit(identity.root, [
-            "restore",
-            `--source=${plan.checkpointHead}`,
-            "--staged",
-            "--worktree",
-            "--",
-            literalPathspec(snapshot.path),
-          ]);
+          const restore = await runAuthorizedRollbackGit(
+            destructivePermission.authorization,
+            gitPermission.authorization,
+            request.projectId,
+            identity.root,
+            [
+              "restore",
+              `--source=${plan.checkpointHead}`,
+              "--staged",
+              "--worktree",
+              "--",
+              literalPathspec(snapshot.path),
+            ],
+          );
           if (restore.exitCode !== 0)
             return stopped(
               "GIT_COMMAND_FAILED",

@@ -16,6 +16,11 @@ import { GitWorkspaceProbe, type WorkspaceSnapshot } from "./recovery-inspector.
 import { type DensaDatabase } from "./persistence/database.js";
 import { type DensaRunBranchRecord, type DensaRepositories } from "./persistence/repositories.js";
 import {
+  PermissionPolicyService,
+  assertAuthorizedOperation,
+  type AuthorizedOperationContext,
+} from "./permission-policy.js";
+import {
   DENSA_RUN_BRANCH_PREFIX,
   WorkspacePreflight,
   type WorkspacePreflightResult,
@@ -36,6 +41,8 @@ interface GitCommandResult {
 
 export type RunCheckpointStopCode =
   | "PREFLIGHT_STOPPED"
+  | "POLICY_ASK_USER"
+  | "POLICY_DENIED"
   | "BRANCH_COLLISION"
   | "RUN_OWNERSHIP_MISMATCH"
   | "GIT_COMMAND_FAILED"
@@ -184,10 +191,13 @@ async function inspectBranch(
 }
 
 async function switchBranch(
+  authorization: AuthorizedOperationContext,
+  projectId: ProjectId,
   workspacePath: string,
   branchName: string,
   startingCommit?: string,
 ): Promise<string | undefined> {
+  assertAuthorizedOperation(authorization, projectId, "git_mutation");
   const args =
     startingCommit === undefined
       ? ["switch", "--quiet", branchName]
@@ -318,6 +328,23 @@ export class RunCheckpointService {
       );
     }
 
+    const permission = new PermissionPolicyService(this.database).authorize({
+      projectId: request.projectId,
+      operation: "git_mutation",
+      actor: request.actor,
+      reason: `Prepare the owned run branch and checkpoint for task ${request.taskId}`,
+      occurredAt: request.createdAt,
+    });
+    if (permission.authorization === undefined) {
+      return stopped(
+        permission.decision.disposition === "deny" ? "POLICY_DENIED" : "POLICY_ASK_USER",
+        permission.decision.reason,
+        preflight,
+        actions,
+      );
+    }
+    const authorization = permission.authorization;
+
     let run = this.database.repositories.densaRunBranches.findByProjectId(request.projectId);
     let branchAction: "CREATED" | "REUSED" = "REUSED";
     if (run === undefined) {
@@ -358,7 +385,13 @@ export class RunCheckpointService {
         startingCommit: preflight.head.commit,
         createdAt: request.createdAt,
       });
-      const failure = await switchBranch(workspaceRoot, branchName, run.startingCommit);
+      const failure = await switchBranch(
+        authorization,
+        request.projectId,
+        workspaceRoot,
+        branchName,
+        run.startingCommit,
+      );
       if (failure !== undefined) {
         const createdRef = await inspectBranch(workspaceRoot, branchName);
         if (createdRef.status === "FAILED") {
@@ -421,14 +454,25 @@ export class RunCheckpointService {
           );
         }
         if (persistedBranchCommit === undefined) {
-          const failure = await switchBranch(workspaceRoot, run.branchName, run.startingCommit);
+          const failure = await switchBranch(
+            authorization,
+            request.projectId,
+            workspaceRoot,
+            run.branchName,
+            run.startingCommit,
+          );
           if (failure !== undefined) {
             return stopped("GIT_COMMAND_FAILED", failure, preflight, actions, run);
           }
           actions.push("CREATED_RUN_BRANCH", "SWITCHED_RUN_BRANCH");
           branchAction = "CREATED";
         } else if (preflight.head.branch !== run.branchName) {
-          const failure = await switchBranch(workspaceRoot, run.branchName);
+          const failure = await switchBranch(
+            authorization,
+            request.projectId,
+            workspaceRoot,
+            run.branchName,
+          );
           if (failure !== undefined) {
             return stopped("GIT_COMMAND_FAILED", failure, preflight, actions, run);
           }
@@ -445,7 +489,12 @@ export class RunCheckpointService {
           );
         }
         if (preflight.head.branch !== run.branchName) {
-          const failure = await switchBranch(workspaceRoot, run.branchName);
+          const failure = await switchBranch(
+            authorization,
+            request.projectId,
+            workspaceRoot,
+            run.branchName,
+          );
           if (failure !== undefined) {
             return stopped("GIT_COMMAND_FAILED", failure, preflight, actions, run);
           }

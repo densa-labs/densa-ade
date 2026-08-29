@@ -26,6 +26,11 @@ import {
 import type { PersistedEvent } from "./event-publisher.js";
 import type { DensaDatabase } from "./persistence/database.js";
 import type { PortableSyncResult } from "./persistence/portable-project.js";
+import {
+  PermissionPolicyService,
+  assertAuthorizedOperation,
+  type AuthorizedOperationContext,
+} from "./permission-policy.js";
 
 const CLASSIFICATION_RANK: Readonly<Record<RoadmapMutationClassification, number>> = {
   minor: 0,
@@ -464,6 +469,18 @@ export class RoadmapMutationService {
       throw invalid("Authoritative master roadmap changed the exact project specification goal");
     }
     const now = isoTimestampSchema.parse(this.#now());
+    const permission = new PermissionPolicyService(this.database).authorize({
+      projectId: project.id,
+      operation: "write_workspace",
+      actor: "densa-core:roadmap-initializer",
+      reason: "Persist the initial authoritative roadmap and portable projection",
+      occurredAt: now,
+    });
+    if (permission.authorization === undefined) {
+      throw invalid(
+        `Initial roadmap persistence requires user authorization: ${permission.decision.disposition}`,
+      );
+    }
     this.database.persistInitialMasterRoadmap({
       projectId: project.id,
       roadmap,
@@ -471,7 +488,7 @@ export class RoadmapMutationService {
       createdAt: now,
       updatedAt: now,
     });
-    const portableSync = await this.#synchronize(project.id);
+    const portableSync = await this.#synchronize(project.id, permission.authorization);
     return Object.freeze({ roadmap, portableSync });
   }
 
@@ -489,13 +506,6 @@ export class RoadmapMutationService {
       request.operation,
       request.classification,
     );
-    const settings = this.database.repositories.projectSettings.findByProjectId(project.id);
-    const policy: RoadmapMutationPolicy = {
-      executionMode: project.executionMode,
-      allowSignificantAutoApply:
-        settings?.values["allowSignificantRoadmapMutationAutoApply"] === true,
-    };
-    assertRoadmapMutationPolicy(classification, request, policy);
     if (request.approval !== undefined) {
       const approvalDecision = this.database.repositories.decisions.findById(
         request.approval.decisionId,
@@ -506,11 +516,66 @@ export class RoadmapMutationService {
         );
       }
     }
+    const now = isoTimestampSchema.parse(this.#now());
+    const policy = new PermissionPolicyService(this.database);
+    const workspacePermission = policy.authorize({
+      projectId: project.id,
+      operation: "write_workspace",
+      actor: request.actor,
+      reason: request.rationale,
+      occurredAt: now,
+      ...(request.approval === undefined
+        ? {}
+        : { approvalDecisionId: request.approval.decisionId }),
+    });
+    if (workspacePermission.authorization === undefined) {
+      throw invalid(
+        `Roadmap workspace mutation requires user authorization: ${workspacePermission.decision.disposition}`,
+      );
+    }
+    if (classification !== "minor") {
+      const classifiedPermission = policy.authorize({
+        projectId: project.id,
+        operation:
+          classification === "scope" ? "roadmap_scope_change" : "roadmap_significant_change",
+        actor: request.actor,
+        reason: request.rationale,
+        occurredAt: now,
+        ...(request.approval === undefined
+          ? {}
+          : { approvalDecisionId: request.approval.decisionId }),
+      });
+      if (classifiedPermission.authorization === undefined) {
+        if (
+          classification === "scope" &&
+          classifiedPermission.decision.disposition === "ask_user"
+        ) {
+          throw invalid(
+            `SCOPE roadmap mutations require explicit user approval in ${project.executionMode} mode`,
+          );
+        }
+        if (
+          classification === "significant" &&
+          classifiedPermission.decision.disposition === "ask_user"
+        ) {
+          throw invalid(
+            "SIGNIFICANT roadmap mutations require approval unless user policy explicitly allows automatic application",
+          );
+        }
+        throw invalid(
+          `${classification.toUpperCase()} roadmap mutation denied by permission policy`,
+        );
+      }
+      assertAuthorizedOperation(
+        classifiedPermission.authorization,
+        project.id,
+        classification === "scope" ? "roadmap_scope_change" : "roadmap_significant_change",
+      );
+    }
     const impact = applyRoadmapMutation(current.roadmap, request.operation);
     if (JSON.stringify(impact.roadmap) === JSON.stringify(current.roadmap)) {
       throw invalid(`${request.operation.kind} did not change the authoritative roadmap`);
     }
-    const now = isoTimestampSchema.parse(this.#now());
     const revisionId = roadmapRevisionIdSchema.parse(this.#revisionIdFactory());
     const eventId = eventIdSchema.parse(this.#eventIdFactory());
     const revision = roadmapRevisionSchema.parse({
@@ -542,7 +607,7 @@ export class RoadmapMutationService {
         operation: request.operation.kind,
         rationale: request.rationale,
         sessionId: request.sessionId,
-        executionMode: policy.executionMode,
+        executionMode: project.executionMode,
         applicationMode: request.applicationMode,
         affectedPhaseIds: [...impact.affectedPhaseIds],
         affectedTaskIds: [...impact.affectedTaskIds],
@@ -562,7 +627,7 @@ export class RoadmapMutationService {
       revision,
       event,
     });
-    const portableSync = await this.#synchronize(project.id);
+    const portableSync = await this.#synchronize(project.id, workspacePermission.authorization);
     return Object.freeze({
       ...impact,
       classification,
@@ -572,7 +637,11 @@ export class RoadmapMutationService {
     });
   }
 
-  async #synchronize(projectId: ProjectId): Promise<RoadmapPortableSyncOutcome> {
+  async #synchronize(
+    projectId: ProjectId,
+    authorization: AuthorizedOperationContext,
+  ): Promise<RoadmapPortableSyncOutcome> {
+    assertAuthorizedOperation(authorization, projectId, "write_workspace");
     try {
       const { PortableProjectSynchronizer } = await import("./persistence/portable-project.js");
       return await new PortableProjectSynchronizer(this.database.repositories).synchronize(

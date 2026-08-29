@@ -16,6 +16,11 @@ import {
 import { type DensaDatabase } from "./persistence/database.js";
 import { type TaskCommitIntentRecord } from "./persistence/repositories.js";
 import { buildAcceptanceReport } from "./acceptance-evidence.js";
+import {
+  PermissionPolicyService,
+  assertAuthorizedOperation,
+  type AuthorizedOperationContext,
+} from "./permission-policy.js";
 import { stateTransitionService } from "./state-transitions.js";
 
 const GIT_TIMEOUT_MS = 10_000;
@@ -33,6 +38,8 @@ interface GitCommandResult {
 
 export type TaskCommitStopCode =
   | "INVALID_INTENDED_PATH"
+  | "POLICY_ASK_USER"
+  | "POLICY_DENIED"
   | "NOT_VALIDATED"
   | "ATTEMPT_MISMATCH"
   | "COMMIT_INTENT_CONFLICT"
@@ -122,6 +129,16 @@ async function runGit(cwd: string, args: readonly string[]): Promise<GitCommandR
     }, GIT_TIMEOUT_MS);
     timeoutHandle.unref();
   });
+}
+
+async function runAuthorizedGitMutation(
+  authorization: AuthorizedOperationContext,
+  projectId: ProjectId,
+  cwd: string,
+  args: readonly string[],
+): Promise<GitCommandResult> {
+  assertAuthorizedOperation(authorization, projectId, "git_mutation");
+  return await runGit(cwd, args);
 }
 
 function gitFailure(command: string, result: GitCommandResult): string {
@@ -488,24 +505,39 @@ export class TaskCommitService {
 
     let preservedChangedPaths: readonly string[] = [];
     if (commitSha === undefined) {
+      const permission = new PermissionPolicyService(this.database).authorize({
+        projectId: request.projectId,
+        operation: "git_mutation",
+        actor: request.actor,
+        reason: `Create the validated atomic task commit for ${request.taskId}`,
+        occurredAt: request.committedAt,
+      });
+      if (permission.authorization === undefined) {
+        return stopped(
+          permission.decision.disposition === "deny" ? "POLICY_DENIED" : "POLICY_ASK_USER",
+          permission.decision.reason,
+        );
+      }
       const before = await changedPaths(workspaceRoot);
       if (before.status === "FAILED") return stopped("GIT_COMMAND_FAILED", before.reason);
       preservedChangedPaths = immutableStrings(
         before.paths.filter((path) => !intendedPaths.includes(path)),
       );
-      const stage = await runGit(workspaceRoot, ["add", "--all", "--", ...intendedPaths]);
+      const stage = await runAuthorizedGitMutation(
+        permission.authorization,
+        request.projectId,
+        workspaceRoot,
+        ["add", "--all", "--", ...intendedPaths],
+      );
       if (stage.exitCode !== 0) {
         return stopped("GIT_COMMAND_FAILED", gitFailure("git add", stage), preservedChangedPaths);
       }
-      const commit = await runGit(workspaceRoot, [
-        "commit",
-        "--quiet",
-        "--only",
-        "--message",
-        intent.commitMessage,
-        "--",
-        ...intendedPaths,
-      ]);
+      const commit = await runAuthorizedGitMutation(
+        permission.authorization,
+        request.projectId,
+        workspaceRoot,
+        ["commit", "--quiet", "--only", "--message", intent.commitMessage, "--", ...intendedPaths],
+      );
       if (commit.exitCode !== 0) {
         return stopped(
           "GIT_COMMAND_FAILED",
