@@ -11,6 +11,7 @@ import {
 } from "@densa/protocol";
 
 import type { DensaRepositories } from "./persistence/repositories.js";
+import { redactSensitiveText } from "./secret-redaction.js";
 
 export const TASK_PACKET_MAX_BYTES = 192 * 1024;
 
@@ -220,43 +221,8 @@ function truncateUtf8(value: string, maxBytes: number, tracker: TruncationTracke
   return `${result}${suffix}`;
 }
 
-const SECRET_PATTERNS: readonly Readonly<{
-  expression: RegExp;
-  replacement: string;
-}>[] = [
-  {
-    expression: /<secret>[\s\S]*?<\/secret>/giu,
-    replacement: "[REDACTED]",
-  },
-  {
-    expression: /\[secret:[^\]]*\]/giu,
-    replacement: "[REDACTED]",
-  },
-  {
-    expression:
-      /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----[\s\S]*?-----END (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/gu,
-    replacement: "[REDACTED PRIVATE KEY]",
-  },
-  {
-    expression: /\b(?:sk-[A-Za-z0-9_-]{12,}|gh[pousr]_[A-Za-z0-9]{12,}|AKIA[A-Z0-9]{16})\b/gu,
-    replacement: "[REDACTED TOKEN]",
-  },
-  {
-    expression: /\b(Bearer\s+)[A-Za-z0-9._~+/=-]{8,}/giu,
-    replacement: "$1[REDACTED]",
-  },
-  {
-    expression:
-      /\b((?:api[_-]?key|access[_-]?token|auth[_-]?token|password|secret|token)\s*[:=]\s*)[^\s,;]+/giu,
-    replacement: "$1[REDACTED]",
-  },
-];
-
 function redactSecrets(value: string): string {
-  return SECRET_PATTERNS.reduce(
-    (redacted, { expression, replacement }) => redacted.replace(expression, replacement),
-    value,
-  );
+  return redactSensitiveText(value);
 }
 
 function boundedText(value: string, maxBytes: number, tracker: TruncationTracker): string {
@@ -861,5 +827,5 @@ export function renderTaskPacketPrompt(packet: TaskPacket): string {
     packet.scopeInstruction,
     "",
   );
-  return lines.join("\n");
+  return redactSensitiveText(lines.join("\n"));
 }

@@ -8,6 +8,8 @@ export * from "./adaptive-interview.js";
 export * from "./master-roadmap.js";
 export * from "./phase-orchestrator.js";
 export * from "./permission-policy.js";
+export * from "./secret-redaction.js";
+export * from "./secrets.js";
 export * from "./project-validation-detector.js";
 export * from "./project-specification.js";
 export * from "./roadmap-mutations.js";

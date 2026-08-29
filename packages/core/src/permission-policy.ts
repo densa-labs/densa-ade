@@ -22,6 +22,7 @@ import {
 } from "@densa/protocol";
 
 import type { DensaDatabase } from "./persistence/database.js";
+import { redactSensitiveText } from "./secret-redaction.js";
 
 const POLICY_SETTINGS_KEY = "permissionPolicy";
 
@@ -252,13 +253,18 @@ export class PermissionPolicyService {
     const preset = permissionPolicyPresetSchema.parse(request.preset);
     this.#validateChangeRequest(request);
     return this.#persistConfigurationChange(
-      { ...request, projectId },
+      {
+        ...request,
+        projectId,
+        actor: redactSensitiveText(request.actor),
+        reason: redactSensitiveText(request.reason),
+      },
       "PERMISSION_POLICY_PRESET_CHANGED",
       (current) => ({
         ...current,
         preset,
         updatedAt: request.occurredAt,
-        updatedBy: request.actor,
+        updatedBy: redactSensitiveText(request.actor),
       }),
       { preset },
     );
@@ -277,12 +283,17 @@ export class PermissionPolicyService {
     const override = permissionOverrideSchema.parse({
       operation,
       disposition,
-      actor: request.actor,
-      reason: request.reason,
+      actor: redactSensitiveText(request.actor),
+      reason: redactSensitiveText(request.reason),
       updatedAt: request.occurredAt,
     });
     return this.#persistConfigurationChange(
-      { ...request, projectId },
+      {
+        ...request,
+        projectId,
+        actor: redactSensitiveText(request.actor),
+        reason: redactSensitiveText(request.reason),
+      },
       "PERMISSION_POLICY_OVERRIDE_CHANGED",
       (current) => ({
         ...current,
@@ -291,7 +302,7 @@ export class PermissionPolicyService {
           override,
         ]),
         updatedAt: request.occurredAt,
-        updatedBy: request.actor,
+        updatedBy: redactSensitiveText(request.actor),
       }),
       { operation, disposition },
     );
@@ -302,7 +313,12 @@ export class PermissionPolicyService {
     const operation = permissionOperationSchema.parse(request.operation);
     this.#validateChangeRequest(request);
     return this.#persistConfigurationChange(
-      { ...request, projectId },
+      {
+        ...request,
+        projectId,
+        actor: redactSensitiveText(request.actor),
+        reason: redactSensitiveText(request.reason),
+      },
       "PERMISSION_POLICY_OVERRIDE_CLEARED",
       (current) => ({
         ...current,
@@ -310,7 +326,7 @@ export class PermissionPolicyService {
           current.overrides.filter((candidate) => candidate.operation !== operation),
         ),
         updatedAt: request.occurredAt,
-        updatedBy: request.actor,
+        updatedBy: redactSensitiveText(request.actor),
       }),
       { operation },
     );
@@ -322,6 +338,8 @@ export class PermissionPolicyService {
       projectId: projectIdSchema.parse(requestInput.projectId),
       operation: permissionOperationSchema.parse(requestInput.operation),
       occurredAt: isoTimestampSchema.parse(requestInput.occurredAt),
+      actor: redactSensitiveText(requestInput.actor),
+      reason: redactSensitiveText(requestInput.reason),
     };
     if (request.actor.trim().length === 0 || request.reason.trim().length === 0) {
       throw new PermissionPolicyError("Permission decisions require a non-empty actor and reason");
@@ -434,6 +452,8 @@ export class PermissionPolicyService {
         );
       }
       const settings = repositories.projectSettings.findByProjectId(request.projectId);
+      const safeActor = redactSensitiveText(request.actor);
+      const safeReason = redactSensitiveText(request.reason);
       const current = parseConfiguration(settings?.values[POLICY_SETTINGS_KEY]);
       const next = permissionPolicyConfigurationSchema.parse(mutate(current));
       repositories.projectSettings.set({
@@ -450,8 +470,8 @@ export class PermissionPolicyService {
         type: eventType,
         eventVersion: 1,
         occurredAt: request.occurredAt,
-        actor: request.actor,
-        payload: { ...payload, reason: request.reason },
+        actor: safeActor,
+        payload: { ...payload, reason: safeReason },
       });
       return next;
     });

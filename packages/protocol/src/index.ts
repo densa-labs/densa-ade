@@ -10,5 +10,6 @@ export * from "./permission-policy.js";
 export * from "./phase-report.js";
 export * from "./project-specification.js";
 export * from "./roadmap-mutation.js";
+export * from "./secrets.js";
 export * from "./states.js";
 export * from "./validation.js";
