@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { jsonObjectSchema } from "./json.js";
 
-export const densaErrorCodeSchema = z.enum([
+export const densaAdeErrorCodeSchema = z.enum([
   "USER_CONFIGURATION_ERROR",
   "AGENT_UNAVAILABLE",
   "AUTHENTICATION_REQUIRED",
@@ -17,10 +17,15 @@ export const densaErrorCodeSchema = z.enum([
   "INVALID_STATE_TRANSITION",
   "INTERNAL_INVARIANT_VIOLATION",
 ]);
-export type DensaErrorCode = z.infer<typeof densaErrorCodeSchema>;
+export type DensaAdeErrorCode = z.infer<typeof densaAdeErrorCodeSchema>;
+
+/** @deprecated Use densaAdeErrorCodeSchema. Retained for protocol consumer compatibility. */
+export const densaErrorCodeSchema = densaAdeErrorCodeSchema;
+/** @deprecated Use DensaAdeErrorCode. Retained for protocol consumer compatibility. */
+export type DensaErrorCode = DensaAdeErrorCode;
 
 export const protocolErrorSchema = z.strictObject({
-  code: densaErrorCodeSchema,
+  code: densaAdeErrorCodeSchema,
   message: z.string().min(1),
   details: jsonObjectSchema.optional(),
 });

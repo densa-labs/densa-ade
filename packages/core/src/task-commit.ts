@@ -11,9 +11,9 @@ import {
   type ProjectId,
   type TaskId,
   type ValidationRunId,
-} from "@densa/protocol";
+} from "@densa-ade/protocol";
 
-import { type DensaDatabase } from "./persistence/database.js";
+import { type DensaAdeDatabase } from "./persistence/database.js";
 import { type TaskCommitIntentRecord } from "./persistence/repositories.js";
 import { buildAcceptanceReport } from "./acceptance-evidence.js";
 import {
@@ -187,7 +187,7 @@ function sanitizeSubjectPart(value: string): string {
 }
 
 export function taskCommitMessage(taskId: TaskId | string, title: string): string {
-  const subject = `densa: ${sanitizeSubjectPart(taskId)} ${sanitizeSubjectPart(title)}`.trim();
+  const subject = `densa-ade: ${sanitizeSubjectPart(taskId)} ${sanitizeSubjectPart(title)}`.trim();
   return subject.slice(0, COMMIT_SUBJECT_LIMIT).trimEnd();
 }
 
@@ -312,7 +312,7 @@ async function verifyCommit(
 
 /** P3M2 boundary for turning a passing validation into a verified local task commit. */
 export class TaskCommitService {
-  constructor(private readonly database: DensaDatabase) {}
+  constructor(private readonly database: DensaAdeDatabase) {}
 
   async commitPassingTask(request: CommitPassingTaskRequest): Promise<CommitPassingTaskResult> {
     isoTimestampSchema.parse(request.committedAt);
@@ -333,7 +333,7 @@ export class TaskCommitService {
     const attempt = repositories.attempts.findById(request.attemptId);
     const validation = repositories.validationRuns.findById(request.validationRunId);
     const checkpoint = repositories.checkpoints.findByAttemptId(request.attemptId);
-    const run = repositories.densaRunBranches.findByProjectId(request.projectId);
+    const run = repositories.densaAdeRunBranches.findByProjectId(request.projectId);
     if (
       project === undefined ||
       task?.projectId !== request.projectId ||

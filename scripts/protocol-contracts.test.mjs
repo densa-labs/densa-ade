@@ -8,6 +8,7 @@ import {
   attemptSchema,
   checkpointSchema,
   coreDaemonStatusSchema,
+  densaAdeErrorCodeSchema,
   densaErrorCodeSchema,
   deserializeProtocolEnvelope,
   executionModeSchema,
@@ -63,7 +64,7 @@ test("exports every canonical state and policy value", () => {
   ]);
   assert.deepEqual(executionModeSchema.options, ["guided", "phase", "continuous"]);
   assert.deepEqual(roadmapMutationClassificationSchema.options, ["minor", "significant", "scope"]);
-  assert.deepEqual(densaErrorCodeSchema.options, [
+  assert.deepEqual(densaAdeErrorCodeSchema.options, [
     "USER_CONFIGURATION_ERROR",
     "AGENT_UNAVAILABLE",
     "AUTHENTICATION_REQUIRED",
@@ -78,6 +79,7 @@ test("exports every canonical state and policy value", () => {
     "INVALID_STATE_TRANSITION",
     "INTERNAL_INVARIANT_VIOLATION",
   ]);
+  assert.equal(densaErrorCodeSchema, densaAdeErrorCodeSchema);
 });
 
 test("every valid envelope kind survives a JSON round-trip without value changes", () => {
@@ -267,7 +269,7 @@ test("task checkpoints require a complete task-attempt-run association and Git b
       ...base,
       taskId: "task-1",
       attemptId: "attempt-1",
-      runBranch: "densa/run/project-1-abcd1234",
+      runBranch: "densa-ade/run/project-1-abcd1234",
     }).success,
     true,
   );
@@ -277,7 +279,7 @@ test("task checkpoints require a complete task-attempt-run association and Git b
       ...base,
       taskId: "task-1",
       attemptId: "attempt-1",
-      runBranch: "densa/run/project-1-abcd1234",
+      runBranch: "densa-ade/run/project-1-abcd1234",
       gitHead: undefined,
     }).success,
     false,

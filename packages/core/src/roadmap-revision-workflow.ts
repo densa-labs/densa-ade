@@ -19,10 +19,10 @@ import {
   type RoadmapMutationClassification,
   type RoadmapMutationOperation,
   type RoadmapRevisionProposal,
-} from "@densa/protocol";
+} from "@densa-ade/protocol";
 
 import type { PersistedEvent } from "./event-publisher.js";
-import type { DensaDatabase } from "./persistence/database.js";
+import type { DensaAdeDatabase } from "./persistence/database.js";
 import { PermissionPolicyService, evaluatePermissionPolicy } from "./permission-policy.js";
 import { RoadmapMutationService, type RoadmapMutationBatchResult } from "./roadmap-mutations.js";
 import { redactSensitiveText } from "./secret-redaction.js";
@@ -89,7 +89,7 @@ export class MasterRoadmapRevisionWorkflow {
   readonly #mutations: RoadmapMutationService;
 
   constructor(
-    private readonly database: DensaDatabase,
+    private readonly database: DensaAdeDatabase,
     options: MasterRoadmapRevisionWorkflowOptions,
   ) {
     if (!options.workspacePath.startsWith("/")) {

@@ -15,11 +15,11 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import {
-  DensaDatabase,
+  DensaAdeDatabase,
   PortableProjectSynchronizer,
   PortableProjectSyncError,
   atomicReplaceFile,
-} from "@densa/core/persistence";
+} from "@densa-ade/core/persistence";
 
 const createdAt = "2026-08-26T08:00:00.000Z";
 const updatedAt = "2026-08-26T08:30:00.000Z";
@@ -28,7 +28,7 @@ const managedFiles = ["project.json", "SPEC.md", "ROADMAP.md", "DECISIONS.md", "
 
 async function withWorkspace(work) {
   const workspace = await mkdtemp(join(tmpdir(), "densa-p2m3-"));
-  const database = DensaDatabase.openInMemory({ now: () => createdAt });
+  const database = DensaAdeDatabase.openInMemory({ now: () => createdAt });
   try {
     return await work({ database, workspace });
   } finally {
@@ -55,7 +55,7 @@ function seedPortableProject(repositories) {
       coreUserJourneys: ["Create and export a local project"],
       requiredFeatures: ["Deterministic portable exports"],
       nonGoals: [],
-      architectureConstraints: ["Densa Core remains editor-independent"],
+      architectureConstraints: ["Densa ADE Core remains editor-independent"],
       platformRuntimeConstraints: ["Run locally on macOS"],
       integrations: [],
       dataStorageNeeds: ["Store detailed state in SQLite"],
@@ -146,7 +146,7 @@ async function readManaged(directory) {
   );
 }
 
-test("SQLite project intent exports to a deterministic, understandable .densa tree", async () => {
+test("SQLite project intent exports to a deterministic, understandable .densa-ade tree", async () => {
   await withWorkspace(async ({ database, workspace }) => {
     seedPortableProject(database.repositories);
     const synchronizer = new PortableProjectSynchronizer(database.repositories);
@@ -154,11 +154,11 @@ test("SQLite project intent exports to a deterministic, understandable .densa tr
     const first = await synchronizer.synchronize(workspace, projectId);
     assert.equal(first.status, "synchronized");
     assert.deepEqual(first.written, [...managedFiles, ".sync-state.json"]);
-    assert.equal((await lstat(join(workspace, ".densa", "reports"))).isDirectory(), true);
-    assert.equal((await lstat(join(workspace, ".densa", "logs"))).isDirectory(), true);
-    assert.equal((await lstat(join(workspace, ".densa", "project.json"))).mode & 0o777, 0o600);
+    assert.equal((await lstat(join(workspace, ".densa-ade", "reports"))).isDirectory(), true);
+    assert.equal((await lstat(join(workspace, ".densa-ade", "logs"))).isDirectory(), true);
+    assert.equal((await lstat(join(workspace, ".densa-ade", "project.json"))).mode & 0o777, 0o600);
 
-    const directory = join(workspace, ".densa");
+    const directory = join(workspace, ".densa-ade");
     const files = await readManaged(directory);
     assert.deepEqual(JSON.parse(files["project.json"]), {
       formatVersion: 1,
@@ -199,7 +199,7 @@ test("secret-like values are redacted from every exported portable file", async 
       workspace,
       projectId,
     );
-    const directory = join(workspace, ".densa");
+    const directory = join(workspace, ".densa-ade");
     const exported = [
       ...(await Promise.all(managedFiles.map((name) => readFile(join(directory, name), "utf8")))),
       await readFile(join(directory, ".sync-state.json"), "utf8"),
@@ -219,7 +219,7 @@ test("meaningful human edits are reported and no managed file is overwritten", a
     seedPortableProject(database.repositories);
     const synchronizer = new PortableProjectSynchronizer(database.repositories);
     await synchronizer.synchronize(workspace, projectId);
-    const directory = join(workspace, ".densa");
+    const directory = join(workspace, ".densa-ade");
     await appendFile(join(directory, "ROADMAP.md"), "\nHuman planning note.\n", "utf8");
     const before = await readManaged(directory);
 
@@ -235,7 +235,7 @@ test("meaningful human edits are reported and no managed file is overwritten", a
 test("an existing portable file without a trusted manifest is preserved as a human edit", async () => {
   await withWorkspace(async ({ database, workspace }) => {
     seedPortableProject(database.repositories);
-    const directory = join(workspace, ".densa");
+    const directory = join(workspace, ".densa-ade");
     await writeFile(join(workspace, "placeholder"), "workspace", "utf8");
     await mkdir(directory);
     await writeFile(join(directory, "SPEC.md"), "# Human specification\n", "utf8");
@@ -252,12 +252,12 @@ test("an existing portable file without a trusted manifest is preserved as a hum
   });
 });
 
-test("a missing .densa folder is recreated on the next synchronization", async () => {
+test("a missing .densa-ade folder is recreated on the next synchronization", async () => {
   await withWorkspace(async ({ database, workspace }) => {
     seedPortableProject(database.repositories);
     const synchronizer = new PortableProjectSynchronizer(database.repositories);
     await synchronizer.synchronize(workspace, projectId);
-    await rm(join(workspace, ".densa"), { recursive: true });
+    await rm(join(workspace, ".densa-ade"), { recursive: true });
 
     const result = await synchronizer.synchronize(workspace, projectId);
 
@@ -289,12 +289,12 @@ test("atomic replacement leaves the prior JSON intact when interrupted before re
   });
 });
 
-test("unsafe .densa symlinks fail closed", async () => {
+test("unsafe .densa-ade symlinks fail closed", async () => {
   await withWorkspace(async ({ database, workspace }) => {
     seedPortableProject(database.repositories);
     const outside = await mkdtemp(join(tmpdir(), "densa-p2m3-outside-"));
     try {
-      await symlink(outside, join(workspace, ".densa"));
+      await symlink(outside, join(workspace, ".densa-ade"));
       await assert.rejects(
         new PortableProjectSynchronizer(database.repositories).synchronize(workspace, projectId),
         (error) => error instanceof PortableProjectSyncError && error.code === "WORKSPACE_CONFLICT",

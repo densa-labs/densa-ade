@@ -11,15 +11,15 @@ import {
   StateTransitionService,
   ValidatedMasterCoreCommandGateway,
   runTemporaryRepoTaskProof,
-} from "@densa/core";
-import { DensaDatabase } from "@densa/core/persistence";
-import { FakeAgentAdapter } from "@densa/testing";
+} from "@densa-ade/core";
+import { DensaAdeDatabase } from "@densa-ade/core/persistence";
+import { FakeAgentAdapter } from "@densa-ade/testing";
 
 const workspacePath = "/tmp/densa-p8m0-workspace";
 const createdAt = "2026-08-29T01:00:00.000Z";
 
 function seed() {
-  const database = DensaDatabase.openInMemory();
+  const database = DensaAdeDatabase.openInMemory();
   let tick = 0;
   const nextTime = () => new Date(Date.parse(createdAt) + ++tick * 1_000).toISOString();
   database.repositories.projects.create({
@@ -521,7 +521,7 @@ test("constraint actions persist through Core and update the portable decision r
   assert.equal(constraint.category, "platformRuntimeConstraints.target");
   assert.equal(constraint.source, "master");
   assert.equal(constraint.status, "active");
-  const portable = await readFile(path.join(workspacePath, ".densa", "DECISIONS.md"), "utf8");
+  const portable = await readFile(path.join(workspacePath, ".densa-ade", "DECISIONS.md"), "utf8");
   assert.match(portable, /platformRuntimeConstraints\.target/u);
   assert.match(portable, /Status: active/u);
   database.close();

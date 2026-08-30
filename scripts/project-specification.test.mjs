@@ -6,8 +6,8 @@ import {
   detectSpecificationContradictions,
   parseProjectSpecificationMarkdown,
   renderProjectSpecificationMarkdown,
-} from "@densa/core";
-import { projectSpecificationSchema } from "@densa/protocol";
+} from "@densa-ade/core";
+import { projectSpecificationSchema } from "@densa-ade/protocol";
 
 function makeSpecification(overrides = {}) {
   return {
@@ -17,7 +17,7 @@ function makeSpecification(overrides = {}) {
     coreUserJourneys: ["Turn an idea into a complete, inspectable roadmap"],
     requiredFeatures: ["Show every unresolved high-impact question"],
     nonGoals: ["Cloud-only operation"],
-    architectureConstraints: ["Densa Core must remain editor-independent"],
+    architectureConstraints: ["Densa ADE Core must remain editor-independent"],
     platformRuntimeConstraints: ["v0.1 targets macOS"],
     integrations: ["Official Codex CLI authentication"],
     dataStorageNeeds: ["SQLite is the detailed runtime source of truth"],

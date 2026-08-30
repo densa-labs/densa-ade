@@ -6,8 +6,8 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { test } from "node:test";
 
-import { MAX_EVENT_PAYLOAD_BYTES } from "@densa/core";
-import { DensaDatabase, PersistenceError } from "@densa/core/persistence";
+import { MAX_EVENT_PAYLOAD_BYTES } from "@densa-ade/core";
+import { DensaAdeDatabase, PersistenceError } from "@densa-ade/core/persistence";
 
 import { schemaMigrations } from "../packages/core/dist/persistence/migrations.js";
 
@@ -75,7 +75,7 @@ function seedProjectGraph(database, projectId = "project-events") {
 }
 
 function withDatabase(work) {
-  const database = DensaDatabase.openInMemory();
+  const database = DensaAdeDatabase.openInMemory();
   try {
     return work(database);
   } finally {
@@ -316,8 +316,8 @@ test("migration 2 preserves version-1 facts and assigns deterministic project se
     insert.run("event-earlier-id", "2026-08-26T07:00:00.000Z");
     raw.close();
 
-    const database = DensaDatabase.open(path);
-    assert.equal(database.schemaVersion, 14);
+    const database = DensaAdeDatabase.open(path);
+    assert.equal(database.schemaVersion, 15);
     assert.deepEqual(
       database.eventJournal.replay({ projectId: "project-migration" }).map((event) => ({
         id: event.id,
@@ -339,7 +339,7 @@ test("database triggers prevent committed event facts from being updated or dele
   const directory = mkdtempSync(join(tmpdir(), "densa-p2m2-append-only-"));
   const path = join(directory, "runtime.sqlite");
   try {
-    const database = DensaDatabase.open(path);
+    const database = DensaAdeDatabase.open(path);
     const graph = seedProjectGraph(database);
     database.eventJournal.append(makeEvent({ id: "event-immutable", projectId: graph.projectId }));
     database.close();
@@ -351,7 +351,7 @@ test("database triggers prevent committed event facts from being updated or dele
     assert.throws(() => raw.prepare("DELETE FROM events WHERE id = ?").run("event-immutable"));
     raw.close();
 
-    const reopened = DensaDatabase.open(path);
+    const reopened = DensaAdeDatabase.open(path);
     assert.equal(reopened.eventJournal.findById("event-immutable").actor, "densa-core:test");
     reopened.close();
   } finally {

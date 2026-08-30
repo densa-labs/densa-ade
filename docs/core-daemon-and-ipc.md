@@ -1,12 +1,12 @@
 # Core daemon and secure local IPC
 
-Phase 7 Milestone 5 moves Densa Core into a user-local process that is independent of any CLI,
+Phase 7 Milestone 5 moves Densa ADE Core into a user-local process that is independent of any CLI,
 IDE, Dashboard, or other client. On macOS the process listens only on a Unix-domain socket. It
 does not open a TCP port.
 
 ## Runtime ownership
 
-The default runtime directory is `~/.densa/runtime` and is created with mode `0700`. The socket,
+The default runtime directory is `~/.densa-ade/runtime` and is created with mode `0700`. The socket,
 PID metadata, rotating per-instance authentication token, and SQLite database are private to the
 current user. The socket, PID, token, and database use mode `0600`; the private directory also
 protects SQLite's transient files.
@@ -24,7 +24,7 @@ This avoids replacing a live endpoint and makes SIGKILL residue recoverable.
 ## Protocol and replay
 
 Transport messages are newline-delimited JSON with a one-megabyte frame bound. The inner request,
-response, and notification envelopes are the versioned contracts in `@densa/protocol`. Wrong
+response, and notification envelopes are the versioned contracts in `@densa-ade/protocol`. Wrong
 protocol versions return `PROTOCOL_VERSION_MISMATCH`; wrong credentials return
 `AUTHENTICATION_REQUIRED`.
 
@@ -37,9 +37,9 @@ it does not become authoritative.
 ## CLI lifecycle
 
 ```text
-densa core start
-densa core status
-densa core stop
+densa-ade core start
+densa-ade core status
+densa-ade core stop
 ```
 
 `start` launches a detached Node process and waits for an authenticated status response. Client

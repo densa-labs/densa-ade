@@ -80,7 +80,7 @@ paths from `TASK_COMMITTED` facts, structured task/phase independent-review find
 roadmap revisions, retry/failure counts, unresolved issues, and the next-phase summary.
 
 After the SQLite transaction commits, Core renders the immutable report to a deterministic file
-under `.densa/reports/` using a durable temp-file-and-rename write. Real-directory and regular-file
+under `.densa-ade/reports/` using a durable temp-file-and-rename write. Real-directory and regular-file
 checks reject symlink or human-edit conflicts. If portable projection is interrupted, SQLite remains
 authoritative and re-invoking the lifecycle re-synchronizes the already committed report without
 rerunning completed tasks or validation. Descriptive report text passes through the portable secret

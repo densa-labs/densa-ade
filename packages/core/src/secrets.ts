@@ -11,14 +11,14 @@ import {
   type PermissionDecision,
   type ProjectId,
   type SecretRef,
-} from "@densa/protocol";
+} from "@densa-ade/protocol";
 
 import {
   PermissionPolicyService,
   assertAuthorizedOperation,
   type AuthorizedOperationContext,
 } from "./permission-policy.js";
-import type { DensaDatabase } from "./persistence/database.js";
+import type { DensaAdeDatabase } from "./persistence/database.js";
 import { SecretRedactor, redactSensitiveText } from "./secret-redaction.js";
 
 const KEYCHAIN_NOT_FOUND_EXIT_CODE = 44;
@@ -326,7 +326,7 @@ export class SecretService {
   readonly #eventIdFactory: () => string;
 
   constructor(
-    private readonly database: DensaDatabase,
+    private readonly database: DensaAdeDatabase,
     private readonly store: SecretStore,
     options: SecretServiceOptions = {},
   ) {

@@ -7,8 +7,8 @@ import {
   StateTransitionService,
   presentProjectRundown,
   renderProjectRundown,
-} from "@densa/core";
-import { DensaDatabase } from "@densa/core/persistence";
+} from "@densa-ade/core";
+import { DensaAdeDatabase } from "@densa-ade/core/persistence";
 
 const workspacePath = "/tmp/densa-rundown-fixture";
 const baseTime = Date.parse("2026-08-30T00:00:00.000Z");
@@ -40,7 +40,7 @@ function transition(database, now, entityType, id, state) {
 }
 
 function seedBase() {
-  const database = DensaDatabase.openInMemory();
+  const database = DensaAdeDatabase.openInMemory();
   const now = clock();
   const createdAt = now();
   database.repositories.projects.create({
@@ -96,7 +96,7 @@ function fakeGit(status = "reachable") {
       return {
         status: "available",
         headSha: "fedcba9876543210",
-        branch: "densa/run/rundown",
+        branch: "densa-ade/run/rundown",
         dirty: false,
         commits: commitShas.map((sha) => ({ sha, status })),
       };
@@ -184,7 +184,7 @@ function completePhaseFixture() {
     eventVersion: 1,
     occurredAt: reportGeneratedAt,
     actor: "rundown:test",
-    payload: { outcome: "completed", reportPath: ".densa/reports/phase-build.md" },
+    payload: { outcome: "completed", reportPath: ".densa-ade/reports/phase-build.md" },
   });
   database.repositories.phaseReports.create({
     formatVersion: 1,
@@ -196,7 +196,7 @@ function completePhaseFixture() {
     roadmapRevisionNumber: 0,
     phaseStartedAt,
     generatedAt: reportGeneratedAt,
-    reportPath: ".densa/reports/phase-build.md",
+    reportPath: ".densa-ade/reports/phase-build.md",
     tasksCompleted: [{ taskId: "task-build", title: "Build exact facts", attemptCount: 1 }],
     validations: [
       {
@@ -282,7 +282,7 @@ test("project and phase rundowns retain exact DB, validator, Git, decision, and 
     });
     assert.deepEqual(phase.phaseReport, {
       phaseId: "phase-build",
-      reportPath: ".densa/reports/phase-build.md",
+      reportPath: ".densa-ade/reports/phase-build.md",
       outcome: "completed",
       generatedAt: phase.phaseReport.generatedAt,
       verification: "verified",

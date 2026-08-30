@@ -60,7 +60,7 @@ export class ProtocolVersionMismatchError extends Error {
   readonly code = "PROTOCOL_VERSION_MISMATCH" as const;
 
   constructor(readonly receivedVersion: unknown) {
-    super(`Unsupported Densa protocol version: ${String(receivedVersion)}`);
+    super(`Unsupported Densa ADE protocol version: ${String(receivedVersion)}`);
     this.name = "ProtocolVersionMismatchError";
   }
 }

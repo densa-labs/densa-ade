@@ -15,7 +15,7 @@ import {
   type RoadmapRevision,
   type RoadmapRevisionProposal,
   type ValidationRunId,
-} from "@densa/protocol";
+} from "@densa-ade/protocol";
 
 import type {
   PhaseStateTransition,
@@ -26,7 +26,7 @@ import { buildAcceptanceReport } from "../acceptance-evidence.js";
 import { EventPublisher, type PersistedEvent } from "../event-publisher.js";
 import { EventJournal } from "./event-journal.js";
 import { latestSchemaVersion } from "./migrations.js";
-import { createRepositories, type DensaRepositories } from "./repositories.js";
+import { createRepositories, type DensaAdeRepositories } from "./repositories.js";
 import {
   PersistenceError,
   SqliteConnection,
@@ -34,7 +34,7 @@ import {
   requiredString,
 } from "./sqlite-connection.js";
 
-export interface DensaDatabaseOptions {
+export interface DensaAdeDatabaseOptions {
   readonly now?: () => string;
 }
 
@@ -110,12 +110,12 @@ function assertEventMatchesTransition(transition: StateTransition): void {
  * The raw connection and status-update statements stay private. Callers create records through
  * repositories and persist StateTransitionService results through persistStateTransition().
  */
-export class DensaDatabase {
-  readonly repositories: DensaRepositories;
+export class DensaAdeDatabase {
+  readonly repositories: DensaAdeRepositories;
   readonly eventJournal: EventJournal;
   readonly #connection: SqliteConnection;
 
-  private constructor(path: string, options: DensaDatabaseOptions) {
+  private constructor(path: string, options: DensaAdeDatabaseOptions) {
     const clock = options.now ?? (() => new Date().toISOString());
     const now = () => isoTimestampSchema.parse(clock());
     this.#connection = new SqliteConnection(path, now);
@@ -126,12 +126,12 @@ export class DensaDatabase {
     this.eventJournal = new EventJournal(this.repositories.events, eventPublisher);
   }
 
-  static open(path: string, options: DensaDatabaseOptions = {}): DensaDatabase {
-    return new DensaDatabase(path, options);
+  static open(path: string, options: DensaAdeDatabaseOptions = {}): DensaAdeDatabase {
+    return new DensaAdeDatabase(path, options);
   }
 
-  static openInMemory(options: DensaDatabaseOptions = {}): DensaDatabase {
-    return new DensaDatabase(":memory:", options);
+  static openInMemory(options: DensaAdeDatabaseOptions = {}): DensaAdeDatabase {
+    return new DensaAdeDatabase(":memory:", options);
   }
 
   close(): void {
@@ -164,7 +164,7 @@ export class DensaDatabase {
     );
   }
 
-  transaction<Result>(work: (repositories: DensaRepositories) => Result): Result {
+  transaction<Result>(work: (repositories: DensaAdeRepositories) => Result): Result {
     return this.#connection.transaction(() => work(this.repositories));
   }
 
@@ -443,3 +443,8 @@ export class DensaDatabase {
     });
   }
 }
+
+/** @deprecated Use DensaAdeDatabase. Retained for package consumer compatibility. */
+export { DensaAdeDatabase as DensaDatabase };
+/** @deprecated Use DensaAdeDatabaseOptions. Retained for package consumer compatibility. */
+export type DensaDatabaseOptions = DensaAdeDatabaseOptions;

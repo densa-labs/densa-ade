@@ -3,7 +3,7 @@
 Phase 8 Milestone 1 makes project steering authoritative Core data instead of conversational
 memory. `ProjectDecisionService` is the only mutation boundary for new decision and constraint
 records. It validates project-scoped references, applies permission policy before portable writes,
-persists the record and audit event atomically, and then regenerates `.densa/DECISIONS.md`.
+persists the record and audit event atomically, and then regenerates `.densa-ade/DECISIONS.md`.
 
 Each record has a stable ID, statement, display title and rationale, category, source
 (`user`, `master`, or `system`), scope (`project`, `phase`, or `task`), active/superseded status,

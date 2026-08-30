@@ -29,7 +29,7 @@ test("declares every Phase 0 workspace package", async () => {
 
   for (const packageName of packageNames) {
     const manifest = await readJson(`${repositoryRoot}/packages/${packageName}/package.json`);
-    assert.equal(manifest.name, `@densa/${packageName}`);
+    assert.equal(manifest.name, `@densa-ade/${packageName}`);
     assert.equal(manifest.private, true);
     assert.equal(manifest.type, "module");
   }

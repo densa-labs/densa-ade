@@ -12,9 +12,9 @@ import {
   redactEvent,
   redactLog,
   redactPrompt,
-} from "@densa/core";
-import { DensaDatabase } from "@densa/core/persistence";
-import { secretRefSchema } from "@densa/protocol";
+} from "@densa-ade/core";
+import { DensaAdeDatabase } from "@densa-ade/core/persistence";
+import { secretRefSchema } from "@densa-ade/protocol";
 
 const createdAt = "2026-08-29T05:00:00.000Z";
 const projectId = "project-secret-proof";
@@ -37,7 +37,7 @@ function idFactory(prefix) {
 }
 
 function approvedDatabase() {
-  const database = DensaDatabase.openInMemory();
+  const database = DensaAdeDatabase.openInMemory();
   database.repositories.projects.create(project());
   database.repositories.decisions.create({
     id: "decision-secret-use-approved",

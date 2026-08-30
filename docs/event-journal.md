@@ -33,6 +33,6 @@ that is already durable.
 
 ## Payload boundary
 
-Event payloads remain JSON objects validated by `@densa/protocol` and are limited to 64 KiB when
+Event payloads remain JSON objects validated by `@densa-ade/protocol` and are limited to 64 KiB when
 UTF-8 encoded. Raw process transcripts and unbounded logs do not belong in events; bounded local log
 storage will use its own retention policy. Event queries are also bounded as described above.

@@ -1,14 +1,14 @@
-# Portable `.densa/` project representation
+# Portable `.densa-ade/` project representation
 
 Phase 2 Milestone 3 adds an explicit export boundary from authoritative SQLite state to a
 deterministic, human-readable project representation. `PortableProjectSynchronizer` is available
-from `@densa/core/persistence`; it reads a project through repository contracts and writes only
-inside the workspace's `.densa/` directory.
+from `@densa-ade/core/persistence`; it reads a project through repository contracts and writes only
+inside the workspace's `.densa-ade/` directory.
 
 ## Generated shape
 
 ```text
-.densa/
+.densa-ade/
 ├── project.json
 ├── SPEC.md
 ├── ROADMAP.md
@@ -38,7 +38,7 @@ is added. Re-exporting unchanged SQLite state therefore produces byte-identical 
 
 SQLite remains authoritative for all detailed runtime data and lifecycle state, including project,
 phase, and task states; attempts; agent and validation runs; checkpoints; events and their ordered
-sequences; settings; and all persisted timestamps. `.densa/` is a portable view of important intent
+sequences; settings; and all persisted timestamps. `.densa-ade/` is a portable view of important intent
 and decisions. Editing a generated file never directly mutates SQLite or bypasses the centralized
 state-transition service.
 
@@ -51,12 +51,12 @@ On the next synchronization:
 
 If any meaningful edit exists, synchronization returns a `conflict` result and writes none of the
 managed files or manifest. The caller can present the affected paths and route the proposed change
-through a later specification, roadmap, or decision workflow. A missing `.densa/` directory is not
+through a later specification, roadmap, or decision workflow. A missing `.densa-ade/` directory is not
 a conflict; it is recreated from SQLite.
 
 The canonical block in `SPEC.md` does not make filesystem edits authoritative. Its parser validates
 renderer-produced version 1 data for import workflows, but any accepted change must still pass
-through Densa Core and the applicable audited mutation service. See
+through Densa ADE Core and the applicable audited mutation service. See
 [project-specification.md](./project-specification.md).
 Roadmap changes use the classification, approval, transaction, and history rules in
 [audited-roadmap-mutations.md](./audited-roadmap-mutations.md).
@@ -66,7 +66,7 @@ Roadmap changes use the classification, approval, transaction, and history rules
 Every managed file and the manifest is replaced by writing a mode-0600 temporary sibling, flushing
 it, and atomically renaming it over the destination. A failure before rename preserves the complete
 old file. The manifest is written last; after a process interruption, a subsequent sync recognizes
-already-written desired content and safely completes the remaining files. Symlinked `.densa/`
+already-written desired content and safely completes the remaining files. Symlinked `.densa-ade/`
 directories or managed files fail closed with `WORKSPACE_CONFLICT`.
 
 Portable exports do not include attempts, raw prompts, agent transcripts, event payloads, or process

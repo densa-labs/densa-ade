@@ -10,18 +10,21 @@ import {
   type EventId,
   type ProjectId,
   type TaskId,
-} from "@densa/protocol";
+} from "@densa-ade/protocol";
 
 import { GitWorkspaceProbe, type WorkspaceSnapshot } from "./recovery-inspector.js";
-import { type DensaDatabase } from "./persistence/database.js";
-import { type DensaRunBranchRecord, type DensaRepositories } from "./persistence/repositories.js";
+import { type DensaAdeDatabase } from "./persistence/database.js";
+import {
+  type DensaAdeRunBranchRecord,
+  type DensaAdeRepositories,
+} from "./persistence/repositories.js";
 import {
   PermissionPolicyService,
   assertAuthorizedOperation,
   type AuthorizedOperationContext,
 } from "./permission-policy.js";
 import {
-  DENSA_RUN_BRANCH_PREFIX,
+  DENSA_ADE_RUN_BRANCH_PREFIX,
   WorkspacePreflight,
   type WorkspacePreflightResult,
 } from "./workspace-preflight.js";
@@ -67,7 +70,7 @@ export interface PreparedTaskCheckpoint {
   readonly status: "READY";
   readonly branchAction: "CREATED" | "REUSED";
   readonly recoveredExistingCheckpoint: boolean;
-  readonly run: DensaRunBranchRecord;
+  readonly run: DensaAdeRunBranchRecord;
   readonly checkpoint: Checkpoint;
   readonly preflight: WorkspacePreflightResult;
   readonly automaticActionsPerformed: readonly (
@@ -80,7 +83,7 @@ export interface StoppedTaskCheckpoint {
   readonly code: RunCheckpointStopCode;
   readonly reason: string;
   readonly preflight: WorkspacePreflightResult;
-  readonly run?: DensaRunBranchRecord;
+  readonly run?: DensaAdeRunBranchRecord;
   readonly automaticActionsPerformed: readonly ("CREATED_RUN_BRANCH" | "SWITCHED_RUN_BRANCH")[];
 }
 
@@ -215,7 +218,7 @@ function stopped(
   reason: string,
   preflight: WorkspacePreflightResult,
   actions: StoppedTaskCheckpoint["automaticActionsPerformed"],
-  run?: DensaRunBranchRecord,
+  run?: DensaAdeRunBranchRecord,
 ): StoppedTaskCheckpoint {
   return Object.freeze({
     status: "STOPPED" as const,
@@ -228,7 +231,7 @@ function stopped(
 }
 
 function validateRequestGraph(
-  repositories: DensaRepositories,
+  repositories: DensaAdeRepositories,
   request: PrepareTaskCheckpointRequest,
 ): void {
   const project = repositories.projects.findById(request.projectId);
@@ -259,15 +262,18 @@ function slugProjectId(projectId: string): string {
 }
 
 /** Predictable, Git-safe name that does not expose an unbounded or unsafe project identifier. */
-export function densaRunBranchName(projectId: ProjectId | string): string {
+export function densaAdeRunBranchName(projectId: ProjectId | string): string {
   const hash = createHash("sha256").update(projectId).digest("hex").slice(0, 10);
-  return `${DENSA_RUN_BRANCH_PREFIX}${slugProjectId(projectId)}-${hash}`;
+  return `${DENSA_ADE_RUN_BRANCH_PREFIX}${slugProjectId(projectId)}-${hash}`;
 }
+
+/** @deprecated Use densaAdeRunBranchName. Retained for package consumer compatibility. */
+export const densaRunBranchName = densaAdeRunBranchName;
 
 function checkpointMatches(
   checkpoint: Checkpoint,
   request: PrepareTaskCheckpointRequest,
-  run: DensaRunBranchRecord,
+  run: DensaAdeRunBranchRecord,
 ): boolean {
   return (
     checkpoint.id === request.checkpointId &&
@@ -287,7 +293,7 @@ function snapshotMatchesCheckpoint(snapshot: WorkspaceSnapshot, checkpoint: Chec
 }
 
 /**
- * The only P3M1 boundary allowed to establish a Densa run branch and task checkpoint.
+ * The only P3M1 boundary allowed to establish a Densa ADE run branch and task checkpoint.
  * It persists branch intent before Git mutation and persists the verified outcome afterwards.
  */
 export class RunCheckpointService {
@@ -295,7 +301,7 @@ export class RunCheckpointService {
   readonly #workspaceProbe: GitWorkspaceProbe;
 
   constructor(
-    private readonly database: DensaDatabase,
+    private readonly database: DensaAdeDatabase,
     options: {
       readonly preflight?: WorkspacePreflight;
       readonly workspaceProbe?: GitWorkspaceProbe;
@@ -315,7 +321,7 @@ export class RunCheckpointService {
         preflight.decision.reason,
         preflight,
         actions,
-        this.database.repositories.densaRunBranches.findByProjectId(request.projectId),
+        this.database.repositories.densaAdeRunBranches.findByProjectId(request.projectId),
       );
     }
     const workspaceRoot = preflight.repository.root;
@@ -345,13 +351,13 @@ export class RunCheckpointService {
     }
     const authorization = permission.authorization;
 
-    let run = this.database.repositories.densaRunBranches.findByProjectId(request.projectId);
+    let run = this.database.repositories.densaAdeRunBranches.findByProjectId(request.projectId);
     let branchAction: "CREATED" | "REUSED" = "REUSED";
     if (run === undefined) {
-      if (preflight.densaRun.currentBranchOwned) {
+      if (preflight.densaAdeRun.currentBranchOwned) {
         return stopped(
           "RUN_OWNERSHIP_MISMATCH",
-          "Current reserved Densa run branch has no persisted ownership for this project",
+          "Current reserved Densa ADE run branch has no persisted ownership for this project",
           preflight,
           actions,
         );
@@ -359,12 +365,12 @@ export class RunCheckpointService {
       if (preflight.head.branch === undefined) {
         return stopped(
           "PREFLIGHT_STOPPED",
-          "A source branch is required before Densa can create a run branch",
+          "A source branch is required before Densa ADE can create a run branch",
           preflight,
           actions,
         );
       }
-      const branchName = densaRunBranchName(request.projectId);
+      const branchName = densaAdeRunBranchName(request.projectId);
       const collision = await inspectBranch(workspaceRoot, branchName);
       if (collision.status === "FAILED") {
         return stopped("GIT_COMMAND_FAILED", collision.reason, preflight, actions);
@@ -372,12 +378,12 @@ export class RunCheckpointService {
       if (collision.status === "EXISTS") {
         return stopped(
           "BRANCH_COLLISION",
-          `Run branch ${branchName} already exists without persisted Densa ownership`,
+          `Run branch ${branchName} already exists without persisted Densa ADE ownership`,
           preflight,
           actions,
         );
       }
-      run = this.database.repositories.densaRunBranches.createCreating({
+      run = this.database.repositories.densaAdeRunBranches.createCreating({
         projectId: request.projectId,
         workspacePath: workspaceRoot,
         branchName,
@@ -404,7 +410,7 @@ export class RunCheckpointService {
           );
         }
         if (createdRef.status === "MISSING") {
-          run = this.database.repositories.densaRunBranches.fail(request.projectId, failure);
+          run = this.database.repositories.densaAdeRunBranches.fail(request.projectId, failure);
         }
         return stopped("GIT_COMMAND_FAILED", failure, preflight, actions, run);
       }
@@ -414,7 +420,7 @@ export class RunCheckpointService {
       if (run.workspacePath !== workspaceRoot) {
         return stopped(
           "RUN_OWNERSHIP_MISMATCH",
-          "Persisted Densa run belongs to a different workspace",
+          "Persisted Densa ADE run belongs to a different workspace",
           preflight,
           actions,
           run,
@@ -423,16 +429,16 @@ export class RunCheckpointService {
       if (run.status === "FAILED") {
         return stopped(
           "RUN_OWNERSHIP_MISMATCH",
-          `Persisted Densa run creation failed: ${run.failureReason ?? "unknown failure"}`,
+          `Persisted Densa ADE run creation failed: ${run.failureReason ?? "unknown failure"}`,
           preflight,
           actions,
           run,
         );
       }
-      if (preflight.densaRun.currentBranchOwned && preflight.head.branch !== run.branchName) {
+      if (preflight.densaAdeRun.currentBranchOwned && preflight.head.branch !== run.branchName) {
         return stopped(
           "RUN_OWNERSHIP_MISMATCH",
-          "Workspace is on a different reserved Densa run branch",
+          "Workspace is on a different reserved Densa ADE run branch",
           preflight,
           actions,
           run,
@@ -447,7 +453,7 @@ export class RunCheckpointService {
         if (persistedBranchCommit !== undefined && persistedBranchCommit !== run.startingCommit) {
           return stopped(
             "RUN_OWNERSHIP_MISMATCH",
-            "Creating Densa run branch no longer points at its persisted starting commit",
+            "Creating Densa ADE run branch no longer points at its persisted starting commit",
             preflight,
             actions,
             run,
@@ -482,7 +488,7 @@ export class RunCheckpointService {
         if (persistedBranchCommit === undefined) {
           return stopped(
             "RUN_OWNERSHIP_MISMATCH",
-            "Persisted active Densa run branch is missing",
+            "Persisted active Densa ADE run branch is missing",
             preflight,
             actions,
             run,
@@ -511,7 +517,7 @@ export class RunCheckpointService {
     ) {
       return stopped(
         "WORKSPACE_CHANGED",
-        "Workspace changed while Densa was establishing the run branch",
+        "Workspace changed while Densa ADE was establishing the run branch",
         preflight,
         actions,
         run,
@@ -522,7 +528,7 @@ export class RunCheckpointService {
       const task = this.database.repositories.tasks.findById(request.taskId);
       if (task === undefined) throw new RunCheckpointInvariantError("Checkpoint task disappeared");
       run = this.database.transaction((repositories) => {
-        const activated = repositories.densaRunBranches.activate(
+        const activated = repositories.densaAdeRunBranches.activate(
           request.projectId,
           request.createdAt,
         );

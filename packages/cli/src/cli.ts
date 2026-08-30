@@ -6,7 +6,7 @@ import {
   requestEnvelopeSchema,
   type JsonValue,
   type ProtocolError,
-} from "@densa/protocol";
+} from "@densa-ade/protocol";
 
 import {
   CLI_OUTPUT_SCHEMA_VERSION,
@@ -31,17 +31,17 @@ import {
   type DoctorCheck,
 } from "./services.js";
 
-const HELP_TEXT = `Usage: densa [--json] <command>
+const HELP_TEXT = `Usage: densa-ade [--json] <command>
 
-Headless client shell for Densa Core.
+Headless client shell for Densa ADE Core.
 
 Commands:
-  core start             Start the user-local Densa Core daemon
+  core start             Start the user-local Densa ADE Core daemon
   core status            Show daemon connectivity and process status
-  core stop              Stop the Densa Core daemon cleanly
+  core stop              Stop the Densa ADE Core daemon cleanly
   doctor                 Check Node, Git, platform, agent, and Core readiness
   proof phase-one        Run the P9M0 disposable real-agent headless proof
-  project init           Initialize a Densa project through Core
+  project init           Initialize a Densa ADE project through Core
   project status         Show the current project status
   project start          Start the current project
   project pause          Pause the current project
@@ -192,7 +192,7 @@ async function executeCommand(
     case "version":
       return {
         data: { cliVersion: CLI_VERSION, protocolVersion: PROTOCOL_VERSION },
-        human: `densa ${CLI_VERSION}\nprotocol ${PROTOCOL_VERSION}`,
+        human: `densa-ade ${CLI_VERSION}\nprotocol ${PROTOCOL_VERSION}`,
       };
     case "doctor":
       return runDoctor(services);

@@ -4,9 +4,9 @@ import {
   type Project,
   type ProjectId,
   type Task,
-} from "@densa/protocol";
+} from "@densa-ade/protocol";
 
-import type { DensaRepositories } from "./persistence/repositories.js";
+import type { DensaAdeRepositories } from "./persistence/repositories.js";
 
 export type SchedulerGateScope = "project" | "phase" | "task";
 
@@ -331,7 +331,7 @@ function permissionApplies(blocker: SchedulerPermissionBlocker, entry: RoadmapEn
  * belong to later orchestration milestones.
  */
 export class DependencyScheduler {
-  constructor(private readonly repositories: DensaRepositories) {}
+  constructor(private readonly repositories: DensaAdeRepositories) {}
 
   selectNext(request: SchedulerRequest): SchedulerSelection {
     const project = this.repositories.projects.findById(request.projectId);

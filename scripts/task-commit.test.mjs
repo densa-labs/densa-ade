@@ -5,8 +5,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { RunCheckpointService, StateTransitionService, TaskCommitService } from "@densa/core";
-import { DensaDatabase } from "@densa/core/persistence";
+import { RunCheckpointService, StateTransitionService, TaskCommitService } from "@densa-ade/core";
+import { DensaAdeDatabase } from "@densa-ade/core/persistence";
 
 const temporaryRoots = new Set();
 const createdAt = "2026-08-26T08:00:00.000Z";
@@ -36,13 +36,13 @@ function createRoot() {
 function createRepository(root) {
   const repository = join(root, "workspace");
   git(root, ["init", "--quiet", "--initial-branch=main", repository]);
-  writeFileSync(join(repository, ".gitignore"), ".densa/runtime/\n*.sqlite\n", "utf8");
+  writeFileSync(join(repository, ".gitignore"), ".densa-ade/runtime/\n*.sqlite\n", "utf8");
   writeFileSync(join(repository, "task.txt"), "before\n", "utf8");
   writeFileSync(join(repository, "user.txt"), "user baseline\n", "utf8");
   git(repository, ["add", "--all"]);
   git(repository, [
     "-c",
-    "user.name=Densa Fixture",
+    "user.name=Densa ADE Fixture",
     "-c",
     "user.email=densa-fixture@localhost",
     "-c",
@@ -163,7 +163,7 @@ function requestFor(graph, repository, suffix = "success") {
 }
 
 function configureCommitIdentity(repository) {
-  git(repository, ["config", "user.name", "Densa Fixture"]);
+  git(repository, ["config", "user.name", "Densa ADE Fixture"]);
   git(repository, ["config", "user.email", "densa-fixture@localhost"]);
   git(repository, ["config", "commit.gpgsign", "false"]);
 }
@@ -181,7 +181,7 @@ test("commits exactly the intended passing-task change and atomically completes 
   git(repository, ["push", "--quiet", "--set-upstream", "origin", "main"]);
   const remoteBefore = git(remote, ["for-each-ref", "--format=%(refname):%(objectname)"]);
   const databasePath = join(root, "runtime.sqlite");
-  const database = DensaDatabase.open(databasePath);
+  const database = DensaAdeDatabase.open(databasePath);
   const graph = await preparePassingAttempt(database, repository);
   configureCommitIdentity(repository);
   writeFileSync(join(repository, "task.txt"), "after\n", "utf8");
@@ -191,7 +191,7 @@ test("commits exactly the intended passing-task change and atomically completes 
   );
 
   assert.equal(result.status, "COMMITTED");
-  assert.equal(result.commitMessage, "densa: TASK-042 write the intended file");
+  assert.equal(result.commitMessage, "densa-ade: TASK-042 write the intended file");
   assert.equal(git(repository, ["rev-parse", "HEAD"]).trim(), result.commitSha);
   assert.equal(
     git(repository, ["show", "--format=%s", "--no-patch", "HEAD"]).trim(),
@@ -229,7 +229,7 @@ test("commits exactly the intended passing-task change and atomically completes 
   assert.equal(git(repository, ["rev-list", "--count", "HEAD"]).trim(), "2");
   database.close();
 
-  const reopened = DensaDatabase.open(databasePath);
+  const reopened = DensaAdeDatabase.open(databasePath);
   assert.equal(
     reopened.repositories.attempts.findById(graph.attempt.id).commitSha,
     result.commitSha,
@@ -240,7 +240,7 @@ test("commits exactly the intended passing-task change and atomically completes 
 test("preserves unrelated staged and unstaged user changes outside the intended path", async () => {
   const root = createRoot();
   const repository = createRepository(root);
-  const database = DensaDatabase.open(join(root, "runtime.sqlite"));
+  const database = DensaAdeDatabase.open(join(root, "runtime.sqlite"));
   const graph = await preparePassingAttempt(database, repository);
   configureCommitIdentity(repository);
   writeFileSync(join(repository, "task.txt"), "task result\n", "utf8");
@@ -264,7 +264,7 @@ test("preserves unrelated staged and unstaged user changes outside the intended 
 test("a Git commit failure leaves the task VALIDATING with no persisted commit SHA", async () => {
   const root = createRoot();
   const repository = createRepository(root);
-  const database = DensaDatabase.open(join(root, "runtime.sqlite"));
+  const database = DensaAdeDatabase.open(join(root, "runtime.sqlite"));
   const graph = await preparePassingAttempt(database, repository);
   configureCommitIdentity(repository);
   const hook = join(repository, ".git", "hooks", "pre-commit");
@@ -288,7 +288,7 @@ test("a Git commit failure leaves the task VALIDATING with no persisted commit S
 test("a failed completion transaction rolls back state and SHA, then retry recovers the same commit", async () => {
   const root = createRoot();
   const repository = createRepository(root);
-  const database = DensaDatabase.open(join(root, "runtime.sqlite"));
+  const database = DensaAdeDatabase.open(join(root, "runtime.sqlite"));
   const graph = await preparePassingAttempt(database, repository);
   configureCommitIdentity(repository);
   writeFileSync(join(repository, "task.txt"), "recoverable task result\n", "utf8");
@@ -336,7 +336,7 @@ test("a failed completion transaction rolls back state and SHA, then retry recov
 test("does not stage or commit an attempt whose validation failed", async () => {
   const root = createRoot();
   const repository = createRepository(root);
-  const database = DensaDatabase.open(join(root, "runtime.sqlite"));
+  const database = DensaAdeDatabase.open(join(root, "runtime.sqlite"));
   const graph = await preparePassingAttempt(database, repository, { passed: false });
   configureCommitIdentity(repository);
   const checkpointHead = git(repository, ["rev-parse", "HEAD"]).trim();
@@ -360,7 +360,7 @@ test("does not stage or commit an attempt whose validation failed", async () => 
 test("does not stage or commit when a required criterion has no plan evidence", async () => {
   const root = createRoot();
   const repository = createRepository(root);
-  const database = DensaDatabase.open(join(root, "runtime.sqlite"));
+  const database = DensaAdeDatabase.open(join(root, "runtime.sqlite"));
   const graph = await preparePassingAttempt(database, repository, { planBased: true });
   configureCommitIdentity(repository);
   const checkpointHead = git(repository, ["rev-parse", "HEAD"]).trim();

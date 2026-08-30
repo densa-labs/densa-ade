@@ -1,16 +1,16 @@
 # SQLite persistence
 
-Phase 2 Milestone 1 makes SQLite the authoritative detailed runtime store owned by Densa Core.
+Phase 2 Milestone 1 makes SQLite the authoritative detailed runtime store owned by Densa ADE Core.
 Clients do not receive a database connection and repository interfaces do not expose direct status
 updates. New projects, phases, and tasks begin in their canonical initial states; later state changes
 must come from `StateTransitionService` and are persisted with their audit event in one transaction.
 
 ## Runtime and dependency choice
 
-Core uses Node's built-in `node:sqlite` binding. It is available at Densa's Node 22.13 minimum,
+Core uses Node's built-in `node:sqlite` binding. It is available at Densa ADE's Node 22.13 minimum,
 keeps the production dependency set unchanged, supports parameterized statements, and exposes the
 foreign-key and transaction behavior required here. These synchronous calls run in the separate
-Densa Core process, never in an IDE renderer or UI thread. If database workloads grow enough to
+Densa ADE Core process, never in an IDE renderer or UI thread. If database workloads grow enough to
 affect Core responsiveness, the same repository boundary can move onto a dedicated worker without
 changing client or orchestration contracts.
 
@@ -29,8 +29,8 @@ Acceptance criteria and task dependencies are stored as child records but round-
 aggregate Task contract. JSON columns use SQLite `json_valid` checks and are parsed through protocol
 schemas when read.
 
-`@densa/core/persistence` exports `DensaDatabase` and its repository contracts without eagerly
-loading SQLite for consumers of other Core modules. `DensaDatabase.transaction()` supports nested
+`@densa-ade/core/persistence` exports `DensaAdeDatabase` and its repository contracts without eagerly
+loading SQLite for consumers of other Core modules. `DensaAdeDatabase.transaction()` supports nested
 repository work with savepoints. Task creation uses that boundary for its task, criteria, and
 dependency rows. `persistStateTransition()` uses an optimistic current-state predicate and writes
 the accepted state plus its versioned event in the same transaction; a stale snapshot or failed
@@ -97,7 +97,7 @@ Matching append-only start/completion events carry the review ID, reviewer run I
 validation boundary so task/phase completion does not accept an unproven standalone row.
 
 The project-scoped list queries added for portable export retain repository isolation and stable
-ordering. Phase 2 Milestone 3 uses them to create `.densa/` snapshots without exposing raw SQL or
+ordering. Phase 2 Milestone 3 uses them to create `.densa-ade/` snapshots without exposing raw SQL or
 making the filesystem authoritative; see [portable-project.md](./portable-project.md).
 
 ## Migration compatibility

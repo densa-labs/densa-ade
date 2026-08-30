@@ -1,6 +1,6 @@
 # Master-led roadmap revisions
 
-Phase 8 Milestone 2 adds a durable steering workflow around the authoritative roadmap mutation engine. The Master Agent still cannot edit roadmap state directly: it emits structured operations, and Densa Core previews, classifies, validates, persists, and applies them.
+Phase 8 Milestone 2 adds a durable steering workflow around the authoritative roadmap mutation engine. The Master Agent still cannot edit roadmap state directly: it emits structured operations, and Densa ADE Core previews, classifies, validates, persists, and applies them.
 
 ## Workflow
 

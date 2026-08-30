@@ -1,4 +1,4 @@
-import type { JsonObject, JsonValue, ProtocolError } from "@densa/protocol";
+import type { JsonObject, JsonValue, ProtocolError } from "@densa-ade/protocol";
 
 export const CLI_OUTPUT_SCHEMA_VERSION = 1 as const;
 export const CLI_VERSION = "0.0.0" as const;

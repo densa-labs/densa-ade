@@ -3,7 +3,7 @@ import { spawn } from "node:child_process";
 import { lstat, readFile, readlink } from "node:fs/promises";
 import { resolve, sep } from "node:path";
 
-import { isTerminalAgentEvent, type AgentAdapter } from "@densa/agent-sdk";
+import { isTerminalAgentEvent, type AgentAdapter } from "@densa-ade/agent-sdk";
 import {
   independentReviewOutputJsonSchema,
   independentReviewOutputSchema,
@@ -19,9 +19,9 @@ import {
   type TaskId,
   type ValidationRunId,
   type ValidatorOutcome,
-} from "@densa/protocol";
+} from "@densa-ade/protocol";
 
-import type { DensaDatabase } from "./persistence/database.js";
+import type { DensaAdeDatabase } from "./persistence/database.js";
 import { redactPortableText } from "./persistence/portable-project.js";
 import type {
   PhaseLifecycleValidator,
@@ -168,7 +168,7 @@ function bounded(value: string, maximumBytes = MAX_REVIEW_TEXT_BYTES): string {
   const redacted = redactPortableText(value);
   const bytes = Buffer.from(redacted, "utf8");
   if (bytes.length <= maximumBytes) return redacted;
-  return `${bytes.subarray(0, maximumBytes - 32).toString("utf8")}\n...[truncated by Densa]`;
+  return `${bytes.subarray(0, maximumBytes - 32).toString("utf8")}\n...[truncated by Densa ADE]`;
 }
 
 function reviewContext(request: ExecuteIndependentReviewRequest): Readonly<JsonObject> {
@@ -298,7 +298,7 @@ export class IndependentReviewService {
   readonly #workspaceFingerprint: (workspacePath: string) => Promise<string>;
 
   constructor(
-    private readonly database: DensaDatabase,
+    private readonly database: DensaAdeDatabase,
     options: IndependentReviewServiceOptions = {},
   ) {
     const clock = options.now ?? (() => new Date().toISOString());

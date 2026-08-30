@@ -2,7 +2,7 @@
 
 Phase 4 Milestone 0 defines the editor- and model-neutral `ProjectSpecification` contract used to
 record project intent before roadmap generation. The authoritative value is schema-validated
-structured data in Densa Core's SQLite repository. `SPEC.md` is a deterministic portable rendering
+structured data in Densa ADE Core's SQLite repository. `SPEC.md` is a deterministic portable rendering
 of that value, not an independent source of lifecycle truth.
 
 ## Version 1 contract

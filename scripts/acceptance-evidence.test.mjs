@@ -4,8 +4,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { AcceptanceEvidenceService, ValidationPipeline, renderAcceptanceReport } from "@densa/core";
-import { DensaDatabase } from "@densa/core/persistence";
+import {
+  AcceptanceEvidenceService,
+  ValidationPipeline,
+  renderAcceptanceReport,
+} from "@densa-ade/core";
+import { DensaAdeDatabase } from "@densa-ade/core/persistence";
 
 const createdAt = "2026-08-28T01:00:00.000Z";
 
@@ -61,7 +65,7 @@ function validator(id, status) {
 }
 
 test("mixed deterministic, targeted, browser, and independent evidence map per criterion", async () => {
-  const database = DensaDatabase.openInMemory();
+  const database = DensaAdeDatabase.openInMemory();
   try {
     const { project, task } = seed(database, "mixed", [
       "Build succeeds.",
@@ -128,7 +132,7 @@ test("unsupported criteria require an audited manual approval and replay after r
   const directory = mkdtempSync(join(tmpdir(), "densa-manual-acceptance-"));
   const path = join(directory, "runtime.sqlite");
   try {
-    const database = DensaDatabase.open(path);
+    const database = DensaAdeDatabase.open(path);
     const { project, task } = seed(database, "manual", [
       "The build passes.",
       "A human confirms the product language is accurate.",
@@ -181,7 +185,7 @@ test("unsupported criteria require an audited manual approval and replay after r
     );
     database.close();
 
-    const reopened = DensaDatabase.open(path);
+    const reopened = DensaAdeDatabase.open(path);
     const replayed = new AcceptanceEvidenceService(reopened, {
       now: () => "2026-08-28T01:31:00.000Z",
     }).evaluateTask("validation-manual");
@@ -194,7 +198,7 @@ test("unsupported criteria require an audited manual approval and replay after r
 });
 
 test("required unevaluated criteria block task and phase gates and render concisely", async () => {
-  const database = DensaDatabase.openInMemory();
+  const database = DensaAdeDatabase.openInMemory();
   try {
     const { project, phase, task } = seed(database, "unevaluated", [
       "The build passes.",
@@ -245,7 +249,7 @@ test("required unevaluated criteria block task and phase gates and render concis
 });
 
 test("manual review cannot be fabricated for an automatically evaluated criterion", async () => {
-  const database = DensaDatabase.openInMemory();
+  const database = DensaAdeDatabase.openInMemory();
   try {
     const { project, task } = seed(database, "manual-boundary", ["The test passes."]);
     const outcome = await new ValidationPipeline(database, { now: clock() }).execute({
@@ -286,7 +290,7 @@ test("manual review cannot be fabricated for an automatically evaluated criterio
 });
 
 test("legacy results with an unspecified source stay visible but cannot satisfy acceptance", () => {
-  const database = DensaDatabase.openInMemory();
+  const database = DensaAdeDatabase.openInMemory();
   try {
     const { task } = seed(database, "legacy", ["The behavior is proven."]);
     database.repositories.validationRuns.create({

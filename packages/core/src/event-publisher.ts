@@ -1,4 +1,4 @@
-import type { Event, Phase, Project, Task } from "@densa/protocol";
+import type { Event, Phase, Project, Task } from "@densa-ade/protocol";
 
 export const DEFAULT_EVENT_REPLAY_LIMIT = 500;
 export const MAX_EVENT_REPLAY_LIMIT = 1_000;

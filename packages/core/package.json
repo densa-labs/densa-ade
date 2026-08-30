@@ -1,8 +1,9 @@
 {
-  "name": "@densa/core",
+  "name": "@densa-ade/core",
   "version": "0.0.0",
   "private": true,
-  "description": "Editor-independent authoritative runtime for Densa projects.",
+  "description": "Editor-independent authoritative runtime for Densa ADE projects.",
+  "author": "Densa Labs",
   "type": "module",
   "exports": {
     ".": {
@@ -26,8 +27,8 @@
     "dist"
   ],
   "dependencies": {
-    "@densa/agent-sdk": "0.0.0",
-    "@densa/protocol": "0.0.0",
+    "@densa-ade/agent-sdk": "0.0.0",
+    "@densa-ade/protocol": "0.0.0",
     "playwright": "1.62.1"
   }
 }

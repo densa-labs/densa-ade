@@ -8,9 +8,9 @@ import {
   type Project,
   type ProjectSpecification,
   type Task,
-} from "@densa/protocol";
+} from "@densa-ade/protocol";
 
-import type { DensaRepositories } from "./persistence/repositories.js";
+import type { DensaAdeRepositories } from "./persistence/repositories.js";
 import { redactSensitiveText } from "./secret-redaction.js";
 
 export const TASK_PACKET_MAX_BYTES = 192 * 1024;
@@ -534,7 +534,7 @@ function normalizePermissionEnvelope(
 }
 
 function findPreviousFailure(
-  repositories: DensaRepositories,
+  repositories: DensaAdeRepositories,
   task: Task,
   currentAttemptId: Attempt["id"] | undefined,
   sources: TaskPacketContextSource[],
@@ -620,7 +620,7 @@ function finalizeBounds(
  * conversations or raw file contents. The builder never reads the event journal.
  */
 export class TaskPacketBuilder {
-  constructor(private readonly repositories: DensaRepositories) {}
+  constructor(private readonly repositories: DensaAdeRepositories) {}
 
   build(request: BuildTaskPacketRequest): TaskPacketBuildResult {
     const tracker: TruncationTracker = { truncated: false };
@@ -822,7 +822,7 @@ function markdownList(values: readonly string[], empty: string): readonly string
 /** Renders a stable worker prompt without exposing packet audit metadata as instructions. */
 export function renderTaskPacketPrompt(packet: TaskPacket): string {
   const lines = [
-    "# Densa Worker Task Packet",
+    "# Densa ADE Worker Task Packet",
     "",
     "## Project",
     `Name: ${packet.project.name}`,

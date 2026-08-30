@@ -1,6 +1,6 @@
 # Built-in macOS keep-awake
 
-Phase 7 Milestone 4 adds an editor-independent `KeepAwakeManager` in Densa Core. Long-running work
+Phase 7 Milestone 4 adds an editor-independent `KeepAwakeManager` in Densa ADE Core. Long-running work
 opts in by acquiring a project-scoped, stable reason ID. Core persists those reasons in the
 project's authoritative SQLite settings and exposes `KeepAwakeStatus` through the versioned
 protocol package. The status reports whether system sleep is actually prevented, the associated
@@ -8,7 +8,7 @@ project/reasons, the last observed battery state, and the effective threshold. U
 infer an active assertion from demand alone.
 
 The macOS platform implementation starts `/usr/bin/caffeinate -i -w <core-pid>` without a shell.
-Only the idle-system-sleep assertion is requested: Densa never passes `-d`, so display sleep remains
+Only the idle-system-sleep assertion is requested: Densa ADE never passes `-d`, so display sleep remains
 allowed. Tying the assertion to the Core PID also lets macOS remove it if Core exits unexpectedly.
 Amphetamine is not required and is not part of this boundary.
 
@@ -31,7 +31,7 @@ Amphetamine is not required and is not part of this boundary.
 SQLite records demand, battery observations, disposition, and the opaque platform handle. It does
 not make an operating-system assertion true. A new manager therefore reports a persisted active
 handle as `recovery_required`, never optimistically active. Startup recovery enumerates all project
-settings, verifies and terminates only a matching Densa `caffeinate -i -w` process, clears stale
+settings, verifies and terminates only a matching Densa ADE `caffeinate -i -w` process, clears stale
 demand/state, and records the outcome. An identity mismatch or unconfirmed termination remains
 `recovery_required` for inspection rather than risking an unrelated process.
 

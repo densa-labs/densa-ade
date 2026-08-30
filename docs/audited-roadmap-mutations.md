@@ -1,6 +1,6 @@
 # Audited roadmap mutations
 
-Phase 4 Milestone 3 makes roadmap evolution a single Densa Core operation instead of an ad hoc
+Phase 4 Milestone 3 makes roadmap evolution a single Densa ADE Core operation instead of an ad hoc
 object or Markdown edit. SQLite stores the authoritative versioned `MasterRoadmap`; the portable
 `ROADMAP.md` remains an inspectable projection and never authorizes a state change by itself.
 Initial persistence requires an existing structured specification and preserves its project goal

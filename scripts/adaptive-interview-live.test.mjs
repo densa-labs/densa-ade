@@ -4,8 +4,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 
-import { CodexAdapter } from "@densa/agent-sdk";
-import { AdaptiveInterviewPlanner, AgentAdapterMasterInterviewAgent } from "@densa/core";
+import { CodexAdapter } from "@densa-ade/agent-sdk";
+import { AdaptiveInterviewPlanner, AgentAdapterMasterInterviewAgent } from "@densa-ade/core";
 
 const liveEnabled = process.env.DENSA_LIVE_CODEX_INTERVIEW === "1";
 

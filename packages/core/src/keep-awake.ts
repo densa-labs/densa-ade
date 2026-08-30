@@ -18,9 +18,9 @@ import {
   type KeepAwakeReasonId,
   type KeepAwakeStatus,
   type ProjectId,
-} from "@densa/protocol";
+} from "@densa-ade/protocol";
 
-import type { DensaDatabase } from "./persistence/database.js";
+import type { DensaAdeDatabase } from "./persistence/database.js";
 
 const execFileAsync = promisify(execFile);
 const DEFAULT_MINIMUM_BATTERY_PERCENT = 20;
@@ -150,7 +150,7 @@ async function releaseStaleCaffeinate(handle: KeepAwakePlatformHandle): Promise<
   }
   const expected = `/usr/bin/caffeinate -i -w ${String(handle.ownerPid)}`;
   if (command !== expected) {
-    throw new Error("Persisted PID no longer identifies Densa's caffeinate assertion");
+    throw new Error("Persisted PID no longer identifies Densa ADE's caffeinate assertion");
   }
   try {
     process.kill(handle.pid, "SIGTERM");
@@ -435,7 +435,7 @@ export class KeepAwakeManager {
   #operation: Promise<unknown> = Promise.resolve();
 
   constructor(
-    private readonly database: DensaDatabase,
+    private readonly database: DensaAdeDatabase,
     options: KeepAwakeManagerOptions = {},
   ) {
     this.#platform = options.platform ?? new MacOsKeepAwakePlatform();

@@ -10,10 +10,10 @@ import {
   IndependentReviewService,
   SingleTaskOrchestrator,
   StateTransitionService,
-} from "@densa/core";
-import { DensaDatabase } from "@densa/core/persistence";
-import { masterRoadmapSchema } from "@densa/protocol";
-import { FakeAgentAdapter } from "@densa/testing";
+} from "@densa-ade/core";
+import { DensaAdeDatabase } from "@densa-ade/core/persistence";
+import { masterRoadmapSchema } from "@densa-ade/protocol";
+import { FakeAgentAdapter } from "@densa-ade/testing";
 
 const temporaryRoots = new Set();
 const createdAt = "2026-08-27T00:00:00.000Z";
@@ -47,12 +47,12 @@ function createFixture(prefix = "densa-task-orchestrator-") {
   temporaryRoots.add(root);
   const repository = join(root, "workspace");
   git(root, ["init", "--quiet", "--initial-branch=main", repository]);
-  writeFileSync(join(repository, ".gitignore"), ".densa/runtime/\n*.sqlite\n", "utf8");
+  writeFileSync(join(repository, ".gitignore"), ".densa-ade/runtime/\n*.sqlite\n", "utf8");
   writeFileSync(join(repository, "task.txt"), "baseline\n", "utf8");
   git(repository, ["add", "--all"]);
   git(repository, [
     "-c",
-    "user.name=Densa Fixture",
+    "user.name=Densa ADE Fixture",
     "-c",
     "user.email=densa-fixture@localhost",
     "-c",
@@ -62,12 +62,12 @@ function createFixture(prefix = "densa-task-orchestrator-") {
     "-m",
     "fixture: initial checkpoint",
   ]);
-  git(repository, ["config", "user.name", "Densa Fixture"]);
+  git(repository, ["config", "user.name", "Densa ADE Fixture"]);
   git(repository, ["config", "user.email", "densa-fixture@localhost"]);
   git(repository, ["config", "commit.gpgsign", "false"]);
 
   const databasePath = join(root, "runtime.sqlite");
-  const database = DensaDatabase.open(databasePath);
+  const database = DensaAdeDatabase.open(databasePath);
   const project = {
     id: "project-task-lifecycle",
     name: "Task lifecycle proof",
@@ -288,7 +288,7 @@ test("high-risk task completion accepts the enforced fresh review path", async (
     buildReviewInput: ({ task }) => ({
       goal: task.title,
       relevantDiff: "+accepted",
-      architectureConstraints: ["Densa Core owns the verdict."],
+      architectureConstraints: ["Densa ADE Core owns the verdict."],
     }),
   });
 
@@ -357,7 +357,7 @@ test("fails validation, rolls back, supplies persisted retry evidence, then pass
   assert.equal(readFileSync(join(fixture.repository, "task.txt"), "utf8"), "accepted\n");
   fixture.database.close();
 
-  const reopened = DensaDatabase.open(fixture.databasePath);
+  const reopened = DensaAdeDatabase.open(fixture.databasePath);
   assert.equal(reopened.repositories.attempts.listByTaskId(fixture.task.id).length, 2);
   assert.equal(
     reopened.repositories.attemptRollbackPlans.findByAttemptId(attempts[0].id).diagnostics
@@ -414,7 +414,7 @@ test("four validation failures persist diagnostics, restore Git, and block the t
   assert.equal(git(fixture.repository, ["status", "--porcelain"]), "");
   fixture.database.close();
 
-  const reopened = DensaDatabase.open(fixture.databasePath);
+  const reopened = DensaAdeDatabase.open(fixture.databasePath);
   assert.equal(reopened.repositories.tasks.findById(fixture.task.id).state, "BLOCKED");
   assert.equal(reopened.repositories.attempts.listByTaskId(fixture.task.id).length, 4);
   reopened.close();
@@ -565,7 +565,7 @@ test("a reliable usage limit rolls back output and atomically persists task/proj
   assert.deepEqual(usageEvent.payload.usageState, usageState);
   fixture.database.close();
 
-  const reopened = DensaDatabase.open(fixture.databasePath);
+  const reopened = DensaAdeDatabase.open(fixture.databasePath);
   assert.equal(reopened.repositories.tasks.findById(fixture.task.id).state, "WAITING_FOR_USAGE");
   assert.equal(
     reopened.repositories.projects.findById(fixture.project.id).state,

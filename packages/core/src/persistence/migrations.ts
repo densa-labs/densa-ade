@@ -626,6 +626,137 @@ CREATE INDEX roadmap_revision_proposals_project_status
   ON roadmap_revision_proposals (project_id, status, updated_at, id);
 `;
 
+const densaAdeMachineNamespaces = `
+ALTER TABLE densa_run_branches RENAME TO densa_run_branches_legacy;
+
+CREATE TABLE densa_run_branches (
+  project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
+  workspace_path TEXT NOT NULL CHECK (length(workspace_path) > 0),
+  branch_name TEXT NOT NULL UNIQUE CHECK (
+    branch_name GLOB 'densa-ade/run/*'
+    OR branch_name GLOB 'densa/run/*'
+  ),
+  source_branch TEXT NOT NULL CHECK (length(source_branch) > 0),
+  starting_commit TEXT NOT NULL CHECK (length(starting_commit) > 0),
+  status TEXT NOT NULL CHECK (status IN ('CREATING', 'ACTIVE', 'FAILED')),
+  created_at TEXT NOT NULL CHECK (length(created_at) >= 20),
+  activated_at TEXT CHECK (activated_at IS NULL OR length(activated_at) >= 20),
+  failure_reason TEXT CHECK (failure_reason IS NULL OR length(failure_reason) > 0),
+  CHECK ((status = 'ACTIVE') = (activated_at IS NOT NULL)),
+  CHECK ((status = 'FAILED') = (failure_reason IS NOT NULL))
+) STRICT;
+
+INSERT INTO densa_run_branches
+SELECT * FROM densa_run_branches_legacy;
+
+CREATE TABLE checkpoints_v15 (
+  id TEXT PRIMARY KEY CHECK (length(id) > 0),
+  project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  task_id TEXT,
+  attempt_id TEXT UNIQUE,
+  run_branch TEXT,
+  created_at TEXT NOT NULL CHECK (length(created_at) >= 20),
+  description TEXT CHECK (description IS NULL OR length(description) > 0),
+  git_head TEXT CHECK (git_head IS NULL OR length(git_head) > 0),
+  git_status TEXT,
+  workspace_fingerprint TEXT CHECK (
+    workspace_fingerprint IS NULL OR length(workspace_fingerprint) > 0
+  ),
+  FOREIGN KEY (project_id, task_id) REFERENCES tasks(project_id, id) ON DELETE CASCADE,
+  FOREIGN KEY (task_id, attempt_id) REFERENCES attempts(task_id, id) ON DELETE CASCADE,
+  FOREIGN KEY (run_branch) REFERENCES densa_run_branches(branch_name) ON DELETE RESTRICT,
+  CHECK (
+    (task_id IS NULL AND attempt_id IS NULL AND run_branch IS NULL)
+    OR
+    (task_id IS NOT NULL AND attempt_id IS NOT NULL AND run_branch IS NOT NULL AND git_head IS NOT NULL)
+  )
+) STRICT;
+
+INSERT INTO checkpoints_v15 SELECT * FROM checkpoints;
+DROP TABLE checkpoints;
+ALTER TABLE checkpoints_v15 RENAME TO checkpoints;
+CREATE INDEX checkpoints_project_created ON checkpoints (project_id, created_at, id);
+CREATE INDEX checkpoints_task_created ON checkpoints (task_id, created_at, id);
+
+CREATE TABLE task_commit_intents_v15 (
+  attempt_id TEXT PRIMARY KEY REFERENCES attempts(id) ON DELETE CASCADE,
+  project_id TEXT NOT NULL,
+  task_id TEXT NOT NULL,
+  workspace_path TEXT NOT NULL CHECK (length(workspace_path) > 0),
+  branch_name TEXT NOT NULL REFERENCES densa_run_branches(branch_name) ON DELETE RESTRICT,
+  expected_head TEXT NOT NULL CHECK (length(expected_head) > 0),
+  commit_message TEXT NOT NULL CHECK (length(commit_message) > 0),
+  intended_paths_json TEXT NOT NULL CHECK (json_valid(intended_paths_json)),
+  created_at TEXT NOT NULL CHECK (length(created_at) >= 20),
+  commit_sha TEXT CHECK (commit_sha IS NULL OR length(commit_sha) > 0),
+  committed_at TEXT CHECK (committed_at IS NULL OR length(committed_at) >= 20),
+  FOREIGN KEY (project_id, task_id) REFERENCES tasks(project_id, id) ON DELETE CASCADE,
+  FOREIGN KEY (task_id, attempt_id) REFERENCES attempts(task_id, id) ON DELETE CASCADE,
+  CHECK ((commit_sha IS NULL) = (committed_at IS NULL))
+) STRICT;
+
+INSERT INTO task_commit_intents_v15 SELECT * FROM task_commit_intents;
+DROP TABLE task_commit_intents;
+ALTER TABLE task_commit_intents_v15 RENAME TO task_commit_intents;
+CREATE INDEX task_commit_intents_project_created
+  ON task_commit_intents (project_id, created_at, attempt_id);
+
+CREATE TABLE attempt_rollback_plans_v15 (
+  attempt_id TEXT PRIMARY KEY REFERENCES attempts(id) ON DELETE CASCADE,
+  agent_run_id TEXT NOT NULL UNIQUE REFERENCES agent_runs(id) ON DELETE CASCADE,
+  project_id TEXT NOT NULL,
+  task_id TEXT NOT NULL,
+  workspace_path TEXT NOT NULL CHECK (length(workspace_path) > 0),
+  branch_name TEXT NOT NULL REFERENCES densa_run_branches(branch_name) ON DELETE RESTRICT,
+  checkpoint_head TEXT NOT NULL CHECK (length(checkpoint_head) > 0),
+  owned_paths_json TEXT NOT NULL CHECK (json_valid(owned_paths_json)),
+  diagnostics_json TEXT NOT NULL CHECK (json_valid(diagnostics_json)),
+  recorded_at TEXT NOT NULL CHECK (length(recorded_at) >= 20),
+  failure_recorded_at TEXT CHECK (
+    failure_recorded_at IS NULL OR length(failure_recorded_at) >= 20
+  ),
+  applied_at TEXT CHECK (applied_at IS NULL OR length(applied_at) >= 20),
+  FOREIGN KEY (project_id, task_id) REFERENCES tasks(project_id, id) ON DELETE CASCADE,
+  FOREIGN KEY (task_id, attempt_id) REFERENCES attempts(task_id, id) ON DELETE CASCADE,
+  CHECK (
+    (failure_recorded_at IS NULL AND diagnostics_json = '{}')
+    OR failure_recorded_at IS NOT NULL
+  ),
+  CHECK (applied_at IS NULL OR failure_recorded_at IS NOT NULL)
+) STRICT;
+
+INSERT INTO attempt_rollback_plans_v15 SELECT * FROM attempt_rollback_plans;
+DROP TABLE attempt_rollback_plans;
+ALTER TABLE attempt_rollback_plans_v15 RENAME TO attempt_rollback_plans;
+CREATE INDEX attempt_rollback_plans_project_recorded
+  ON attempt_rollback_plans (project_id, recorded_at, attempt_id);
+
+DROP TABLE densa_run_branches_legacy;
+
+CREATE TABLE phase_reports_v15 (
+  phase_id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL,
+  outcome TEXT NOT NULL CHECK (outcome IN ('blocked', 'awaiting_approval', 'completed')),
+  report_path TEXT NOT NULL CHECK (
+    report_path GLOB '.densa-ade/reports/*.md'
+    OR report_path GLOB '.densa/reports/*.md'
+  ),
+  report_json TEXT NOT NULL CHECK (
+    json_valid(report_json)
+    AND json_extract(report_json, '$.formatVersion') = 1
+  ),
+  generated_at TEXT NOT NULL CHECK (length(generated_at) >= 20),
+  FOREIGN KEY (project_id, phase_id) REFERENCES phases(project_id, id) ON DELETE CASCADE,
+  UNIQUE (project_id, report_path)
+) STRICT;
+
+INSERT INTO phase_reports_v15 SELECT * FROM phase_reports;
+DROP TABLE phase_reports;
+ALTER TABLE phase_reports_v15 RENAME TO phase_reports;
+CREATE INDEX phase_reports_project_generated
+  ON phase_reports (project_id, generated_at, phase_id);
+`;
+
 export const schemaMigrations: readonly SchemaMigration[] = Object.freeze([
   Object.freeze({ version: 1, name: "authoritative_runtime_schema", sql: initialSchema }),
   Object.freeze({ version: 2, name: "ordered_event_journal", sql: orderedEventJournal }),
@@ -676,6 +807,11 @@ export const schemaMigrations: readonly SchemaMigration[] = Object.freeze([
     version: 14,
     name: "master_roadmap_revision_workflow",
     sql: masterRoadmapRevisionWorkflow,
+  }),
+  Object.freeze({
+    version: 15,
+    name: "densa_ade_machine_namespaces",
+    sql: densaAdeMachineNamespaces,
   }),
 ]);
 

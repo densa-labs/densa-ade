@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { lstat, mkdir, open, readFile, rename, rm } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 
-import { masterRoadmapSchema, projectSpecificationSchema } from "@densa/protocol";
+import { masterRoadmapSchema, projectSpecificationSchema } from "@densa-ade/protocol";
 import type {
   Decision,
   JsonObject,
@@ -14,11 +14,11 @@ import type {
   ProjectSpecification,
   RoadmapRevision,
   Task,
-} from "@densa/protocol";
+} from "@densa-ade/protocol";
 
 import { renderProjectSpecificationMarkdown } from "../project-specification.js";
 import { renderMasterRoadmapMarkdown } from "../master-roadmap.js";
-import type { DensaRepositories, ProjectSettingsRecord } from "./repositories.js";
+import type { DensaAdeRepositories, ProjectSettingsRecord } from "./repositories.js";
 
 const PORTABLE_FORMAT_VERSION = 1;
 const SYNC_MANIFEST_NAME = ".sync-state.json";
@@ -171,7 +171,7 @@ function inlineText(content: string): string {
 
 function renderSpecification(snapshot: PortableProjectSnapshot, redactor: SecretRedactor): string {
   if (snapshot.specification === undefined) {
-    return "# Specification\n\nNo specification has been recorded in Densa Core.\n";
+    return "# Specification\n\nNo specification has been recorded in Densa ADE Core.\n";
   }
   const sanitized = projectSpecificationSchema.parse(
     redactor.json(snapshot.specification as unknown as JsonValue),
@@ -192,7 +192,7 @@ function renderRoadmap(snapshot: PortableProjectSnapshot, redactor: SecretRedact
   const lines = [
     `# Roadmap — ${inlineText(redactor.text(snapshot.project.name))}`,
     "",
-    "> Portable view generated from authoritative Densa Core state.",
+    "> Portable view generated from authoritative Densa ADE Core state.",
     "",
   ];
 
@@ -291,7 +291,7 @@ function renderDecisions(snapshot: PortableProjectSnapshot, redactor: SecretReda
   const lines = [
     `# Decisions — ${inlineText(redactor.text(snapshot.project.name))}`,
     "",
-    "> Portable decision record generated from authoritative Densa Core state.",
+    "> Portable decision record generated from authoritative Densa ADE Core state.",
     "",
   ];
   if (snapshot.decisions.length === 0) {
@@ -361,7 +361,7 @@ export function renderPortableProject(snapshot: PortableProjectSnapshot): Render
 }
 
 export function createPortableProjectSnapshot(
-  repositories: DensaRepositories,
+  repositories: DensaAdeRepositories,
   projectId: ProjectId,
 ): PortableProjectSnapshot {
   const project = repositories.projects.findById(projectId);
@@ -512,18 +512,18 @@ export async function atomicReplaceFile(
 }
 
 export class PortableProjectSynchronizer {
-  constructor(private readonly repositories: DensaRepositories) {}
+  constructor(private readonly repositories: DensaAdeRepositories) {}
 
   async synchronize(workspaceRoot: string, projectId: ProjectId): Promise<PortableSyncResult> {
     const snapshot = createPortableProjectSnapshot(this.repositories, projectId);
     const rendered = renderPortableProject(snapshot);
-    const densaDirectory = join(workspaceRoot, ".densa");
+    const densaAdeDirectory = join(workspaceRoot, ".densa-ade");
     await ensureDirectory(workspaceRoot);
-    await ensureDirectory(densaDirectory);
-    await ensureDirectory(join(densaDirectory, "reports"));
-    await ensureDirectory(join(densaDirectory, "logs"));
+    await ensureDirectory(densaAdeDirectory);
+    await ensureDirectory(join(densaAdeDirectory, "reports"));
+    await ensureDirectory(join(densaAdeDirectory, "logs"));
 
-    const manifestPath = join(densaDirectory, SYNC_MANIFEST_NAME);
+    const manifestPath = join(densaAdeDirectory, SYNC_MANIFEST_NAME);
     const manifestContent = await readRegularFile(manifestPath);
     const manifest =
       manifestContent === undefined ? undefined : parseManifest(manifestContent, projectId);
@@ -532,7 +532,7 @@ export class PortableProjectSynchronizer {
     const unchanged: string[] = [];
 
     for (const name of MANAGED_FILE_NAMES) {
-      const content = await readRegularFile(join(densaDirectory, name));
+      const content = await readRegularFile(join(densaAdeDirectory, name));
       current.set(name, content);
       if (content === undefined) {
         continue;
@@ -549,7 +549,7 @@ export class PortableProjectSynchronizer {
     if (conflicts.length > 0) {
       return Object.freeze({
         status: "conflict",
-        directory: densaDirectory,
+        directory: densaAdeDirectory,
         written: Object.freeze([]),
         unchanged: Object.freeze(unchanged),
         conflicts: Object.freeze(conflicts),
@@ -563,7 +563,7 @@ export class PortableProjectSynchronizer {
       if (content === rendered.files[name]) {
         continue;
       }
-      await atomicReplaceFile(join(densaDirectory, name), rendered.files[name]);
+      await atomicReplaceFile(join(densaAdeDirectory, name), rendered.files[name]);
       written.push(name);
     }
 
@@ -586,7 +586,7 @@ export class PortableProjectSynchronizer {
 
     return Object.freeze({
       status: "synchronized",
-      directory: densaDirectory,
+      directory: densaAdeDirectory,
       written: Object.freeze(written),
       unchanged: Object.freeze(unchanged),
       conflicts: Object.freeze([]),

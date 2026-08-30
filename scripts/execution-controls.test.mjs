@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { ProjectExecutionControlService, StateTransitionService } from "@densa/core";
-import { DensaDatabase } from "@densa/core/persistence";
+import { ProjectExecutionControlService, StateTransitionService } from "@densa-ade/core";
+import { DensaAdeDatabase } from "@densa-ade/core/persistence";
 
 const workspacePath = "/tmp/densa-p5m5-workspace";
 const baseTime = Date.parse("2026-08-27T14:00:00.000Z");
@@ -55,7 +55,7 @@ function preflight({
     repository: { isGitRepository: true, isWorkTree: true, isBare: false, root: workspacePath },
     head: {
       commit,
-      branch: "densa/run/project-controls",
+      branch: "densa-ade/run/project-controls",
       detached: false,
       unborn: false,
     },
@@ -66,18 +66,18 @@ function preflight({
       dirty,
     },
     operations: { merge: false, rebase: false, cherryPick: false, active: [] },
-    ignoredDensaRuntimeArtifacts: [],
-    densaRun: {
-      branchPrefix: "densa/run/",
+    ignoredDensaAdeRuntimeArtifacts: [],
+    densaAdeRun: {
+      branchPrefix: "densa-ade/run/",
       currentBranchOwned: true,
-      ownedBranches: ["densa/run/project-controls"],
+      ownedBranches: ["densa-ade/run/project-controls"],
       hasOwnedRunBranch: true,
     },
     decision: {
       outcome: dirty ? "STOP" : "PROCEED",
       code,
       requiresUserDecision: dirty,
-      reason: dirty ? "User changes are present" : "Existing Densa run is safe",
+      reason: dirty ? "User changes are present" : "Existing Densa ADE run is safe",
     },
     automaticActionsPerformed: false,
   };
@@ -101,7 +101,7 @@ function request(project) {
 }
 
 test("graceful pause during a worker finishes the safe unit and stops before scheduling more", async () => {
-  const database = DensaDatabase.openInMemory();
+  const database = DensaAdeDatabase.openInMemory();
   const now = clock();
   const project = seed(database, now);
   let releaseWorker;
@@ -160,7 +160,7 @@ test("graceful pause during a worker finishes the safe unit and stops before sch
 });
 
 test("immediate cancel aborts the active worker and leaves no live fake worker", async () => {
-  const database = DensaDatabase.openInMemory();
+  const database = DensaAdeDatabase.openInMemory();
   const now = clock();
   const project = seed(database, now);
   let startedWorker;
@@ -212,7 +212,7 @@ test("immediate cancel aborts the active worker and leaves no live fake worker",
 });
 
 test("pause between tasks and stop are immediate, durable, idempotent, and preserve work", async () => {
-  const database = DensaDatabase.openInMemory();
+  const database = DensaAdeDatabase.openInMemory();
   const now = clock();
   const project = seed(database, now);
   const keepAwakeReleases = [];
@@ -243,7 +243,7 @@ test("pause between tasks and stop are immediate, durable, idempotent, and prese
 });
 
 test("resume checks recovery and workspace first, detects manual edits, then returns recontextualization", async () => {
-  const database = DensaDatabase.openInMemory();
+  const database = DensaAdeDatabase.openInMemory();
   const now = clock();
   const project = seed(database, now);
   let currentSnapshot = snapshot("before");
@@ -295,7 +295,7 @@ test("resume checks recovery and workspace first, detects manual edits, then ret
 });
 
 test("resume explicitly reconciles a confirmed interrupted task to RETRYING", async () => {
-  const database = DensaDatabase.openInMemory();
+  const database = DensaAdeDatabase.openInMemory();
   const now = clock();
   const project = seed(database, now);
   const createdAt = now();
@@ -348,22 +348,22 @@ test("resume explicitly reconciles a confirmed interrupted task to RETRYING", as
     adapterRunId: "agent-run-controls",
     startedAt: now(),
   });
-  database.repositories.densaRunBranches.createCreating({
+  database.repositories.densaAdeRunBranches.createCreating({
     projectId: project.id,
     workspacePath,
-    branchName: "densa/run/project-controls",
+    branchName: "densa-ade/run/project-controls",
     sourceBranch: "main",
     startingCommit: "a".repeat(40),
     createdAt: now(),
   });
-  database.repositories.densaRunBranches.activate(project.id, now());
+  database.repositories.densaAdeRunBranches.activate(project.id, now());
   database.repositories.attemptRollbackPlans.create({
     attemptId: "attempt-controls",
     agentRunId: "agent-run-controls",
     projectId: project.id,
     taskId: task.id,
     workspacePath,
-    branchName: "densa/run/project-controls",
+    branchName: "densa-ade/run/project-controls",
     checkpointHead: "a".repeat(40),
     ownedPaths: [
       {
@@ -415,7 +415,7 @@ test("resume explicitly reconciles a confirmed interrupted task to RETRYING", as
 });
 
 test("even a stopped resume runs both safety inspections before it is rejected", async () => {
-  const database = DensaDatabase.openInMemory();
+  const database = DensaAdeDatabase.openInMemory();
   const now = clock();
   const project = seed(database, now);
   let preflightCalls = 0;

@@ -18,9 +18,9 @@ import {
   type Task,
   type TaskId,
   type UsageState,
-} from "@densa/protocol";
+} from "@densa-ade/protocol";
 
-import { type DensaDatabase } from "./persistence/database.js";
+import { type DensaAdeDatabase } from "./persistence/database.js";
 import {
   independentReviewCompletedEventId,
   independentReviewSupportsCompletion,
@@ -199,7 +199,7 @@ function taskBoundaryEventId(key: string, taskId: TaskId, scope: string): EventI
 function reportPathFor(phaseId: PhaseId): string {
   const slug = phaseId.replace(/[^A-Za-z0-9._-]+/gu, "-").slice(0, 72) || "phase";
   const digest = createHash("sha256").update(phaseId).digest("hex").slice(0, 12);
-  return `.densa/reports/phase-${slug}-${digest}.md`;
+  return `.densa-ade/reports/phase-${slug}-${digest}.md`;
 }
 
 function stopped(
@@ -367,10 +367,10 @@ async function ensureDirectory(path: string): Promise<void> {
 }
 
 async function synchronizePhaseReport(workspacePath: string, report: PhaseReport): Promise<void> {
-  const densaDirectory = join(workspacePath, ".densa");
-  const reportsDirectory = join(densaDirectory, "reports");
+  const densaAdeDirectory = join(workspacePath, ".densa-ade");
+  const reportsDirectory = join(densaAdeDirectory, "reports");
   await ensureDirectory(workspacePath);
-  await ensureDirectory(densaDirectory);
+  await ensureDirectory(densaAdeDirectory);
   await ensureDirectory(reportsDirectory);
   const outputPath = join(workspacePath, report.reportPath);
   const content = renderPhaseReportMarkdown(report);
@@ -395,7 +395,7 @@ async function synchronizePhaseReport(workspacePath: string, report: PhaseReport
  * This prevents Core's own portable files from looking like user changes to the next checkpoint.
  */
 export async function synchronizePersistedPhaseReports(
-  database: DensaDatabase,
+  database: DensaAdeDatabase,
   projectId: ProjectId,
   workspacePath: string,
 ): Promise<void> {
@@ -439,7 +439,7 @@ export class PhaseLifecycleOrchestrator {
   #active = false;
 
   constructor(
-    private readonly database: DensaDatabase,
+    private readonly database: DensaAdeDatabase,
     options: PhaseOrchestratorOptions = {},
   ) {
     const clock = options.now ?? (() => new Date().toISOString());

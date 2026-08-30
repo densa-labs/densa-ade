@@ -67,7 +67,7 @@ export const phaseReportSchema = z
     roadmapRevisionNumber: z.number().int().nonnegative(),
     phaseStartedAt: isoTimestampSchema,
     generatedAt: isoTimestampSchema,
-    reportPath: z.string().regex(/^\.densa\/reports\/[A-Za-z0-9._-]+\.md$/u),
+    reportPath: z.string().regex(/^\.densa(?:-ade)?\/reports\/[A-Za-z0-9._-]+\.md$/u),
     tasksCompleted: z.array(
       z
         .strictObject({

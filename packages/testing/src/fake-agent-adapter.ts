@@ -6,8 +6,8 @@ import type {
   AgentRunOutcome,
   AgentRunRequest,
   AgentStatus,
-} from "@densa/agent-sdk";
-import type { UsageState } from "@densa/protocol";
+} from "@densa-ade/agent-sdk";
+import type { UsageState } from "@densa-ade/protocol";
 
 type NonTerminalAgentEvent = Exclude<
   AgentEvent,

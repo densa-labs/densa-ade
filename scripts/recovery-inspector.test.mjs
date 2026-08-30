@@ -11,8 +11,8 @@ import {
   NodeProcessProbe,
   RecoveryInspector,
   StateTransitionService,
-} from "@densa/core";
-import { DensaDatabase } from "@densa/core/persistence";
+} from "@densa-ade/core";
+import { DensaAdeDatabase } from "@densa-ade/core/persistence";
 
 const createdAt = "2026-08-26T12:00:00.000Z";
 const workspacePath = "/fixture/workspace";
@@ -133,7 +133,7 @@ function seedRunning(database, suffix, { processId = 4242 } = {}) {
 }
 
 async function withDatabase(work) {
-  const database = DensaDatabase.openInMemory();
+  const database = DensaAdeDatabase.openInMemory();
   try {
     await work(database);
   } finally {
@@ -472,7 +472,7 @@ test("process identity logic and the default Git probe observe without mutation"
       "git",
       [
         "-c",
-        "user.name=Densa Test",
+        "user.name=Densa ADE Test",
         "-c",
         "user.email=densa@example.invalid",
         "commit",

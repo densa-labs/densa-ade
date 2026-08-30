@@ -13,9 +13,9 @@ import {
   assertAuthorizedOperation,
   evaluatePermissionPolicy,
   permissionPresetDisposition,
-} from "@densa/core";
-import { DensaDatabase } from "@densa/core/persistence";
-import { permissionOperationSchema } from "@densa/protocol";
+} from "@densa-ade/core";
+import { DensaAdeDatabase } from "@densa-ade/core/persistence";
+import { permissionOperationSchema } from "@densa-ade/protocol";
 
 const createdAt = "2026-08-29T01:00:00.000Z";
 const projectId = "project-permission-policy";
@@ -132,7 +132,7 @@ test("all presets define every operation, including non-overridable sensitive ca
 });
 
 test("ask and deny decisions are audited, while explicit approvals issue unforgeable contexts", () => {
-  const database = DensaDatabase.openInMemory();
+  const database = DensaAdeDatabase.openInMemory();
   database.repositories.projects.create(project());
   database.repositories.decisions.create({
     id: "decision-user-approved-scope",
@@ -219,7 +219,7 @@ test("explicit overrides persist across restart and cannot silently allow danger
   const root = mkdtempSync(join(tmpdir(), "densa-permission-policy-persistence-"));
   const databasePath = join(root, "runtime.sqlite");
   try {
-    let database = DensaDatabase.open(databasePath);
+    let database = DensaAdeDatabase.open(databasePath);
     database.repositories.projects.create(project());
     const policy = service(database, "event-policy-override");
     const configured = policy.setOverride({
@@ -245,7 +245,7 @@ test("explicit overrides persist across restart and cannot silently allow danger
     );
     database.close();
 
-    database = DensaDatabase.open(databasePath);
+    database = DensaAdeDatabase.open(databasePath);
     const reopened = service(database, "event-policy-reopened");
     assert.equal(reopened.getConfiguration(projectId).overrides[0].disposition, "allow");
     const allowed = reopened.authorize({
@@ -273,7 +273,7 @@ test("a sensitive Git boundary stops before mutation when policy does not issue 
     git(repository, ["add", "--all"]);
     git(repository, [
       "-c",
-      "user.name=Densa Fixture",
+      "user.name=Densa ADE Fixture",
       "-c",
       "user.email=densa-fixture@localhost",
       "-c",
@@ -283,7 +283,7 @@ test("a sensitive Git boundary stops before mutation when policy does not issue 
       "-m",
       "fixture: baseline",
     ]);
-    const database = DensaDatabase.openInMemory();
+    const database = DensaAdeDatabase.openInMemory();
     database.repositories.projects.create(project());
     const phase = {
       id: "phase-policy-boundary",
@@ -336,8 +336,8 @@ test("a sensitive Git boundary stops before mutation when policy does not issue 
     assert.equal(result.status, "STOPPED");
     assert.equal(result.code, "POLICY_ASK_USER");
     assert.equal(git(repository, ["branch", "--show-current"]).trim(), initialBranch);
-    assert.equal(git(repository, ["branch", "--list", "densa/run/*"]).trim(), "");
-    assert.equal(database.repositories.densaRunBranches.findByProjectId(projectId), undefined);
+    assert.equal(git(repository, ["branch", "--list", "densa-ade/run/*"]).trim(), "");
+    assert.equal(database.repositories.densaAdeRunBranches.findByProjectId(projectId), undefined);
     assert.equal(
       database.repositories.events.replay({ projectId }).at(-1).payload.disposition,
       "ask_user",

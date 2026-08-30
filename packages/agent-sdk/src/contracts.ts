@@ -1,4 +1,4 @@
-import type { DensaErrorCode, JsonObject, UsageState } from "@densa/protocol";
+import type { DensaAdeErrorCode, JsonObject, UsageState } from "@densa-ade/protocol";
 
 export type AgentDetection =
   | {
@@ -30,7 +30,7 @@ export interface AgentRunRequest {
 }
 
 export interface AgentError {
-  code: DensaErrorCode;
+  code: DensaAdeErrorCode;
   message: string;
   details?: JsonObject;
 }

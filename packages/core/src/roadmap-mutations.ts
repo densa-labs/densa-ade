@@ -24,10 +24,10 @@ import {
   type RoadmapMutationOperation,
   type RoadmapMutationRequest,
   type RoadmapRevisionProposal,
-} from "@densa/protocol";
+} from "@densa-ade/protocol";
 
 import type { PersistedEvent } from "./event-publisher.js";
-import type { DensaDatabase } from "./persistence/database.js";
+import type { DensaAdeDatabase } from "./persistence/database.js";
 import type { PortableSyncResult } from "./persistence/portable-project.js";
 import {
   PermissionPolicyService,
@@ -502,7 +502,7 @@ export class RoadmapMutationService {
   readonly #eventIdFactory: () => string;
 
   constructor(
-    private readonly database: DensaDatabase,
+    private readonly database: DensaAdeDatabase,
     private readonly options: RoadmapMutationServiceOptions,
   ) {
     if (options.workspacePath.trim().length === 0) {

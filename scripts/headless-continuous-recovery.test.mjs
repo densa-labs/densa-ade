@@ -16,10 +16,10 @@ import {
   SingleTaskPhaseExecutor,
   StateTransitionService,
   UsageAutoResumeService,
-} from "@densa/core";
-import { DensaDatabase } from "@densa/core/persistence";
-import { masterRoadmapSchema } from "@densa/protocol";
-import { FakeAgentAdapter, FakeClock } from "@densa/testing";
+} from "@densa-ade/core";
+import { DensaAdeDatabase } from "@densa-ade/core/persistence";
+import { masterRoadmapSchema } from "@densa-ade/protocol";
+import { FakeAgentAdapter, FakeClock } from "@densa-ade/testing";
 
 const roots = new Set();
 const baseTime = Date.parse("2026-08-30T00:00:00.000Z");
@@ -49,14 +49,14 @@ function createRepository(prefix, files = { "task.txt": "baseline\n" }) {
   roots.add(root);
   const workspace = join(root, "workspace");
   git(root, ["init", "--quiet", "--initial-branch=main", workspace]);
-  writeFileSync(join(workspace, ".gitignore"), ".densa/runtime/\n*.sqlite\n", "utf8");
+  writeFileSync(join(workspace, ".gitignore"), ".densa-ade/runtime/\n*.sqlite\n", "utf8");
   for (const [path, content] of Object.entries(files)) {
     writeFileSync(join(workspace, path), content, "utf8");
   }
   git(workspace, ["add", "--all"]);
   git(workspace, [
     "-c",
-    "user.name=Densa P9M1 Fixture",
+    "user.name=Densa ADE P9M1 Fixture",
     "-c",
     "user.email=densa-p9m1@localhost",
     "-c",
@@ -66,7 +66,7 @@ function createRepository(prefix, files = { "task.txt": "baseline\n" }) {
     "-m",
     "fixture: known checkpoint",
   ]);
-  git(workspace, ["config", "user.name", "Densa P9M1 Fixture"]);
+  git(workspace, ["config", "user.name", "Densa ADE P9M1 Fixture"]);
   git(workspace, ["config", "user.email", "densa-p9m1@localhost"]);
   git(workspace, ["config", "commit.gpgsign", "false"]);
   return { root, workspace, databasePath: join(root, "runtime.sqlite") };
@@ -258,7 +258,7 @@ async function runContinuousRetryScenario(cycle) {
     "finish.txt": "baseline\n",
   });
   const now = clock(baseTime + cycle * 100_000);
-  let database = DensaDatabase.open(fixture.databasePath);
+  let database = DensaAdeDatabase.open(fixture.databasePath);
   seedContinuous(database, now);
 
   let agentAdapter;
@@ -373,7 +373,7 @@ async function runContinuousRetryScenario(cycle) {
   assert.equal(events.filter((event) => event.type === "VALIDATION_FAILED").length, 1);
   database.close();
 
-  database = DensaDatabase.open(fixture.databasePath);
+  database = DensaAdeDatabase.open(fixture.databasePath);
   assert.equal(
     database.repositories.projects.findById("project-p9m1-continuous").state,
     "COMPLETED",
@@ -396,7 +396,7 @@ async function runContinuousRetryScenario(cycle) {
 function createTaskFixture(prefix) {
   const fixture = createRepository(prefix);
   const now = clock();
-  const database = DensaDatabase.open(fixture.databasePath);
+  const database = DensaAdeDatabase.open(fixture.databasePath);
   const createdAt = now();
   const project = {
     id: `project-${prefix.replaceAll(/[^a-z0-9]/gu, "")}`,
@@ -467,9 +467,9 @@ function safePreflight(workspace, branch) {
     },
     changes: { staged: [], unstaged: [], untracked: [], dirty: false },
     operations: { merge: false, rebase: false, cherryPick: false, active: [] },
-    ignoredDensaRuntimeArtifacts: [],
-    densaRun: {
-      branchPrefix: "densa/run/",
+    ignoredDensaAdeRuntimeArtifacts: [],
+    densaAdeRun: {
+      branchPrefix: "densa-ade/run/",
       currentBranchOwned: true,
       ownedBranches: [branch],
       hasOwnedRunBranch: true,
@@ -478,7 +478,7 @@ function safePreflight(workspace, branch) {
       outcome: "PROCEED",
       code: "EXISTING_DENSA_RUN",
       requiresUserDecision: false,
-      reason: "Known Densa run branch is safe",
+      reason: "Known Densa ADE run branch is safe",
     },
     automaticActionsPerformed: false,
   };
@@ -531,7 +531,7 @@ describe("P9M1 deterministic Continuous-mode and recovery stress harness", () =>
     assertCoherentReplay(events);
     assert.equal(events.filter((event) => event.type === "VALIDATION_FAILED").length, 4);
     fixture.database.close();
-    const reopened = DensaDatabase.open(fixture.databasePath);
+    const reopened = DensaAdeDatabase.open(fixture.databasePath);
     assert.equal(reopened.repositories.tasks.findById(fixture.task.id).state, "BLOCKED");
     assert.equal(reopened.repositories.attempts.listByTaskId(fixture.task.id).length, 4);
     reopened.close();
@@ -607,7 +607,7 @@ describe("P9M1 deterministic Continuous-mode and recovery stress harness", () =>
     fixture.database.close();
     assert.equal(fakeClock.pendingCount, 0);
 
-    const reopened = DensaDatabase.open(fixture.databasePath);
+    const reopened = DensaAdeDatabase.open(fixture.databasePath);
     const secondService = new UsageAutoResumeService(reopened, serviceOptions);
     const restored = secondService.restore(fixture.project.id);
     assert.equal(restored.status, "SCHEDULED");
@@ -664,7 +664,7 @@ describe("P9M1 deterministic Continuous-mode and recovery stress harness", () =>
     const userContent = readFileSync(join(fixture.workspace, "user-note.txt"), "utf8");
     fixture.database.close();
 
-    const reopened = DensaDatabase.open(fixture.databasePath);
+    const reopened = DensaAdeDatabase.open(fixture.databasePath);
     const recovery = await new RecoveryInspector(reopened.repositories, {
       workspaceProbe: {
         async inspect() {
@@ -736,7 +736,7 @@ describe("P9M1 deterministic Continuous-mode and recovery stress harness", () =>
     assertCoherentReplay(events);
     assert.equal(events.filter((event) => event.type === "HUMAN_INTERVENTION_DETECTED").length, 1);
     fixture.database.close();
-    const reopened = DensaDatabase.open(fixture.databasePath);
+    const reopened = DensaAdeDatabase.open(fixture.databasePath);
     assert.equal(reopened.repositories.projects.findById(fixture.project.id).state, "RUNNING");
     assert.equal(
       readFileSync(join(fixture.workspace, "user-note.txt"), "utf8"),
@@ -748,7 +748,7 @@ describe("P9M1 deterministic Continuous-mode and recovery stress harness", () =>
   test("scope mutation remains unapplied until explicit approval and blocks Continuous execution", async () => {
     const fixture = createRepository("densa-p9m1-scope-approval-");
     const now = clock();
-    const database = DensaDatabase.open(fixture.databasePath);
+    const database = DensaAdeDatabase.open(fixture.databasePath);
     const createdAt = now();
     database.repositories.projects.create({
       id: "project-p9m1-scope",
@@ -832,7 +832,7 @@ describe("P9M1 deterministic Continuous-mode and recovery stress harness", () =>
     assert.equal(blocked.status, "BLOCKED");
     assert.match(blocked.reason, /decision\.scope-removal/u);
     database.close();
-    const reopened = DensaDatabase.open(fixture.databasePath);
+    const reopened = DensaAdeDatabase.open(fixture.databasePath);
     assert.equal(
       reopened.repositories.masterRoadmaps.findByProjectId("project-p9m1-scope").revisionNumber,
       0,

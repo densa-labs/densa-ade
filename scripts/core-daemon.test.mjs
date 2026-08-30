@@ -14,7 +14,7 @@ import {
   CoreIpcClient,
   coreRuntimePaths,
 } from "../packages/core/dist/index.js";
-import { DensaDatabase } from "../packages/core/dist/persistence/index.js";
+import { DensaAdeDatabase } from "../packages/core/dist/persistence/index.js";
 import {
   CORE_EVENT_NOTIFICATION,
   PROTOCOL_VERSION,
@@ -39,7 +39,7 @@ async function privateMode(path) {
 
 async function withDaemon(run) {
   const runtimeDirectory = await mkdtemp(join(tmpdir(), "densa-core-test-"));
-  const database = DensaDatabase.openInMemory();
+  const database = DensaAdeDatabase.openInMemory();
   database.repositories.projects.create({
     id: "project-daemon",
     name: "Daemon fixture",
@@ -288,7 +288,7 @@ test("a killed owner leaves stale PID/socket state that the next daemon safely r
     await new Promise((resolve) => child.once("exit", resolve));
     assert.equal((await lstat(paths.socket)).isSocket(), true);
 
-    const database = DensaDatabase.openInMemory();
+    const database = DensaAdeDatabase.openInMemory();
     const daemon = await CoreDaemon.start({ runtimeDirectory, database });
     try {
       assert.notEqual(daemon.status().instanceId, "stale-instance");

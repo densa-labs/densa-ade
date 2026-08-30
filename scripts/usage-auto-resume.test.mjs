@@ -4,8 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { StateTransitionService, UsageAutoResumeService } from "@densa/core";
-import { DensaDatabase } from "@densa/core/persistence";
+import { StateTransitionService, UsageAutoResumeService } from "@densa-ade/core";
+import { DensaAdeDatabase } from "@densa-ade/core/persistence";
 
 const workspacePath = "/tmp/densa-p7m1-workspace";
 const startingTime = Date.parse("2026-08-29T04:00:00.000Z");
@@ -125,22 +125,22 @@ function seedWaiting(database, clock, resetAt) {
     adapterRunId: "fake-usage-run",
     startedAt: tick(),
   });
-  database.repositories.densaRunBranches.createCreating({
+  database.repositories.densaAdeRunBranches.createCreating({
     projectId: project.id,
     workspacePath,
-    branchName: "densa/run/project-usage-auto-resume",
+    branchName: "densa-ade/run/project-usage-auto-resume",
     sourceBranch: "main",
     startingCommit: "a".repeat(40),
     createdAt: tick(),
   });
-  database.repositories.densaRunBranches.activate(project.id, tick());
+  database.repositories.densaAdeRunBranches.activate(project.id, tick());
   database.repositories.attemptRollbackPlans.create({
     attemptId: "attempt-usage-auto-resume",
     agentRunId: "run-usage-auto-resume",
     projectId: project.id,
     taskId: task.id,
     workspacePath,
-    branchName: "densa/run/project-usage-auto-resume",
+    branchName: "densa-ade/run/project-usage-auto-resume",
     checkpointHead: "a".repeat(40),
     ownedPaths: [
       {
@@ -189,24 +189,24 @@ function safePreflight() {
     repository: { isGitRepository: true, isWorkTree: true, isBare: false, root: workspacePath },
     head: {
       commit: "a".repeat(40),
-      branch: "densa/run/project-usage-auto-resume",
+      branch: "densa-ade/run/project-usage-auto-resume",
       detached: false,
       unborn: false,
     },
     changes: { staged: [], unstaged: [], untracked: [], dirty: false },
     operations: { merge: false, rebase: false, cherryPick: false, active: [] },
-    ignoredDensaRuntimeArtifacts: [],
-    densaRun: {
-      branchPrefix: "densa/run/",
+    ignoredDensaAdeRuntimeArtifacts: [],
+    densaAdeRun: {
+      branchPrefix: "densa-ade/run/",
       currentBranchOwned: true,
-      ownedBranches: ["densa/run/project-usage-auto-resume"],
+      ownedBranches: ["densa-ade/run/project-usage-auto-resume"],
       hasOwnedRunBranch: true,
     },
     decision: {
       outcome: "PROCEED",
       code: "EXISTING_DENSA_RUN",
       requiresUserDecision: false,
-      reason: "Existing Densa run is safe",
+      reason: "Existing Densa ADE run is safe",
     },
     automaticActionsPerformed: false,
   };
@@ -267,7 +267,7 @@ function enable(instance, project) {
 }
 
 test("fake clock proves bounded exponential backoff when resetAt is unknown", async () => {
-  const database = DensaDatabase.openInMemory();
+  const database = DensaAdeDatabase.openInMemory();
   const clock = new FakeClock();
   const { project } = seedWaiting(database, clock);
   const { instance, usageCalls } = service(database, clock, [
@@ -307,7 +307,7 @@ test("fake clock proves bounded exponential backoff when resetAt is unknown", as
 });
 
 test("reset time only permits verification; elapsed time alone never resumes the project", async () => {
-  const database = DensaDatabase.openInMemory();
+  const database = DensaAdeDatabase.openInMemory();
   const clock = new FakeClock();
   const resetAt = iso(startingTime + 10_000);
   const { project, task } = seedWaiting(database, clock, resetAt);
@@ -343,7 +343,7 @@ test("reset time only permits verification; elapsed time alone never resumes the
 });
 
 test("workspace divergence blocks auto-resume before the backend is probed", async () => {
-  const database = DensaDatabase.openInMemory();
+  const database = DensaAdeDatabase.openInMemory();
   const clock = new FakeClock();
   const { project } = seedWaiting(database, clock);
   const { instance, usageCalls } = service(database, clock, [{ status: "available" }], {
@@ -367,7 +367,7 @@ test("workspace divergence blocks auto-resume before the backend is probed", asy
 });
 
 test("mandatory user decisions block auto-resume before usage availability is trusted", async () => {
-  const database = DensaDatabase.openInMemory();
+  const database = DensaAdeDatabase.openInMemory();
   const clock = new FakeClock();
   const { project } = seedWaiting(database, clock);
   const { instance, usageCalls } = service(database, clock, [{ status: "available" }], {
@@ -393,7 +393,7 @@ test("restart restores the exact durable schedule and resumes from the rolled-ba
   const clock = new FakeClock();
   let database;
   try {
-    database = DensaDatabase.open(databasePath);
+    database = DensaAdeDatabase.open(databasePath);
     const { project, task } = seedWaiting(database, clock);
     const first = service(database, clock, [{ status: "available" }]);
     const scheduled = enable(first.instance, project);
@@ -403,7 +403,7 @@ test("restart restores the exact durable schedule and resumes from the rolled-ba
     database = undefined;
     assert.equal(clock.pendingCount, 0);
 
-    database = DensaDatabase.open(databasePath);
+    database = DensaAdeDatabase.open(databasePath);
     const second = service(database, clock, [{ status: "available" }]);
     const restored = second.instance.restore(project.id);
     assert.equal(restored.nextProbeAt, scheduled.nextProbeAt);
@@ -422,7 +422,7 @@ test("restart restores the exact durable schedule and resumes from the rolled-ba
 });
 
 test("cancellation and disable durably stop all future probes", async () => {
-  const database = DensaDatabase.openInMemory();
+  const database = DensaAdeDatabase.openInMemory();
   const clock = new FakeClock();
   const { project } = seedWaiting(database, clock);
   const { instance, usageCalls } = service(database, clock, [{ status: "available" }]);
@@ -443,7 +443,7 @@ test("cancellation and disable durably stop all future probes", async () => {
 });
 
 test("cancelling an in-flight backend check prevents a late available result from resuming", async () => {
-  const database = DensaDatabase.openInMemory();
+  const database = DensaAdeDatabase.openInMemory();
   const clock = new FakeClock();
   const { project } = seedWaiting(database, clock);
   let releaseUsage;

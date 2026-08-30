@@ -14,10 +14,10 @@ import type {
   Task,
   TaskState,
   ValidationRun,
-} from "@densa/protocol";
+} from "@densa-ade/protocol";
 
 import type { PersistedEvent } from "./event-publisher.js";
-import type { DensaRepositories } from "./persistence/repositories.js";
+import type { DensaAdeRepositories } from "./persistence/repositories.js";
 
 const execFileAsync = promisify(execFile);
 const ACTIVE_TASK_STATES = new Set<TaskState>(["RUNNING", "RETRYING", "VALIDATING"]);
@@ -378,7 +378,7 @@ interface AttemptHistoryInspection {
 
 function inspectAttemptHistory(
   task: Task,
-  repositories: DensaRepositories,
+  repositories: DensaAdeRepositories,
 ): AttemptHistoryInspection {
   const entries = repositories.attempts.listByTaskId(task.id).map((attempt) => ({
     attempt,
@@ -420,7 +420,7 @@ function inspectAttemptHistory(
 function inactiveLifecycleContradiction(
   project: Project,
   tasks: readonly Task[],
-  repositories: DensaRepositories,
+  repositories: DensaAdeRepositories,
 ): string | undefined {
   if (project.state === "RUNNING") {
     return "Project is RUNNING but no active task is recoverably identified";
@@ -477,7 +477,7 @@ export class RecoveryInspector {
   readonly #workspaceProbe: WorkspaceProbe;
 
   constructor(
-    private readonly repositories: DensaRepositories,
+    private readonly repositories: DensaAdeRepositories,
     options: RecoveryInspectorOptions = {},
   ) {
     this.#processProbe = options.processProbe ?? new NodeProcessProbe();

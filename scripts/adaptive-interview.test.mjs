@@ -6,8 +6,8 @@ import {
   AdaptiveInterviewPlanner,
   AgentAdapterMasterInterviewAgent,
   parseProjectSpecificationMarkdown,
-} from "@densa/core";
-import { FakeAgentAdapter } from "@densa/testing";
+} from "@densa-ade/core";
+import { FakeAgentAdapter } from "@densa-ade/testing";
 
 function proposal({ additions = [], questions = [] } = {}) {
   return JSON.stringify({ formatVersion: 1, additions, questions });

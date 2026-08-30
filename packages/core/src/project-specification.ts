@@ -1,4 +1,4 @@
-import { projectSpecificationSchema, type ProjectSpecification } from "@densa/protocol";
+import { projectSpecificationSchema, type ProjectSpecification } from "@densa-ade/protocol";
 
 const CANONICAL_BLOCK_START = "<!-- densa:project-specification:canonical -->\n```json\n";
 const CANONICAL_BLOCK_END = "\n```\n<!-- /densa:project-specification:canonical -->";
@@ -105,7 +105,7 @@ export function renderProjectSpecificationMarkdown(input: ProjectSpecification):
   const lines = [
     "# Project Specification",
     "",
-    "> Generated from Densa Core's versioned project specification. The canonical block at the end preserves exact values for lossless import.",
+    "> Generated from Densa ADE Core's versioned project specification. The canonical block at the end preserves exact values for lossless import.",
     "",
     "## Project goal",
     "",

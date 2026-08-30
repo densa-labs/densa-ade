@@ -226,7 +226,7 @@ test("an unavailable Core client fails clearly without starting an agent", async
         async request() {
           throw new CliCommandError(
             "PROCESS_FAILURE",
-            "Densa Core is unavailable",
+            "Densa ADE Core is unavailable",
             EXIT_UNAVAILABLE,
           );
         },

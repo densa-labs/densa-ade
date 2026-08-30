@@ -5,7 +5,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { DENSA_RUN_BRANCH_PREFIX, WorkspacePreflight } from "@densa/core";
+import {
+  DENSA_ADE_RUN_BRANCH_PREFIX,
+  DENSA_RUN_BRANCH_PREFIX,
+  WorkspacePreflight,
+} from "@densa-ade/core";
 
 const temporaryRoots = new Set();
 
@@ -35,14 +39,14 @@ function createRepository() {
   git(repository, ["init", "--quiet", "--initial-branch=main"]);
   writeFileSync(
     join(repository, ".gitignore"),
-    "densa*.sqlite\ndensa*.pid\ndensa*.sock\n.densa/runtime/\n",
+    "densa*.sqlite\ndensa*.pid\ndensa*.sock\n.densa-ade/runtime/\n",
     "utf8",
   );
   writeFileSync(join(repository, "tracked.txt"), "initial\n", "utf8");
   git(repository, ["add", "--all"]);
   git(repository, [
     "-c",
-    "user.name=Densa Fixture",
+    "user.name=Densa ADE Fixture",
     "-c",
     "user.email=densa-fixture@localhost",
     "-c",
@@ -59,7 +63,7 @@ function commit(repository, message) {
   git(repository, ["add", "--all"]);
   git(repository, [
     "-c",
-    "user.name=Densa Fixture",
+    "user.name=Densa ADE Fixture",
     "-c",
     "user.email=densa-fixture@localhost",
     "-c",
@@ -143,40 +147,56 @@ test("dirty user work is classified and remains byte-for-byte untouched", async 
   assert.equal(git(repository, ["rev-parse", "HEAD"]).trim(), beforeHead);
 });
 
-test("ignored Densa runtime artifacts are visible but do not make the repository dirty", async () => {
+test("ignored Densa ADE runtime artifacts are visible but do not make the repository dirty", async () => {
   const repository = createRepository();
   writeFileSync(join(repository, "densa-core.sqlite"), "runtime database", "utf8");
   writeFileSync(join(repository, "densa-core.pid"), "1234\n", "utf8");
   writeFileSync(join(repository, "densa-core.sock"), "socket fixture\n", "utf8");
-  mkdirSync(join(repository, ".densa", "runtime"), { recursive: true });
-  writeFileSync(join(repository, ".densa", "runtime", "worker.pid"), "5678\n", "utf8");
+  mkdirSync(join(repository, ".densa-ade", "runtime"), { recursive: true });
+  writeFileSync(join(repository, ".densa-ade", "runtime", "worker.pid"), "5678\n", "utf8");
 
   const result = await new WorkspacePreflight().inspect(repository);
 
   assert.equal(result.changes.dirty, false);
-  assert.deepEqual(result.ignoredDensaRuntimeArtifacts, [
-    ".densa/runtime/worker.pid",
+  assert.deepEqual(result.ignoredDensaAdeRuntimeArtifacts, [
+    ".densa-ade/runtime/worker.pid",
     "densa-core.pid",
     "densa-core.sock",
     "densa-core.sqlite",
   ]);
+  assert.equal(result.ignoredDensaRuntimeArtifacts, result.ignoredDensaAdeRuntimeArtifacts);
   assert.equal(result.decision.code, "CLEAN_REPOSITORY");
 });
 
-test("reserved Densa run branches are detected without creating or switching branches", async () => {
+test("reserved Densa ADE run branches are detected without creating or switching branches", async () => {
   const repository = createRepository();
-  const branch = `${DENSA_RUN_BRANCH_PREFIX}project-123`;
+  const branch = `${DENSA_ADE_RUN_BRANCH_PREFIX}project-123`;
   git(repository, ["switch", "--quiet", "-c", branch]);
   const refsBefore = git(repository, ["for-each-ref", "--format=%(refname)", "refs/heads/"]);
 
   const result = await new WorkspacePreflight().inspect(repository);
 
-  assert.equal(result.densaRun.currentBranchOwned, true);
-  assert.equal(result.densaRun.hasOwnedRunBranch, true);
-  assert.deepEqual(result.densaRun.ownedBranches, [branch]);
+  assert.equal(result.densaAdeRun.currentBranchOwned, true);
+  assert.equal(result.densaAdeRun.hasOwnedRunBranch, true);
+  assert.deepEqual(result.densaAdeRun.ownedBranches, [branch]);
+  assert.equal(result.densaRun, result.densaAdeRun);
+  assert.equal(DENSA_RUN_BRANCH_PREFIX, DENSA_ADE_RUN_BRANCH_PREFIX);
   assert.equal(result.decision.code, "EXISTING_DENSA_RUN");
   assert.equal(git(repository, ["for-each-ref", "--format=%(refname)", "refs/heads/"]), refsBefore);
   assert.equal(git(repository, ["branch", "--show-current"]).trim(), branch);
+});
+
+test("legacy run branches remain recognizable for recovery", async () => {
+  const repository = createRepository();
+  const branch = "densa/run/legacy-project-123";
+  git(repository, ["switch", "--quiet", "-c", branch]);
+
+  const result = await new WorkspacePreflight().inspect(repository);
+
+  assert.equal(result.densaAdeRun.branchPrefix, DENSA_ADE_RUN_BRANCH_PREFIX);
+  assert.equal(result.densaAdeRun.currentBranchOwned, true);
+  assert.deepEqual(result.densaAdeRun.ownedBranches, [branch]);
+  assert.equal(result.decision.code, "EXISTING_DENSA_RUN");
 });
 
 test("a conflicted merge is an operation stop and is not altered", async () => {

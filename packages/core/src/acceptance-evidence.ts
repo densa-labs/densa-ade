@@ -17,9 +17,9 @@ import {
   type ValidationResult,
   type ValidationRun,
   type ValidationRunId,
-} from "@densa/protocol";
+} from "@densa-ade/protocol";
 
-import type { DensaDatabase } from "./persistence/database.js";
+import type { DensaAdeDatabase } from "./persistence/database.js";
 import { redactPortableText } from "./persistence/portable-project.js";
 
 export interface AcceptanceEvidenceSnapshot {
@@ -186,7 +186,7 @@ export class AcceptanceEvidenceService {
   readonly #now: () => string;
 
   constructor(
-    private readonly database: DensaDatabase,
+    private readonly database: DensaAdeDatabase,
     options: { readonly now?: () => string } = {},
   ) {
     const clock = options.now ?? (() => new Date().toISOString());

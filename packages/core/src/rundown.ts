@@ -10,7 +10,7 @@ import {
   rundownGitSnapshotSchema,
   rundownPresentationPlanSchema,
   usageStateSchema,
-  type DensaErrorCode,
+  type DensaAdeErrorCode,
   type Phase,
   type PhaseReport,
   type ProjectId,
@@ -21,9 +21,9 @@ import {
   type RundownReference,
   type Task,
   validationRunIdSchema,
-} from "@densa/protocol";
+} from "@densa-ade/protocol";
 
-import type { DensaDatabase } from "./persistence/database.js";
+import type { DensaAdeDatabase } from "./persistence/database.js";
 import { redactPortableText } from "./persistence/portable-project.js";
 import { WorkspacePreflight } from "./workspace-preflight.js";
 
@@ -55,9 +55,9 @@ export interface ProjectRundownServiceOptions {
 }
 
 export class ProjectRundownError extends Error {
-  readonly code: DensaErrorCode;
+  readonly code: DensaAdeErrorCode;
 
-  constructor(code: DensaErrorCode, message: string, options?: ErrorOptions) {
+  constructor(code: DensaAdeErrorCode, message: string, options?: ErrorOptions) {
     super(message, options);
     this.name = "ProjectRundownError";
     this.code = code;
@@ -231,7 +231,7 @@ function digestFacts(facts: object): string {
 }
 
 function latestFailureSummary(
-  database: DensaDatabase,
+  database: DensaAdeDatabase,
   failedRunIds: readonly string[],
 ): string | undefined {
   const latestId = failedRunIds.at(-1);
@@ -249,7 +249,7 @@ function assertPhaseReportMatchesDatabase(
   report: PhaseReport,
   phase: Phase,
   tasks: readonly Task[],
-  database: DensaDatabase,
+  database: DensaAdeDatabase,
 ): string[] {
   if (report.projectId !== phase.projectId || report.phaseId !== phase.id) {
     throw new ProjectRundownError(
@@ -427,7 +427,7 @@ export class ProjectRundownService {
   readonly #git: GitRundownReader;
 
   constructor(
-    private readonly database: DensaDatabase,
+    private readonly database: DensaAdeDatabase,
     options: ProjectRundownServiceOptions = {},
   ) {
     const clock = options.now ?? (() => new Date().toISOString());

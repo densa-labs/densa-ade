@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { isAbsolute, posix } from "node:path";
 
-import { isTerminalAgentEvent, type AgentAdapter, type AgentEvent } from "@densa/agent-sdk";
+import { isTerminalAgentEvent, type AgentAdapter, type AgentEvent } from "@densa-ade/agent-sdk";
 import {
   isoTimestampSchema,
   jsonObjectSchema,
@@ -19,14 +19,14 @@ import {
   type TaskState,
   type UsageState,
   type ValidationRunId,
-} from "@densa/protocol";
+} from "@densa-ade/protocol";
 
 import { AttemptRollbackService, type AttemptRollbackStopCode } from "./attempt-rollback.js";
 import {
   independentReviewCompletedEventId,
   independentReviewSupportsCompletion,
 } from "./independent-review.js";
-import { type DensaDatabase } from "./persistence/database.js";
+import { type DensaAdeDatabase } from "./persistence/database.js";
 import { RunCheckpointService, type RunCheckpointStopCode } from "./run-checkpoint.js";
 import { stateTransitionService } from "./state-transitions.js";
 import { TaskCommitService, type TaskCommitStopCode } from "./task-commit.js";
@@ -143,7 +143,7 @@ function signalAborted(signal: AbortSignal | undefined): boolean {
 }
 
 function taskRiskLevel(
-  database: DensaDatabase,
+  database: DensaAdeDatabase,
   projectId: ProjectId,
   taskId: TaskId,
 ): "low" | "medium" | "high" | "critical" | undefined {
@@ -254,7 +254,7 @@ export class SingleTaskOrchestrator {
   #active = false;
 
   constructor(
-    private readonly database: DensaDatabase,
+    private readonly database: DensaAdeDatabase,
     options: TaskOrchestratorOptions = {},
   ) {
     const clock = options.now ?? (() => new Date().toISOString());

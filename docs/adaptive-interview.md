@@ -11,7 +11,7 @@ explicitly enabled live smoke test.
 The agent returns one strict version 1 JSON proposal containing sourced specification additions and
 adaptive questions. Core supplies the provider-neutral response schema through `AgentAdapter`; the
 Codex adapter materializes it for the installed CLI's `--output-schema` contract and removes the
-temporary schema after the run. Densa Core still rejects malformed data, duplicate question IDs,
+temporary schema after the run. Densa ADE Core still rejects malformed data, duplicate question IDs,
 and additions that are not exact substrings of the initial idea or a named answer. Initial
 project-goal text is preserved verbatim. Later answer batches are appended verbatim as explicit
 user decisions, and only additive sourced facts may update the specification; the agent cannot
@@ -43,7 +43,7 @@ Every interview snapshot includes freshly rendered `SPEC.md` content. After an a
 contains the new exact decisions, sourced structured facts, retained/open questions, defaults, and
 readiness evidence. The existing persistence and portable-project layers remain responsible for
 storing the structured specification in SQLite and synchronizing the returned rendering to
-`.densa/SPEC.md`. The structured specification also retains each open question's batch key, so
+`.densa-ade/SPEC.md`. The structured specification also retains each open question's batch key, so
 `resume()` can reconstruct ordering, related-question batches, defaults, and readiness after Core
 restart. A caller must persist each returned snapshot before presenting the next batch; raw Master
 transcripts are not required for recovery.

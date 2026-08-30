@@ -5,8 +5,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { AttemptRollbackService, RunCheckpointService, StateTransitionService } from "@densa/core";
-import { DensaDatabase } from "@densa/core/persistence";
+import {
+  AttemptRollbackService,
+  RunCheckpointService,
+  StateTransitionService,
+} from "@densa-ade/core";
+import { DensaAdeDatabase } from "@densa-ade/core/persistence";
 
 const temporaryRoots = new Set();
 const createdAt = "2026-08-26T09:00:00.000Z";
@@ -42,7 +46,7 @@ function createRepository(root) {
   git(repository, ["add", "--all"]);
   git(repository, [
     "-c",
-    "user.name=Densa Fixture",
+    "user.name=Densa ADE Fixture",
     "-c",
     "user.email=densa-fixture@localhost",
     "-c",
@@ -215,7 +219,7 @@ test.after(() => {
 test("output capture atomically completes the matching run with its immutable path manifest", async () => {
   const root = createRoot();
   const repository = createRepository(root);
-  const database = DensaDatabase.open(join(root, "runtime.sqlite"));
+  const database = DensaAdeDatabase.open(join(root, "runtime.sqlite"));
   const graph = await prepareRunningAttempt(database, repository);
   writeFileSync(join(repository, "task.txt"), "unattributed output\n", "utf8");
   writeFileSync(join(repository, "attempt.tmp"), "unattributed temporary output\n", "utf8");
@@ -247,7 +251,7 @@ test("output capture atomically completes the matching run with its immutable pa
 test("a run completed without an atomic output manifest is never rollback eligible", async () => {
   const root = createRoot();
   const repository = createRepository(root);
-  const database = DensaDatabase.open(join(root, "runtime.sqlite"));
+  const database = DensaAdeDatabase.open(join(root, "runtime.sqlite"));
   const graph = await prepareRunningAttempt(database, repository);
   database.repositories.agentRuns.recordCompleted(graph.agentRun.id, "2026-08-26T09:07:59.000Z");
   writeFileSync(join(repository, "task.txt"), "unattributed output\n", "utf8");
@@ -269,10 +273,10 @@ test("a run completed without an atomic output manifest is never rollback eligib
 test("a manifest persistence failure rolls back AgentRun completion for a safe retry", async () => {
   const root = createRoot();
   const repository = createRepository(root);
-  const database = DensaDatabase.open(join(root, "runtime.sqlite"));
+  const database = DensaAdeDatabase.open(join(root, "runtime.sqlite"));
   const graph = await prepareRunningAttempt(database, repository);
-  writeFileSync(join(repository, "task.txt"), "failed Densa output\n", "utf8");
-  writeFileSync(join(repository, "attempt.tmp"), "temporary Densa output\n", "utf8");
+  writeFileSync(join(repository, "task.txt"), "failed Densa ADE output\n", "utf8");
+  writeFileSync(join(repository, "attempt.tmp"), "temporary Densa ADE output\n", "utf8");
   const request = captureRequest(graph, repository);
   database.repositories.events.append({
     id: request.eventId,
@@ -311,10 +315,10 @@ test("clean rollback restores only owned files, retains diagnostics, and enables
   const root = createRoot();
   const repository = createRepository(root);
   const databasePath = join(root, "runtime.sqlite");
-  let database = DensaDatabase.open(databasePath);
+  let database = DensaAdeDatabase.open(databasePath);
   const graph = await prepareRunningAttempt(database, repository);
-  writeFileSync(join(repository, "task.txt"), "failed Densa output\n", "utf8");
-  writeFileSync(join(repository, "attempt.tmp"), "temporary Densa output\n", "utf8");
+  writeFileSync(join(repository, "task.txt"), "failed Densa ADE output\n", "utf8");
+  writeFileSync(join(repository, "attempt.tmp"), "temporary Densa ADE output\n", "utf8");
   git(repository, ["add", "--", "task.txt", "attempt.tmp"]);
 
   const captured = await new AttemptRollbackService(database).captureAttemptOutput(
@@ -326,7 +330,7 @@ test("clean rollback restores only owned files, retains diagnostics, and enables
   assert.equal(recorded.recoveredExistingPlan, false);
   database.close();
 
-  database = DensaDatabase.open(databasePath);
+  database = DensaAdeDatabase.open(databasePath);
   assert.deepEqual(
     database.repositories.attemptRollbackPlans.findByAttemptId(graph.attempt.id).diagnostics,
     {
@@ -388,10 +392,10 @@ test("clean rollback restores only owned files, retains diagnostics, and enables
 test("overlapping human edit blocks rollback before the edited file is overwritten", async () => {
   const root = createRoot();
   const repository = createRepository(root);
-  const database = DensaDatabase.open(join(root, "runtime.sqlite"));
+  const database = DensaAdeDatabase.open(join(root, "runtime.sqlite"));
   const graph = await prepareRunningAttempt(database, repository);
-  writeFileSync(join(repository, "task.txt"), "failed Densa output\n", "utf8");
-  writeFileSync(join(repository, "attempt.tmp"), "temporary Densa output\n", "utf8");
+  writeFileSync(join(repository, "task.txt"), "failed Densa ADE output\n", "utf8");
+  writeFileSync(join(repository, "attempt.tmp"), "temporary Densa ADE output\n", "utf8");
   const captured = await new AttemptRollbackService(database).captureAttemptOutput(
     captureRequest(graph, repository),
   );
@@ -411,7 +415,10 @@ test("overlapping human edit blocks rollback before the edited file is overwritt
     readFileSync(join(repository, "task.txt"), "utf8"),
     "human edit after worker output\n",
   );
-  assert.equal(readFileSync(join(repository, "attempt.tmp"), "utf8"), "temporary Densa output\n");
+  assert.equal(
+    readFileSync(join(repository, "attempt.tmp"), "utf8"),
+    "temporary Densa ADE output\n",
+  );
   assert.equal(
     database.repositories.attemptRollbackPlans.findByAttemptId(graph.attempt.id).appliedAt,
     undefined,
@@ -423,20 +430,20 @@ test("overlapping human edit blocks rollback before the edited file is overwritt
   database.close();
 });
 
-test("an overlapping human index edit is detected even when the worktree still matches Densa output", async () => {
+test("an overlapping human index edit is detected even when the worktree still matches Densa ADE output", async () => {
   const root = createRoot();
   const repository = createRepository(root);
-  const database = DensaDatabase.open(join(root, "runtime.sqlite"));
+  const database = DensaAdeDatabase.open(join(root, "runtime.sqlite"));
   const graph = await prepareRunningAttempt(database, repository);
-  writeFileSync(join(repository, "task.txt"), "failed Densa output\n", "utf8");
-  writeFileSync(join(repository, "attempt.tmp"), "temporary Densa output\n", "utf8");
+  writeFileSync(join(repository, "task.txt"), "failed Densa ADE output\n", "utf8");
+  writeFileSync(join(repository, "attempt.tmp"), "temporary Densa ADE output\n", "utf8");
   const captured = await new AttemptRollbackService(database).captureAttemptOutput(
     captureRequest(graph, repository),
   );
   assert.equal(captured.status, "CAPTURED");
   writeFileSync(join(repository, "task.txt"), "human staged edit\n", "utf8");
   git(repository, ["add", "--", "task.txt"]);
-  writeFileSync(join(repository, "task.txt"), "failed Densa output\n", "utf8");
+  writeFileSync(join(repository, "task.txt"), "failed Densa ADE output\n", "utf8");
   const recorded = await recordFailedValidation(database, graph);
   assert.equal(recorded.status, "RECORDED");
 
@@ -447,7 +454,7 @@ test("an overlapping human index edit is detected even when the worktree still m
   assert.equal(result.status, "STOPPED");
   assert.equal(result.code, "HUMAN_EDIT_OVERLAP");
   assert.deepEqual(result.conflictingPaths, ["task.txt"]);
-  assert.equal(readFileSync(join(repository, "task.txt"), "utf8"), "failed Densa output\n");
+  assert.equal(readFileSync(join(repository, "task.txt"), "utf8"), "failed Densa ADE output\n");
   assert.equal(git(repository, ["show", ":task.txt"]), "human staged edit\n");
   database.close();
 });
@@ -455,10 +462,10 @@ test("an overlapping human index edit is detected even when the worktree still m
 test("an applied rollback cannot be treated as retry-ready after failed output reappears", async () => {
   const root = createRoot();
   const repository = createRepository(root);
-  const database = DensaDatabase.open(join(root, "runtime.sqlite"));
+  const database = DensaAdeDatabase.open(join(root, "runtime.sqlite"));
   const graph = await prepareRunningAttempt(database, repository);
-  writeFileSync(join(repository, "task.txt"), "failed Densa output\n", "utf8");
-  writeFileSync(join(repository, "attempt.tmp"), "temporary Densa output\n", "utf8");
+  writeFileSync(join(repository, "task.txt"), "failed Densa ADE output\n", "utf8");
+  writeFileSync(join(repository, "attempt.tmp"), "temporary Densa ADE output\n", "utf8");
   git(repository, ["add", "--", "task.txt", "attempt.tmp"]);
   const captured = await new AttemptRollbackService(database).captureAttemptOutput(
     captureRequest(graph, repository),
@@ -472,8 +479,8 @@ test("an applied rollback cannot be treated as retry-ready after failed output r
   assert.equal(applied.status, "ROLLED_BACK");
   assert.equal(applied.workspaceReadyForRetry, true);
 
-  writeFileSync(join(repository, "task.txt"), "failed Densa output\n", "utf8");
-  writeFileSync(join(repository, "attempt.tmp"), "temporary Densa output\n", "utf8");
+  writeFileSync(join(repository, "task.txt"), "failed Densa ADE output\n", "utf8");
+  writeFileSync(join(repository, "attempt.tmp"), "temporary Densa ADE output\n", "utf8");
   git(repository, ["add", "--", "task.txt", "attempt.tmp"]);
   const repeated = await new AttemptRollbackService(database).rollbackFailedAttempt({
     ...rollbackRequest(graph, repository, "reappeared-output"),
@@ -483,18 +490,21 @@ test("an applied rollback cannot be treated as retry-ready after failed output r
   assert.equal(repeated.status, "STOPPED");
   assert.equal(repeated.code, "HUMAN_EDIT_OVERLAP");
   assert.deepEqual(repeated.conflictingPaths, ["attempt.tmp", "task.txt"]);
-  assert.equal(readFileSync(join(repository, "task.txt"), "utf8"), "failed Densa output\n");
-  assert.equal(readFileSync(join(repository, "attempt.tmp"), "utf8"), "temporary Densa output\n");
+  assert.equal(readFileSync(join(repository, "task.txt"), "utf8"), "failed Densa ADE output\n");
+  assert.equal(
+    readFileSync(join(repository, "attempt.tmp"), "utf8"),
+    "temporary Densa ADE output\n",
+  );
   database.close();
 });
 
 test("rollback resumes from proven half-restored index and worktree states after a crash", async () => {
   const root = createRoot();
   const repository = createRepository(root);
-  const database = DensaDatabase.open(join(root, "runtime.sqlite"));
+  const database = DensaAdeDatabase.open(join(root, "runtime.sqlite"));
   const graph = await prepareRunningAttempt(database, repository);
-  writeFileSync(join(repository, "task.txt"), "failed Densa output\n", "utf8");
-  writeFileSync(join(repository, "attempt.tmp"), "temporary Densa output\n", "utf8");
+  writeFileSync(join(repository, "task.txt"), "failed Densa ADE output\n", "utf8");
+  writeFileSync(join(repository, "attempt.tmp"), "temporary Densa ADE output\n", "utf8");
   git(repository, ["add", "--", "task.txt", "attempt.tmp"]);
   const captured = await new AttemptRollbackService(database).captureAttemptOutput(
     captureRequest(graph, repository),
@@ -506,8 +516,11 @@ test("rollback resumes from proven half-restored index and worktree states after
   const checkpointHead = graph.checkpoint.checkpoint.gitHead;
   git(repository, ["restore", `--source=${checkpointHead}`, "--staged", "--", "attempt.tmp"]);
   git(repository, ["restore", `--source=${checkpointHead}`, "--staged", "--", "task.txt"]);
-  assert.equal(readFileSync(join(repository, "attempt.tmp"), "utf8"), "temporary Densa output\n");
-  assert.equal(readFileSync(join(repository, "task.txt"), "utf8"), "failed Densa output\n");
+  assert.equal(
+    readFileSync(join(repository, "attempt.tmp"), "utf8"),
+    "temporary Densa ADE output\n",
+  );
+  assert.equal(readFileSync(join(repository, "task.txt"), "utf8"), "failed Densa ADE output\n");
 
   const resumed = await new AttemptRollbackService(database).rollbackFailedAttempt(
     rollbackRequest(graph, repository, "half-restored"),
@@ -524,10 +537,10 @@ test("rollback resumes from proven half-restored index and worktree states after
 test("non-overlapping human work is preserved and keeps automatic retry from claiming clean state", async () => {
   const root = createRoot();
   const repository = createRepository(root);
-  const database = DensaDatabase.open(join(root, "runtime.sqlite"));
+  const database = DensaAdeDatabase.open(join(root, "runtime.sqlite"));
   const graph = await prepareRunningAttempt(database, repository);
-  writeFileSync(join(repository, "task.txt"), "failed Densa output\n", "utf8");
-  writeFileSync(join(repository, "attempt.tmp"), "temporary Densa output\n", "utf8");
+  writeFileSync(join(repository, "task.txt"), "failed Densa ADE output\n", "utf8");
+  writeFileSync(join(repository, "attempt.tmp"), "temporary Densa ADE output\n", "utf8");
   const captured = await new AttemptRollbackService(database).captureAttemptOutput(
     captureRequest(graph, repository),
   );
@@ -554,9 +567,9 @@ test("non-overlapping human work is preserved and keeps automatic retry from cla
 test("Git pathspec metacharacters are treated as a literal owned filename", async () => {
   const root = createRoot();
   const repository = createRepository(root);
-  const database = DensaDatabase.open(join(root, "runtime.sqlite"));
+  const database = DensaAdeDatabase.open(join(root, "runtime.sqlite"));
   const graph = await prepareRunningAttempt(database, repository);
-  writeFileSync(join(repository, "literal*.txt"), "failed literal Densa output\n", "utf8");
+  writeFileSync(join(repository, "literal*.txt"), "failed literal Densa ADE output\n", "utf8");
   writeFileSync(join(repository, "literal-human.txt"), "later human edit\n", "utf8");
   const captured = await new AttemptRollbackService(database).captureAttemptOutput({
     ...captureRequest(graph, repository),
@@ -583,10 +596,10 @@ test("Git pathspec metacharacters are treated as a literal owned filename", asyn
 test("an older failed attempt cannot claim changes after a newer attempt starts", async () => {
   const root = createRoot();
   const repository = createRepository(root);
-  const database = DensaDatabase.open(join(root, "runtime.sqlite"));
+  const database = DensaAdeDatabase.open(join(root, "runtime.sqlite"));
   const graph = await prepareRunningAttempt(database, repository);
-  writeFileSync(join(repository, "task.txt"), "failed Densa output\n", "utf8");
-  writeFileSync(join(repository, "attempt.tmp"), "temporary Densa output\n", "utf8");
+  writeFileSync(join(repository, "task.txt"), "failed Densa ADE output\n", "utf8");
+  writeFileSync(join(repository, "attempt.tmp"), "temporary Densa ADE output\n", "utf8");
   const captured = await new AttemptRollbackService(database).captureAttemptOutput(
     captureRequest(graph, repository),
   );
@@ -615,10 +628,10 @@ test("an older failed attempt cannot claim changes after a newer attempt starts"
 test("a passing validation added after failure planning cancels rollback eligibility", async () => {
   const root = createRoot();
   const repository = createRepository(root);
-  const database = DensaDatabase.open(join(root, "runtime.sqlite"));
+  const database = DensaAdeDatabase.open(join(root, "runtime.sqlite"));
   const graph = await prepareRunningAttempt(database, repository);
-  writeFileSync(join(repository, "task.txt"), "failed Densa output\n", "utf8");
-  writeFileSync(join(repository, "attempt.tmp"), "temporary Densa output\n", "utf8");
+  writeFileSync(join(repository, "task.txt"), "failed Densa ADE output\n", "utf8");
+  writeFileSync(join(repository, "attempt.tmp"), "temporary Densa ADE output\n", "utf8");
   const captured = await new AttemptRollbackService(database).captureAttemptOutput(
     captureRequest(graph, repository),
   );
@@ -641,6 +654,6 @@ test("a passing validation added after failure planning cancels rollback eligibi
 
   assert.equal(result.status, "STOPPED");
   assert.equal(result.code, "NOT_FAILED");
-  assert.equal(readFileSync(join(repository, "task.txt"), "utf8"), "failed Densa output\n");
+  assert.equal(readFileSync(join(repository, "task.txt"), "utf8"), "failed Densa ADE output\n");
   database.close();
 });

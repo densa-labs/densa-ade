@@ -1,6 +1,6 @@
 # Codex CLI integration spike
 
-Phase 1 Milestone 0 maps the locally installed official Codex CLI before Densa builds an
+Phase 1 Milestone 0 maps the locally installed official Codex CLI before Densa ADE builds an
 adapter around it. The observations below were recorded on 2026-08-25 on macOS arm64.
 
 ## Tested installation
@@ -73,7 +73,7 @@ terminal JSON event was observed before exit.
 
 Global flags are position-sensitive in this installed version. In particular,
 `codex exec --ask-for-approval never ...` was rejected with exit code `2`, while
-`codex --ask-for-approval never ... exec ...` worked. Densa must construct arguments from a tested
+`codex --ask-for-approval never ... exec ...` worked. Densa ADE must construct arguments from a tested
 template instead of assuming every global option can follow the subcommand.
 
 ### Supported non-interactive mechanism
@@ -120,7 +120,7 @@ the successful exec event stream. `turn.completed.usage` reports tokens consumed
 does not report remaining subscription usage or a reset timestamp.
 
 Interactive `/status` may present account information to a user, but no supported machine-readable
-equivalent was established by this spike. Densa must therefore report usage state as `unknown`
+equivalent was established by this spike. Densa ADE must therefore report usage state as `unknown`
 unless a future supported CLI version or an actual structured execution error supplies a reliable
 limited/reset signal. It must not scrape interactive presentation text or invent a countdown.
 
@@ -128,9 +128,9 @@ limited/reset signal. It must not scrape interactive presentation text or invent
 
 P7M0 retains the spike's prohibition on presentation-text parsing and the same `codex exec --json`
 process boundary. The version-scoped Codex event model exposes the structured
-`codex_error_info` discriminator. Densa recognizes only the exact `usage_limit_exceeded` value as a
+`codex_error_info` discriminator. Densa ADE recognizes only the exact `usage_limit_exceeded` value as a
 usage-limited execution; `unauthorized` remains authentication failure, and every other failure
-leaves usage unknown. If that same structured event supplies a valid Unix `reset_at`, Densa may
+leaves usage unknown. If that same structured event supplies a valid Unix `reset_at`, Densa ADE may
 surface its ISO timestamp. It never derives a reset from messages, stderr, token counts, or a fixed
 timer.
 
@@ -160,14 +160,14 @@ a real account remains deliberately unforced. They do not claim to be real accou
    final agent prose, and never treat one failed command item as automatically equivalent to a
    failed turn.
 6. On adapter-initiated cancellation, signal the process group, enforce a bounded grace period,
-   escalate if required, and emit a Densa-owned cancelled terminal event because the CLI may exit
+   escalate if required, and emit a Densa ADE-owned cancelled terminal event because the CLI may exit
    without one.
 7. Return `unknown` for auth, usage, or failure categories when the version-scoped evidence is
    insufficient.
 
 ## Fallback strategy
 
-If JSONL is unavailable or malformed for an unrecognized CLI version, Densa should fail closed for
+If JSONL is unavailable or malformed for an unrecognized CLI version, Densa ADE should fail closed for
 automation: retain bounded stdout/stderr and the exit code, report a protocol/version mismatch or
 unknown agent result, and require an adapter/fixture update. A quarantined presentation-text parser
 may be added only if a later milestone supplies versioned fixtures and tests; it must never certify

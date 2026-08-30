@@ -1,6 +1,6 @@
 # Persistent single-task orchestrator
 
-Phase 5 Milestone 2 adds the editor-independent `SingleTaskOrchestrator` in Densa Core. It composes
+Phase 5 Milestone 2 adds the editor-independent `SingleTaskOrchestrator` in Densa ADE Core. It composes
 the existing checkpoint, adapter, validation, rollback, and task-commit boundaries for one serial
 implementation task. It does not schedule phases or implement execution modes.
 

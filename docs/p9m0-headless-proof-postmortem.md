@@ -7,9 +7,9 @@ the independently validated phase boundary and persist `AWAITING_APPROVAL` acros
 
 ## Experiment
 
-The new `densa proof phase-one` command creates a disposable Git project with a deliberately failing
-`normalizeName` fixture. Densa Core records a complete structured specification and one-phase
-roadmap, selects phase-by-phase mode, writes the portable `.densa/` projection, and commits the
+The new `densa-ade proof phase-one` command creates a disposable Git project with a deliberately failing
+`normalizeName` fixture. Densa ADE Core records a complete structured specification and one-phase
+roadmap, selects phase-by-phase mode, writes the portable `.densa-ade/` projection, and commits the
 fixture baseline. It then closes and reopens the SQLite database before execution.
 
 After restart, the normal serial lifecycle creates the owned run branch and task checkpoint, runs
@@ -61,7 +61,7 @@ Only the final real run satisfies the live P9M0 gate.
 3. Adapter contract, authentication, configuration, permission, and availability failures must not
    consume all four attempts. Core now treats reliably classified non-retryable agent errors as a
    one-attempt blocked outcome after scoped rollback. Ambiguous `PROCESS_FAILURE` remains retryable;
-   Densa does not classify authentication from presentation text.
+   Densa ADE does not classify authentication from presentation text.
 4. SQLite and Git evidence behaved correctly in both live failures: every attempt had a durable
    checkpoint and failure record, rollback left the source unchanged, no validation ran after agent
    failure, no task commit was created, and the phase report accurately recorded `blocked`.

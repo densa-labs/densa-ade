@@ -1,4 +1,4 @@
-import type { Event, JsonObject, JsonValue } from "@densa/protocol";
+import type { Event, JsonObject, JsonValue } from "@densa-ade/protocol";
 
 const SENSITIVE_KEY_PATTERN =
   /(?:^|[_.-])(?:api[_-]?key|access[_-]?key|access[_-]?token|auth[_-]?token|authorization|bearer|client[_-]?secret|cookie|credential|password|passwd|private[_-]?key|refresh[_-]?token|secret|session[_-]?token|token)(?:$|[_.-])/iu;

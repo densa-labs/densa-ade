@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { DependencyScheduler, StateTransitionService } from "@densa/core";
-import { DensaDatabase } from "@densa/core/persistence";
-import { masterRoadmapSchema } from "@densa/protocol";
+import { DependencyScheduler, StateTransitionService } from "@densa-ade/core";
+import { DensaAdeDatabase } from "@densa-ade/core/persistence";
+import { masterRoadmapSchema } from "@densa-ade/protocol";
 
 const createdAt = "2026-08-27T08:00:00.000Z";
 const projectId = "project-scheduler";
@@ -142,7 +142,7 @@ function select(database, gates = emptyGates()) {
 }
 
 function withDatabase(work, options) {
-  const database = DensaDatabase.openInMemory();
+  const database = DensaAdeDatabase.openInMemory();
   try {
     seed(database, options);
     return work(database);

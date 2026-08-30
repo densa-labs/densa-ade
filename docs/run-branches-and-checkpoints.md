@@ -1,4 +1,4 @@
-# Densa run branches and task checkpoints
+# Densa ADE run branches and task checkpoints
 
 Phase 3 Milestones 1 and 2 introduce the Core-owned Git mutation boundaries around a task attempt.
 `RunCheckpointService` consumes the read-only `WorkspacePreflight` decision, creates or reuses one
@@ -8,7 +8,7 @@ task/attempt checkpoint and audit event transactionally. After deterministic val
 
 ## Branch identity and ownership
 
-Run branches use `densa/run/<project-slug>-<project-id-hash>`. The bounded slug is readable; the
+Run branches use `densa-ade/run/<project-slug>-<project-id-hash>`. The bounded slug is readable; the
 SHA-256 suffix keeps unsafe or similar project identifiers deterministic without placing arbitrary
 input directly into a Git ref. A pre-existing branch with the predicted name is never adopted
 unless SQLite already records that project, workspace, source branch, and starting commit as its
@@ -37,14 +37,14 @@ different ID, association, or workspace snapshot is a classified stop.
 
 ## Safety and remote boundary
 
-Dirty, conflicted, detached, unborn, bare, and non-Git workspaces remain preflight stops. Densa does
+Dirty, conflicted, detached, unborn, bare, and non-Git workspaces remain preflight stops. Densa ADE does
 not stash, reset, clean, commit, delete, or discard files in this milestone. A second preflight and
 double-captured snapshot detect changes that appear during setup; those files remain untouched and
 no checkpoint is recorded.
 
 The service invokes only local Git ref inspection and `git switch` for the owned branch. It never
-fetches or pushes. Remote synchronization of the Densa development repository is a maintainer
-workflow and is unrelated to run branches created for projects managed by Densa.
+fetches or pushes. Remote synchronization of the Densa ADE development repository is a maintainer
+workflow and is unrelated to run branches created for projects managed by Densa ADE.
 
 ## Passing-task commits
 

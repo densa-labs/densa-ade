@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import process from "node:process";
 
-import { usageStateSchema, type UsageState } from "@densa/protocol";
+import { usageStateSchema, type UsageState } from "@densa-ade/protocol";
 
 import type {
   AgentAdapter,

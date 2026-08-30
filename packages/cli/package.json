@@ -1,11 +1,12 @@
 {
-  "name": "@densa/cli",
+  "name": "@densa-ade/cli",
   "version": "0.0.0",
   "private": true,
-  "description": "Headless client boundary for Densa Core.",
+  "description": "Headless client boundary for Densa ADE Core.",
+  "author": "Densa Labs",
   "type": "module",
   "bin": {
-    "densa": "./dist/bin.js"
+    "densa-ade": "dist/bin.js"
   },
   "exports": {
     ".": {
@@ -17,8 +18,8 @@
     "dist"
   ],
   "dependencies": {
-    "@densa/agent-sdk": "0.0.0",
-    "@densa/core": "0.0.0",
-    "@densa/protocol": "0.0.0"
+    "@densa-ade/agent-sdk": "0.0.0",
+    "@densa-ade/core": "0.0.0",
+    "@densa-ade/protocol": "0.0.0"
   }
 }

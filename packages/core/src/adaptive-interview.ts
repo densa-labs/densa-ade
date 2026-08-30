@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { isTerminalAgentEvent, type AgentAdapter } from "@densa/agent-sdk";
+import { isTerminalAgentEvent, type AgentAdapter } from "@densa-ade/agent-sdk";
 import {
   interviewAgentProposalOutputSchema,
   interviewAgentProposalSchema,
@@ -10,10 +10,10 @@ import {
   type InterviewAgentProposal,
   type InterviewAnswer,
   type InterviewQuestion,
-  type DensaErrorCode,
+  type DensaAdeErrorCode,
   type ProjectSpecification,
   type SpecificationListField,
-} from "@densa/protocol";
+} from "@densa-ade/protocol";
 
 import {
   detectSpecificationContradictions,
@@ -69,9 +69,9 @@ export interface MasterInterviewAgent {
 }
 
 export class AdaptiveInterviewError extends Error {
-  readonly code: DensaErrorCode;
+  readonly code: DensaAdeErrorCode;
 
-  constructor(code: DensaErrorCode, message: string, options?: ErrorOptions) {
+  constructor(code: DensaAdeErrorCode, message: string, options?: ErrorOptions) {
     super(message, options);
     this.name = "AdaptiveInterviewError";
     this.code = code;
@@ -109,7 +109,7 @@ export class AgentAdapterMasterInterviewAgent implements MasterInterviewAgent {
     let terminalCount = 0;
     let finalMessage: string | undefined;
     let failureMessage: string | undefined;
-    let failureCode: DensaErrorCode = "PROCESS_FAILURE";
+    let failureCode: DensaAdeErrorCode = "PROCESS_FAILURE";
 
     for await (const event of this.adapter.execute({
       runId: this.runIdFactory(),
@@ -211,7 +211,7 @@ function buildMasterInterviewPrompt(request: MasterInterviewRequest): string {
         };
 
   return [
-    "You are the Master-role adaptive interview analyst for Densa.",
+    "You are the Master-role adaptive interview analyst for Densa ADE.",
     "Analyze only the supplied project idea and answers. Do not use a fixed questionnaire.",
     "Ask only questions that materially change scope, architecture, security/privacy, data, integrations, runtime, deployment, or core journeys.",
     "Give high-impact architecture, security/privacy, data, and integration ambiguity priority over cosmetic UX choices.",

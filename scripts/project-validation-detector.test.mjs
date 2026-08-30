@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { ProjectValidationDetector } from "@densa/core";
+import { ProjectValidationDetector } from "@densa-ade/core";
 
 const workspaces = [];
 

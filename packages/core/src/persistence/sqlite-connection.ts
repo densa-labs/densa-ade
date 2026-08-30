@@ -55,7 +55,7 @@ export class SqliteConnection {
       migrate(database, now);
     } catch (error) {
       database.close();
-      throw new PersistenceError("Could not open and migrate the Densa SQLite database", {
+      throw new PersistenceError("Could not open and migrate the Densa ADE SQLite database", {
         cause: error,
       });
     }

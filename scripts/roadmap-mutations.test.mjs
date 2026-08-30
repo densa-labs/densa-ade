@@ -11,9 +11,9 @@ import {
   assertRoadmapMutationPolicy,
   classifyRoadmapMutation,
   parseMasterRoadmapMarkdown,
-} from "@densa/core";
-import { DensaDatabase } from "@densa/core/persistence";
-import { masterRoadmapSchema } from "@densa/protocol";
+} from "@densa-ade/core";
+import { DensaAdeDatabase } from "@densa-ade/core/persistence";
+import { masterRoadmapSchema } from "@densa-ade/protocol";
 
 const createdAt = "2026-08-27T01:00:00.000Z";
 const changedAt = "2026-08-27T01:30:00.000Z";
@@ -72,7 +72,7 @@ function specification() {
     coreUserJourneys: ["Manage local inventory"],
     requiredFeatures: ["Inspectable roadmap evolution"],
     nonGoals: [],
-    architectureConstraints: ["Densa Core is authoritative"],
+    architectureConstraints: ["Densa ADE Core is authoritative"],
     platformRuntimeConstraints: ["Node.js 22.13 or newer"],
     integrations: [],
     dataStorageNeeds: ["SQLite persistence"],
@@ -278,7 +278,7 @@ test("classification floors and policy prevent unsafe automatic application", ()
 
 test("removing an existing acceptance promise is a scope change requiring approval", async () => {
   const workspace = await mkdtemp(join(tmpdir(), "densa-p4m3-criteria-"));
-  const database = DensaDatabase.openInMemory({ now: () => createdAt });
+  const database = DensaAdeDatabase.openInMemory({ now: () => createdAt });
   try {
     database.repositories.projects.create({
       id: projectId,
@@ -331,7 +331,7 @@ test("removing an existing acceptance promise is a scope change requiring approv
 
 test("portable regeneration failure is explicit after the authoritative mutation commits", async () => {
   const workspace = await mkdtemp(join(tmpdir(), "densa-p4m3-sync-failure-"));
-  const database = DensaDatabase.openInMemory({ now: () => createdAt });
+  const database = DensaAdeDatabase.openInMemory({ now: () => createdAt });
   try {
     database.repositories.projects.create({
       id: projectId,
@@ -347,7 +347,7 @@ test("portable regeneration failure is explicit after the authoritative mutation
       now: () => changedAt,
     });
     await service.storeInitialRoadmap(projectId, roadmap());
-    const portableRoadmap = join(workspace, ".densa", "ROADMAP.md");
+    const portableRoadmap = join(workspace, ".densa-ade", "ROADMAP.md");
     const symlinkTarget = join(workspace, "human-roadmap.md");
     await writeFile(symlinkTarget, "# Human roadmap\n", "utf8");
     await unlink(portableRoadmap);
@@ -379,7 +379,7 @@ test("portable regeneration failure is explicit after the authoritative mutation
 
 test("accepted mutations atomically persist history and event, then regenerate ROADMAP.md", async () => {
   const workspace = await mkdtemp(join(tmpdir(), "densa-p4m3-"));
-  const database = DensaDatabase.openInMemory({ now: () => createdAt });
+  const database = DensaAdeDatabase.openInMemory({ now: () => createdAt });
   let revisionNumber = 0;
   let eventNumber = 0;
   try {
@@ -436,7 +436,7 @@ test("accepted mutations atomically persist history and event, then regenerate R
     assert.deepEqual(history[0].oldValue, roadmap());
     assert.deepEqual(history[0].newValue, stored.roadmap);
 
-    const roadmapMarkdown = await readFile(join(workspace, ".densa", "ROADMAP.md"), "utf8");
+    const roadmapMarkdown = await readFile(join(workspace, ".densa-ade", "ROADMAP.md"), "utf8");
     assert.match(roadmapMarkdown, /## Phase 3: Optional polish/u);
     assert.match(roadmapMarkdown, /## Roadmap revision history/u);
     assert.match(roadmapMarkdown, /Session: session-roadmap-test/u);

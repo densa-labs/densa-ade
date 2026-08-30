@@ -15,9 +15,9 @@ import {
   type ProjectId,
   type TaskId,
   type UsageState,
-} from "@densa/protocol";
+} from "@densa-ade/protocol";
 
-import { type DensaDatabase } from "./persistence/database.js";
+import { type DensaAdeDatabase } from "./persistence/database.js";
 import {
   type PhaseLifecycleValidator,
   PhaseLifecycleOrchestrator,
@@ -64,7 +64,7 @@ export class ExecutionModeService {
   readonly #now: () => string;
 
   constructor(
-    private readonly database: DensaDatabase,
+    private readonly database: DensaAdeDatabase,
     options: ExecutionModeOptions = {},
   ) {
     const clock = options.now ?? (() => new Date().toISOString());
@@ -147,7 +147,7 @@ export class ProjectExecutionOrchestrator {
   #active = false;
 
   constructor(
-    private readonly database: DensaDatabase,
+    private readonly database: DensaAdeDatabase,
     options: ExecutionModeOptions = {},
   ) {
     const clock = options.now ?? (() => new Date().toISOString());

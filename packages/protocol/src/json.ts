@@ -9,7 +9,7 @@ export type JsonObject = {
 export type JsonValue = JsonObject | JsonPrimitive | JsonValue[];
 
 /**
- * The complete set of values allowed across Densa's IPC boundary.
+ * The complete set of values allowed across Densa ADE's IPC boundary.
  *
  * In particular, this rejects Date, bigint, undefined, NaN, and infinities.
  */

@@ -1,15 +1,15 @@
 import { randomUUID } from "node:crypto";
 
-import { isTerminalAgentEvent, type AgentAdapter } from "@densa/agent-sdk";
+import { isTerminalAgentEvent, type AgentAdapter } from "@densa-ade/agent-sdk";
 import {
   masterRoadmapOutputSchema,
   masterRoadmapSchema,
   projectSpecificationSchema,
-  type DensaErrorCode,
+  type DensaAdeErrorCode,
   type MasterRoadmap,
   type MasterRoadmapTask,
   type ProjectSpecification,
-} from "@densa/protocol";
+} from "@densa-ade/protocol";
 
 import { detectSpecificationContradictions } from "./project-specification.js";
 
@@ -26,9 +26,9 @@ export interface MasterRoadmapAgent {
 }
 
 export class MasterRoadmapError extends Error {
-  readonly code: DensaErrorCode;
+  readonly code: DensaAdeErrorCode;
 
-  constructor(code: DensaErrorCode, message: string, options?: ErrorOptions) {
+  constructor(code: DensaAdeErrorCode, message: string, options?: ErrorOptions) {
     super(message, options);
     this.name = "MasterRoadmapError";
     this.code = code;
@@ -95,7 +95,7 @@ export class AgentAdapterMasterRoadmapAgent implements MasterRoadmapAgent {
     let terminalCount = 0;
     let finalMessage: string | undefined;
     let failureMessage: string | undefined;
-    let failureCode: DensaErrorCode = "PROCESS_FAILURE";
+    let failureCode: DensaAdeErrorCode = "PROCESS_FAILURE";
 
     for await (const event of this.adapter.execute({
       runId: this.runIdFactory(),
@@ -144,7 +144,7 @@ export class AgentAdapterMasterRoadmapAgent implements MasterRoadmapAgent {
 
 function buildMasterRoadmapPrompt(specification: ProjectSpecification): string {
   return [
-    "You are the Master-role initial roadmap planner for Densa.",
+    "You are the Master-role initial roadmap planner for Densa ADE.",
     "Turn the complete supplied ProjectSpecification into the complete intended project arc before execution begins.",
     "Preserve projectGoal exactly. Do not weaken, delete, or invent user requirements.",
     "Create ordered phases with stable unique IDs, clear goals, explicit completion criteria, and tasks.",
@@ -282,7 +282,7 @@ export function renderMasterRoadmapMarkdown(input: MasterRoadmap): string {
   const lines = [
     "# Master Roadmap",
     "",
-    "> Generated from Densa Core's versioned initial roadmap. Task dependencies, not document order alone, govern execution.",
+    "> Generated from Densa ADE Core's versioned initial roadmap. Task dependencies, not document order alone, govern execution.",
     "",
     "## Project goal",
     "",

@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { KeepAwakeManager, MacOsKeepAwakePlatform, StateTransitionService } from "@densa/core";
-import { DensaDatabase } from "@densa/core/persistence";
-import { keepAwakeStatusSchema } from "@densa/protocol";
+import { KeepAwakeManager, MacOsKeepAwakePlatform, StateTransitionService } from "@densa-ade/core";
+import { DensaAdeDatabase } from "@densa-ade/core/persistence";
+import { keepAwakeStatusSchema } from "@densa-ade/protocol";
 
 const projectId = "project-keep-awake-proof";
 const startedAt = Date.parse("2026-08-29T08:00:00.000Z");
@@ -71,7 +71,7 @@ function idFactory(prefix) {
 }
 
 function setup(platform = new FakeKeepAwakePlatform()) {
-  const database = DensaDatabase.openInMemory();
+  const database = DensaAdeDatabase.openInMemory();
   const project = database.repositories.projects.create({
     id: projectId,
     name: "Keep-awake proof",

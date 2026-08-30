@@ -13,9 +13,9 @@ import {
   ValidationPipeline,
   requiresIndependentReview,
   withDefaultIndependentReview,
-} from "@densa/core";
-import { DensaDatabase } from "@densa/core/persistence";
-import { FakeAgentAdapter } from "@densa/testing";
+} from "@densa-ade/core";
+import { DensaAdeDatabase } from "@densa-ade/core/persistence";
+import { FakeAgentAdapter } from "@densa-ade/testing";
 
 const createdAt = "2026-08-28T01:00:00.000Z";
 
@@ -43,7 +43,7 @@ function gitWorkspace() {
   git(root, ["add", ".gitignore", "tracked.txt"]);
   git(root, [
     "-c",
-    "user.name=Densa Fixture",
+    "user.name=Densa ADE Fixture",
     "-c",
     "user.email=densa-fixture@localhost",
     "-c",
@@ -160,7 +160,7 @@ function request({ project, task, validationRunId }, adapter, verdict) {
     taskId: task.id,
     validationRunId,
     workspacePath: "/tmp/densa-independent-review",
-    goal: "Preserve Densa Core as the authoritative state owner.",
+    goal: "Preserve Densa ADE Core as the authoritative state owner.",
     acceptanceCriteria: task.acceptanceCriteria,
     relevantDiff: "diff --git a/core.ts b/core.ts\n+export const authoritative = true;",
     deterministicResults: [
@@ -179,7 +179,7 @@ function request({ project, task, validationRunId }, adapter, verdict) {
 
 for (const verdict of ["pass", "advisory", "fail"]) {
   test(`fresh-context reviewer persists a structured ${verdict} outcome`, async () => {
-    const database = DensaDatabase.openInMemory();
+    const database = DensaAdeDatabase.openInMemory();
     try {
       const fixture = seed(database, verdict);
       const adapter = new FakeAgentAdapter({ finalMessage: JSON.stringify(output(verdict)) });
@@ -211,7 +211,7 @@ for (const verdict of ["pass", "advisory", "fail"]) {
 }
 
 test("a passing reviewer cannot override a required deterministic failure", async () => {
-  const database = DensaDatabase.openInMemory();
+  const database = DensaAdeDatabase.openInMemory();
   try {
     const fixture = seed(database, "no-override");
     const service = reviewService(database);
@@ -270,7 +270,7 @@ test("a passing reviewer cannot override a required deterministic failure", asyn
 });
 
 test("malformed reviewer terminal streams persist fail-closed evidence", async () => {
-  const database = DensaDatabase.openInMemory();
+  const database = DensaAdeDatabase.openInMemory();
   try {
     const fixture = seed(database, "malformed-stream");
     const scripts = [
@@ -334,7 +334,7 @@ test("malformed reviewer terminal streams persist fail-closed evidence", async (
 });
 
 test("workspace mutation invalidates an otherwise passing review", async () => {
-  const database = DensaDatabase.openInMemory();
+  const database = DensaAdeDatabase.openInMemory();
   try {
     const fixture = seed(database, "workspace-mutation");
     let fingerprintCall = 0;
@@ -365,7 +365,7 @@ for (const [name, prepare, mutate] of [
       git(workspace, ["add", "tracked.txt"]);
       git(workspace, [
         "-c",
-        "user.name=Densa Fixture",
+        "user.name=Densa ADE Fixture",
         "-c",
         "user.email=densa-fixture@localhost",
         "-c",
@@ -389,7 +389,7 @@ for (const [name, prepare, mutate] of [
   ],
 ]) {
   test(`real workspace fingerprint rejects reviewer mutation of ${name}`, async () => {
-    const database = DensaDatabase.openInMemory();
+    const database = DensaAdeDatabase.openInMemory();
     const workspace = gitWorkspace();
     try {
       const fixture = seed(database, `fingerprint-${name.replaceAll(" ", "-")}`);
@@ -417,7 +417,7 @@ for (const [name, prepare, mutate] of [
 }
 
 test("Core redacts reviewer output before authoritative persistence", async () => {
-  const database = DensaDatabase.openInMemory();
+  const database = DensaAdeDatabase.openInMemory();
   try {
     const fixture = seed(database, "redacted-output");
     const secret = "sk-proj-reviewerSecret123456789";
@@ -458,7 +458,7 @@ test("Core redacts reviewer output before authoritative persistence", async () =
 });
 
 test("an adapter that ignores cancellation cannot return an accepted review", async () => {
-  const database = DensaDatabase.openInMemory();
+  const database = DensaAdeDatabase.openInMemory();
   try {
     const fixture = seed(database, "ignored-cancellation");
     const controller = new globalThis.AbortController();
@@ -497,7 +497,7 @@ test("an adapter that ignores cancellation cannot return an accepted review", as
 });
 
 test("review requests reject missing diff, deterministic evidence, or architecture constraints", async () => {
-  const database = DensaDatabase.openInMemory();
+  const database = DensaAdeDatabase.openInMemory();
   try {
     const fixture = seed(database, "complete-inputs");
     const adapter = new FakeAgentAdapter({ finalMessage: JSON.stringify(output("pass")) });
@@ -520,7 +520,7 @@ test("review requests reject missing diff, deterministic evidence, or architectu
 });
 
 test("criterion positions support duplicate and oversized criterion text", async () => {
-  const database = DensaDatabase.openInMemory();
+  const database = DensaAdeDatabase.openInMemory();
   try {
     const fixture = seed(database, "criterion-position");
     const duplicate = "The same phase criterion.";
@@ -568,7 +568,7 @@ test("criterion positions support duplicate and oversized criterion text", async
 });
 
 test("review cancellation terminates the fresh adapter run and persists fail-closed evidence", async () => {
-  const database = DensaDatabase.openInMemory();
+  const database = DensaAdeDatabase.openInMemory();
   try {
     const fixture = seed(database, "cancelled");
     const controller = new globalThis.AbortController();
@@ -594,7 +594,7 @@ test("review cancellation terminates the fresh adapter run and persists fail-clo
 });
 
 test("fresh review identity and project ownership fail closed", async () => {
-  const database = DensaDatabase.openInMemory();
+  const database = DensaAdeDatabase.openInMemory();
   try {
     const first = seed(database, "ownership-a");
     const second = seed(database, "ownership-b");
@@ -624,7 +624,7 @@ test("fresh review identity and project ownership fail closed", async () => {
 });
 
 test("review chronology compares ISO offsets by instant in protocol and SQLite", () => {
-  const database = DensaDatabase.openInMemory();
+  const database = DensaAdeDatabase.openInMemory();
   try {
     const fixture = seed(database, "timestamp-offset");
     database.repositories.independentReviews.create({
@@ -763,7 +763,7 @@ for (const [name, reviewOutput] of [
   ],
 ]) {
   test(`review validation fails closed for a ${name}`, async () => {
-    const database = DensaDatabase.openInMemory();
+    const database = DensaAdeDatabase.openInMemory();
     try {
       const fixture = seed(database, name.replaceAll(" ", "-"));
       const validator = new IndependentReviewValidator({
@@ -803,7 +803,7 @@ for (const [name, reviewOutput] of [
 }
 
 test("phase-final wrapper keeps deterministic failure authoritative and stores phase review", async () => {
-  const database = DensaDatabase.openInMemory();
+  const database = DensaAdeDatabase.openInMemory();
   try {
     const fixture = seed(database, "phase-final");
     const validator = new FreshContextPhaseValidator({
@@ -850,7 +850,7 @@ test("phase-final wrapper keeps deterministic failure authoritative and stores p
 });
 
 test("fresh task wrapper passes live deterministic evidence to a distinct Reviewer", async () => {
-  const database = DensaDatabase.openInMemory();
+  const database = DensaAdeDatabase.openInMemory();
   try {
     const fixture = seed(database, "task-wrapper");
     const adapter = new FakeAgentAdapter({ finalMessage: JSON.stringify(output("pass")) });
@@ -897,7 +897,7 @@ test("fresh task wrapper passes live deterministic evidence to a distinct Review
 });
 
 test("one phase validator creates fresh identities and context for every phase call", async () => {
-  const database = DensaDatabase.openInMemory();
+  const database = DensaAdeDatabase.openInMemory();
   try {
     const first = seed(database, "phase-one");
     const second = seed(database, "phase-two");
@@ -952,7 +952,7 @@ test("one phase validator creates fresh identities and context for every phase c
 });
 
 test("phase validation cancellation reaches the fresh reviewer adapter", async () => {
-  const database = DensaDatabase.openInMemory();
+  const database = DensaAdeDatabase.openInMemory();
   try {
     const fixture = seed(database, "phase-cancelled");
     const controller = new globalThis.AbortController();

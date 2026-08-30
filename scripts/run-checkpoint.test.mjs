@@ -5,8 +5,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { RunCheckpointService, WorkspacePreflight, densaRunBranchName } from "@densa/core";
-import { DensaDatabase } from "@densa/core/persistence";
+import {
+  RunCheckpointService,
+  WorkspacePreflight,
+  densaAdeRunBranchName,
+  densaRunBranchName,
+} from "@densa-ade/core";
+import { DensaAdeDatabase } from "@densa-ade/core/persistence";
 
 const temporaryRoots = new Set();
 const createdAt = "2026-08-26T08:00:00.000Z";
@@ -35,12 +40,12 @@ function createRoot(prefix = "densa-run-checkpoint-test-") {
 function createRepository(root = createRoot()) {
   const repository = join(root, "workspace");
   git(root, ["init", "--quiet", "--initial-branch=main", repository]);
-  writeFileSync(join(repository, ".gitignore"), ".densa/runtime/\n*.sqlite\n", "utf8");
+  writeFileSync(join(repository, ".gitignore"), ".densa-ade/runtime/\n*.sqlite\n", "utf8");
   writeFileSync(join(repository, "tracked.txt"), "user baseline\n", "utf8");
   git(repository, ["add", "--all"]);
   git(repository, [
     "-c",
-    "user.name=Densa Fixture",
+    "user.name=Densa ADE Fixture",
     "-c",
     "user.email=densa-fixture@localhost",
     "-c",
@@ -121,12 +126,12 @@ test.after(() => {
   for (const root of temporaryRoots) rmSync(root, { recursive: true, force: true });
 });
 
-test("creates a predictable Densa run branch and durable task-attempt checkpoint", async () => {
+test("creates a predictable Densa ADE run branch and durable task-attempt checkpoint", async () => {
   const root = createRoot();
   const repository = createRepository(root);
   const databasePath = join(root, "runtime.sqlite");
   const startingCommit = git(repository, ["rev-parse", "HEAD"]).trim();
-  const database = DensaDatabase.open(databasePath);
+  const database = DensaAdeDatabase.open(databasePath);
   const graph = seedGraph(database);
   const request = requestFor(graph, repository);
 
@@ -135,7 +140,8 @@ test("creates a predictable Densa run branch and durable task-attempt checkpoint
   assert.equal(result.status, "READY");
   assert.equal(result.branchAction, "CREATED");
   assert.equal(result.recoveredExistingCheckpoint, false);
-  assert.equal(result.run.branchName, densaRunBranchName(graph.project.id));
+  assert.equal(result.run.branchName, densaAdeRunBranchName(graph.project.id));
+  assert.equal(densaRunBranchName(graph.project.id), densaAdeRunBranchName(graph.project.id));
   assert.equal(result.run.status, "ACTIVE");
   assert.equal(result.run.startingCommit, startingCommit);
   assert.equal(git(repository, ["branch", "--show-current"]).trim(), result.run.branchName);
@@ -159,7 +165,7 @@ test("creates a predictable Densa run branch and durable task-attempt checkpoint
   );
   database.close();
 
-  const reopened = DensaDatabase.open(databasePath);
+  const reopened = DensaAdeDatabase.open(databasePath);
   const recovered = await new RunCheckpointService(reopened).prepareTask(request);
   assert.equal(recovered.status, "READY");
   assert.equal(recovered.recoveredExistingCheckpoint, true);
@@ -173,7 +179,7 @@ test("reuses persisted run ownership for a later task after Core restart", async
   const root = createRoot();
   const repository = createRepository(root);
   const databasePath = join(root, "runtime.sqlite");
-  let database = DensaDatabase.open(databasePath);
+  let database = DensaAdeDatabase.open(databasePath);
   const graph = seedGraph(database, 2);
   const first = await new RunCheckpointService(database).prepareTask(
     requestFor(graph, repository, 0),
@@ -181,7 +187,7 @@ test("reuses persisted run ownership for a later task after Core restart", async
   assert.equal(first.status, "READY");
   database.close();
 
-  database = DensaDatabase.open(databasePath);
+  database = DensaAdeDatabase.open(databasePath);
   const second = await new RunCheckpointService(database).prepareTask(
     requestFor(graph, repository, 1),
   );
@@ -199,10 +205,10 @@ test("recovers a persisted branch-creation intent after Core restart", async () 
   const repository = createRepository(root);
   const databasePath = join(root, "runtime.sqlite");
   const startingCommit = git(repository, ["rev-parse", "HEAD"]).trim();
-  let database = DensaDatabase.open(databasePath);
+  let database = DensaAdeDatabase.open(databasePath);
   const graph = seedGraph(database);
-  const branchName = densaRunBranchName(graph.project.id);
-  database.repositories.densaRunBranches.createCreating({
+  const branchName = densaAdeRunBranchName(graph.project.id);
+  database.repositories.densaAdeRunBranches.createCreating({
     projectId: graph.project.id,
     workspacePath: realpathSync(repository),
     branchName,
@@ -213,7 +219,7 @@ test("recovers a persisted branch-creation intent after Core restart", async () 
   git(repository, ["branch", branchName, startingCommit]);
   database.close();
 
-  database = DensaDatabase.open(databasePath);
+  database = DensaAdeDatabase.open(databasePath);
   const result = await new RunCheckpointService(database).prepareTask(
     requestFor(graph, repository),
   );
@@ -232,7 +238,7 @@ test("recovers a persisted branch-creation intent after Core restart", async () 
 test("dirty user work stops branch setup and remains byte-for-byte untouched", async () => {
   const root = createRoot();
   const repository = createRepository(root);
-  const database = DensaDatabase.open(join(root, "runtime.sqlite"));
+  const database = DensaAdeDatabase.open(join(root, "runtime.sqlite"));
   const graph = seedGraph(database);
   writeFileSync(join(repository, "tracked.txt"), "user edit\n", "utf8");
   writeFileSync(join(repository, "untracked.txt"), "user draft\n", "utf8");
@@ -252,7 +258,10 @@ test("dirty user work stops branch setup and remains byte-for-byte untouched", a
   );
   assert.equal(readFileSync(join(repository, "tracked.txt"), "utf8"), "user edit\n");
   assert.equal(readFileSync(join(repository, "untracked.txt"), "utf8"), "user draft\n");
-  assert.equal(database.repositories.densaRunBranches.findByProjectId(graph.project.id), undefined);
+  assert.equal(
+    database.repositories.densaAdeRunBranches.findByProjectId(graph.project.id),
+    undefined,
+  );
   assert.equal(database.repositories.checkpoints.listByProjectId(graph.project.id).length, 0);
   database.close();
 });
@@ -260,7 +269,7 @@ test("dirty user work stops branch setup and remains byte-for-byte untouched", a
 test("user work appearing during branch setup is preserved and blocks checkpoint creation", async () => {
   const root = createRoot();
   const repository = createRepository(root);
-  const database = DensaDatabase.open(join(root, "runtime.sqlite"));
+  const database = DensaAdeDatabase.open(join(root, "runtime.sqlite"));
   const graph = seedGraph(database);
   const actualPreflight = new WorkspacePreflight();
   let inspections = 0;
@@ -284,7 +293,7 @@ test("user work appearing during branch setup is preserved and blocks checkpoint
   assert.equal(readFileSync(join(repository, "appeared-during-setup.txt"), "utf8"), "user work\n");
   assert.equal(database.repositories.checkpoints.listByProjectId(graph.project.id).length, 0);
   assert.equal(
-    database.repositories.densaRunBranches.findByProjectId(graph.project.id).status,
+    database.repositories.densaAdeRunBranches.findByProjectId(graph.project.id).status,
     "CREATING",
   );
   database.close();
@@ -293,9 +302,9 @@ test("user work appearing during branch setup is preserved and blocks checkpoint
 test("an unowned predictable branch collision fails closed without adopting it", async () => {
   const root = createRoot();
   const repository = createRepository(root);
-  const database = DensaDatabase.open(join(root, "runtime.sqlite"));
+  const database = DensaAdeDatabase.open(join(root, "runtime.sqlite"));
   const graph = seedGraph(database);
-  const branchName = densaRunBranchName(graph.project.id);
+  const branchName = densaAdeRunBranchName(graph.project.id);
   git(repository, ["branch", branchName]);
   const refsBefore = git(repository, [
     "for-each-ref",
@@ -314,16 +323,19 @@ test("an unowned predictable branch collision fails closed without adopting it",
     git(repository, ["for-each-ref", "--format=%(refname):%(objectname)", "refs/heads/"]),
     refsBefore,
   );
-  assert.equal(database.repositories.densaRunBranches.findByProjectId(graph.project.id), undefined);
+  assert.equal(
+    database.repositories.densaAdeRunBranches.findByProjectId(graph.project.id),
+    undefined,
+  );
   database.close();
 });
 
 test("a current reserved branch without SQLite ownership is not trusted as a source", async () => {
   const root = createRoot();
   const repository = createRepository(root);
-  const database = DensaDatabase.open(join(root, "runtime.sqlite"));
+  const database = DensaAdeDatabase.open(join(root, "runtime.sqlite"));
   const graph = seedGraph(database);
-  git(repository, ["switch", "--quiet", "--create", "densa/run/unowned-user-branch"]);
+  git(repository, ["switch", "--quiet", "--create", "densa-ade/run/unowned-user-branch"]);
   const headBefore = git(repository, ["rev-parse", "HEAD"]).trim();
 
   const result = await new RunCheckpointService(database).prepareTask(
@@ -334,10 +346,13 @@ test("a current reserved branch without SQLite ownership is not trusted as a sou
   assert.equal(result.code, "RUN_OWNERSHIP_MISMATCH");
   assert.equal(
     git(repository, ["branch", "--show-current"]).trim(),
-    "densa/run/unowned-user-branch",
+    "densa-ade/run/unowned-user-branch",
   );
   assert.equal(git(repository, ["rev-parse", "HEAD"]).trim(), headBefore);
-  assert.equal(database.repositories.densaRunBranches.findByProjectId(graph.project.id), undefined);
+  assert.equal(
+    database.repositories.densaAdeRunBranches.findByProjectId(graph.project.id),
+    undefined,
+  );
   database.close();
 });
 
@@ -349,7 +364,7 @@ test("checkpoint setup never pushes its local run branch to a configured remote"
   git(repository, ["remote", "add", "origin", remote]);
   git(repository, ["push", "--quiet", "--set-upstream", "origin", "main"]);
   const remoteRefsBefore = git(remote, ["for-each-ref", "--format=%(refname):%(objectname)"]);
-  const database = DensaDatabase.open(join(root, "runtime.sqlite"));
+  const database = DensaAdeDatabase.open(join(root, "runtime.sqlite"));
   const graph = seedGraph(database);
 
   const result = await new RunCheckpointService(database).prepareTask(

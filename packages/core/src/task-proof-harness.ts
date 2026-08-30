@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import process from "node:process";
 
-import { isTerminalAgentEvent, type AgentAdapter, type AgentEvent } from "@densa/agent-sdk";
+import { isTerminalAgentEvent, type AgentAdapter, type AgentEvent } from "@densa-ade/agent-sdk";
 
 const DIAGNOSTIC_SCHEMA_VERSION = 1;
 const COMMAND_OUTPUT_LIMIT_BYTES = 1024 * 1024;
@@ -675,7 +675,7 @@ async function createFixture(temporaryBaseDirectory?: string): Promise<{
     "git",
     [
       "-c",
-      "user.name=Densa Fixture",
+      "user.name=Densa ADE Fixture",
       "-c",
       "user.email=densa-fixture@localhost",
       "-c",

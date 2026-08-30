@@ -64,7 +64,7 @@ credentials from Core.
 The built-in runner supports page-load, visible-text, and visible-selector checks. It bounds and
 redacts server/browser logs, and strips URL query/fragment data from request-failure diagnostics. A
 failed check records a full-page screenshot and Playwright trace in private local runtime storage,
-never the portable `.densa/` tree; callers may supply an application-support artifact root and Core
+never the portable `.densa-ade/` tree; callers may supply an application-support artifact root and Core
 persists its absolute local path. A required plan entry maps that result to task criteria with
 evidence source `browser_test`, so a passing browser check can satisfy acceptance while failed,
 cancelled, or missing evidence continues to block completion. Playwright 1.62.1 is pinned under its

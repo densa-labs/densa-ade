@@ -6,10 +6,26 @@ import process from "node:process";
 const GIT_TIMEOUT_MS = 10_000;
 const GIT_OUTPUT_LIMIT_BYTES = 1024 * 1024;
 
-/** Reserved for Densa-created run branches. P3M0 only recognizes it; it never creates a branch. */
-export const DENSA_RUN_BRANCH_PREFIX = "densa/run/";
+/** Reserved for Densa ADE-created run branches. P3M0 only recognizes it; it never creates a branch. */
+export const DENSA_ADE_RUN_BRANCH_PREFIX = "densa-ade/run/";
+/** @deprecated Use DENSA_ADE_RUN_BRANCH_PREFIX. Retained for package consumer compatibility. */
+export const DENSA_RUN_BRANCH_PREFIX = DENSA_ADE_RUN_BRANCH_PREFIX;
+const LEGACY_DENSA_RUN_BRANCH_PREFIX = "densa/run/";
 
-const DENSA_RUNTIME_PATHS = [
+const DENSA_ADE_RUNTIME_PATHS = [
+  ":(glob)**/.densa-ade/runtime/**",
+  ":(glob)**/.densa-ade/*.db",
+  ":(glob)**/.densa-ade/*.db-shm",
+  ":(glob)**/.densa-ade/*.db-wal",
+  ":(glob)**/.densa-ade/*.sqlite",
+  ":(glob)**/.densa-ade/*.sqlite-shm",
+  ":(glob)**/.densa-ade/*.sqlite-wal",
+  ":(glob)**/.densa-ade/*.sqlite3",
+  ":(glob)**/.densa-ade/*.sqlite3-shm",
+  ":(glob)**/.densa-ade/*.sqlite3-wal",
+  ":(glob)**/.densa-ade/*.pid",
+  ":(glob)**/.densa-ade/*.sock",
+  // Existing workspaces may still contain ignored runtime files at the pre-migration path.
   ":(glob)**/.densa/runtime/**",
   ":(glob)**/.densa/*.db",
   ":(glob)**/.densa/*.db-shm",
@@ -34,6 +50,13 @@ const DENSA_RUNTIME_PATHS = [
   ":(glob)**/densa*.pid",
   ":(glob)**/densa*.sock",
 ] as const;
+
+function isOwnedDensaAdeRunBranch(branch: string): boolean {
+  return (
+    branch.startsWith(DENSA_ADE_RUN_BRANCH_PREFIX) ||
+    branch.startsWith(LEGACY_DENSA_RUN_BRANCH_PREFIX)
+  );
+}
 
 export type WorkspaceChangeKind =
   "added" | "copied" | "deleted" | "modified" | "renamed" | "type-changed" | "unmerged" | "unknown";
@@ -65,12 +88,15 @@ export interface WorkspaceHead {
   readonly unborn: boolean;
 }
 
-export interface DensaRunOwnership {
-  readonly branchPrefix: typeof DENSA_RUN_BRANCH_PREFIX;
+export interface DensaAdeRunOwnership {
+  readonly branchPrefix: typeof DENSA_ADE_RUN_BRANCH_PREFIX;
   readonly currentBranchOwned: boolean;
   readonly ownedBranches: readonly string[];
   readonly hasOwnedRunBranch: boolean;
 }
+
+/** @deprecated Use DensaAdeRunOwnership. Retained for package consumer compatibility. */
+export type DensaRunOwnership = DensaAdeRunOwnership;
 
 export type WorkspacePreflightDecisionCode =
   | "CLEAN_REPOSITORY"
@@ -103,8 +129,12 @@ export interface WorkspacePreflightResult {
   readonly head: WorkspaceHead;
   readonly changes: WorkspacePreflightChanges;
   readonly operations: GitOperationState;
+  readonly ignoredDensaAdeRuntimeArtifacts: readonly string[];
+  /** @deprecated Use ignoredDensaAdeRuntimeArtifacts. Retained in schema version 1. */
   readonly ignoredDensaRuntimeArtifacts: readonly string[];
-  readonly densaRun: DensaRunOwnership;
+  readonly densaAdeRun: DensaAdeRunOwnership;
+  /** @deprecated Use densaAdeRun. Retained in schema version 1. */
+  readonly densaRun: DensaAdeRunOwnership;
   readonly decision: WorkspacePreflightDecision;
   readonly automaticActionsPerformed: false;
 }
@@ -185,9 +215,9 @@ function emptyOperations(): GitOperationState {
   });
 }
 
-function emptyOwnership(): DensaRunOwnership {
+function emptyOwnership(): DensaAdeRunOwnership {
   return Object.freeze({
-    branchPrefix: DENSA_RUN_BRANCH_PREFIX,
+    branchPrefix: DENSA_ADE_RUN_BRANCH_PREFIX,
     currentBranchOwned: false,
     ownedBranches: Object.freeze([]),
     hasOwnedRunBranch: false,
@@ -199,6 +229,8 @@ function stopResult(
   code: Extract<WorkspacePreflightDecisionCode, "NON_GIT_DIRECTORY" | "INSPECTION_FAILED">,
   reason: string,
 ): WorkspacePreflightResult {
+  const ignoredDensaAdeRuntimeArtifacts = Object.freeze([] as string[]);
+  const densaAdeRun = emptyOwnership();
   return Object.freeze({
     schemaVersion: 1 as const,
     workspacePath,
@@ -210,8 +242,10 @@ function stopResult(
     head: Object.freeze({ detached: false, unborn: false }),
     changes: emptyChanges(),
     operations: emptyOperations(),
-    ignoredDensaRuntimeArtifacts: Object.freeze([]),
-    densaRun: emptyOwnership(),
+    ignoredDensaAdeRuntimeArtifacts,
+    ignoredDensaRuntimeArtifacts: ignoredDensaAdeRuntimeArtifacts,
+    densaAdeRun,
+    densaRun: densaAdeRun,
     decision: Object.freeze({
       outcome: "STOP" as const,
       code,
@@ -227,6 +261,8 @@ function failedGitInspectionResult(
   repository: WorkspacePreflightResult["repository"],
   reason: string,
 ): WorkspacePreflightResult {
+  const ignoredDensaAdeRuntimeArtifacts = Object.freeze([] as string[]);
+  const densaAdeRun = emptyOwnership();
   return Object.freeze({
     schemaVersion: 1 as const,
     workspacePath,
@@ -234,8 +270,10 @@ function failedGitInspectionResult(
     head: Object.freeze({ detached: false, unborn: false }),
     changes: emptyChanges(),
     operations: emptyOperations(),
-    ignoredDensaRuntimeArtifacts: Object.freeze([]),
-    densaRun: emptyOwnership(),
+    ignoredDensaAdeRuntimeArtifacts,
+    ignoredDensaRuntimeArtifacts: ignoredDensaAdeRuntimeArtifacts,
+    densaAdeRun,
+    densaRun: densaAdeRun,
     decision: Object.freeze({
       outcome: "STOP" as const,
       code: "INSPECTION_FAILED" as const,
@@ -340,14 +378,14 @@ function decide(input: {
   head: WorkspaceHead;
   changes: WorkspacePreflightChanges;
   operations: GitOperationState;
-  densaRun: DensaRunOwnership;
+  densaAdeRun: DensaAdeRunOwnership;
 }): WorkspacePreflightDecision {
   if (input.isBare) {
     return Object.freeze({
       outcome: "STOP" as const,
       code: "BARE_REPOSITORY" as const,
       requiresUserDecision: true,
-      reason: "Densa requires a working tree and cannot operate in a bare repository",
+      reason: "Densa ADE requires a working tree and cannot operate in a bare repository",
     });
   }
   if (input.operations.active.length > 0) {
@@ -382,12 +420,12 @@ function decide(input: {
       reason: "Repository contains staged, unstaged, or untracked user changes",
     });
   }
-  if (input.densaRun.currentBranchOwned) {
+  if (input.densaAdeRun.currentBranchOwned) {
     return Object.freeze({
       outcome: "PROCEED" as const,
       code: "EXISTING_DENSA_RUN" as const,
       requiresUserDecision: false,
-      reason: "Repository is clean and already on a reserved Densa run branch",
+      reason: "Repository is clean and already on a reserved Densa ADE run branch",
     });
   }
   return Object.freeze({
@@ -400,7 +438,7 @@ function decide(input: {
 
 /**
  * Captures read-only, UI-ready Git safety evidence. It never stashes, resets, cleans, checks out,
- * creates refs, or writes Densa metadata.
+ * creates refs, or writes Densa ADE metadata.
  */
 export class WorkspacePreflight {
   async inspect(workspacePath: string): Promise<WorkspacePreflightResult> {
@@ -475,8 +513,13 @@ export class WorkspacePreflight {
           runGit(inspectedPath, ["rev-parse", "--verify", "HEAD"]),
           successfulGit(
             inspectedPath,
-            ["for-each-ref", "--format=%(refname:short)", `refs/heads/${DENSA_RUN_BRANCH_PREFIX}`],
-            "git for-each-ref Densa run branches",
+            [
+              "for-each-ref",
+              "--format=%(refname:short)",
+              `refs/heads/${DENSA_ADE_RUN_BRANCH_PREFIX}`,
+              `refs/heads/${LEGACY_DENSA_RUN_BRANCH_PREFIX}`,
+            ],
+            "git for-each-ref Densa ADE run branches",
           ),
         ]);
         if (branchResult.timedOut || branchResult.errorCode !== undefined) {
@@ -499,16 +542,16 @@ export class WorkspacePreflight {
           refsRaw
             .split("\n")
             .map((entry) => entry.trim())
-            .filter((entry) => entry.startsWith(DENSA_RUN_BRANCH_PREFIX))
+            .filter(isOwnedDensaAdeRunBranch)
             .sort((left, right) => left.localeCompare(right)),
         );
-        const densaRun: DensaRunOwnership = Object.freeze({
-          branchPrefix: DENSA_RUN_BRANCH_PREFIX,
-          currentBranchOwned: branch?.startsWith(DENSA_RUN_BRANCH_PREFIX) ?? false,
+        const densaAdeRun: DensaAdeRunOwnership = Object.freeze({
+          branchPrefix: DENSA_ADE_RUN_BRANCH_PREFIX,
+          currentBranchOwned: branch === undefined ? false : isOwnedDensaAdeRunBranch(branch),
           ownedBranches,
           hasOwnedRunBranch: ownedBranches.length > 0,
         });
-        const decision = decide({ isBare, head, operations, changes, densaRun });
+        const decision = decide({ isBare, head, operations, changes, densaAdeRun });
         return Object.freeze({
           schemaVersion: 1 as const,
           workspacePath: inspectedPath,
@@ -521,8 +564,10 @@ export class WorkspacePreflight {
           head,
           changes,
           operations,
+          ignoredDensaAdeRuntimeArtifacts: Object.freeze([]),
           ignoredDensaRuntimeArtifacts: Object.freeze([]),
-          densaRun,
+          densaAdeRun,
+          densaRun: densaAdeRun,
           decision,
           automaticActionsPerformed: false as const,
         });
@@ -575,14 +620,19 @@ export class WorkspacePreflight {
             "--exclude-standard",
             "-z",
             "--",
-            ...DENSA_RUNTIME_PATHS,
+            ...DENSA_ADE_RUNTIME_PATHS,
           ],
-          "git ls-files --ignored Densa runtime paths",
+          "git ls-files --ignored Densa ADE runtime paths",
         ),
         successfulGit(
           repositoryRoot,
-          ["for-each-ref", "--format=%(refname:short)", `refs/heads/${DENSA_RUN_BRANCH_PREFIX}`],
-          "git for-each-ref Densa run branches",
+          [
+            "for-each-ref",
+            "--format=%(refname:short)",
+            `refs/heads/${DENSA_ADE_RUN_BRANCH_PREFIX}`,
+            `refs/heads/${LEGACY_DENSA_RUN_BRANCH_PREFIX}`,
+          ],
+          "git for-each-ref Densa ADE run branches",
         ),
       ]);
 
@@ -637,18 +687,19 @@ export class WorkspacePreflight {
         refsRaw
           .split("\n")
           .map((entry) => entry.trim())
-          .filter((entry) => entry.startsWith(DENSA_RUN_BRANCH_PREFIX))
+          .filter(isOwnedDensaAdeRunBranch)
           .sort((left, right) => left.localeCompare(right)),
       );
-      const currentBranchOwned = branch?.startsWith(DENSA_RUN_BRANCH_PREFIX) ?? false;
-      const densaRun: DensaRunOwnership = Object.freeze({
-        branchPrefix: DENSA_RUN_BRANCH_PREFIX,
+      const currentBranchOwned = branch === undefined ? false : isOwnedDensaAdeRunBranch(branch);
+      const densaAdeRun: DensaAdeRunOwnership = Object.freeze({
+        branchPrefix: DENSA_ADE_RUN_BRANCH_PREFIX,
         currentBranchOwned,
         ownedBranches,
         hasOwnedRunBranch: ownedBranches.length > 0,
       });
-      const decision = decide({ isBare, head, changes, operations, densaRun });
+      const decision = decide({ isBare, head, changes, operations, densaAdeRun });
 
+      const ignoredDensaAdeRuntimeArtifacts = parseNullPaths(ignoredRaw);
       return Object.freeze({
         schemaVersion: 1 as const,
         workspacePath: inspectedPath,
@@ -662,8 +713,10 @@ export class WorkspacePreflight {
         head,
         changes,
         operations,
-        ignoredDensaRuntimeArtifacts: parseNullPaths(ignoredRaw),
-        densaRun,
+        ignoredDensaAdeRuntimeArtifacts,
+        ignoredDensaRuntimeArtifacts: ignoredDensaAdeRuntimeArtifacts,
+        densaAdeRun,
+        densaRun: densaAdeRun,
         decision,
         automaticActionsPerformed: false as const,
       });

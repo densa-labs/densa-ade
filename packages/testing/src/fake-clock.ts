@@ -1,4 +1,4 @@
-import type { UsageAutoResumeClock } from "@densa/core";
+import type { UsageAutoResumeClock } from "@densa-ade/core";
 
 interface PendingTimer {
   readonly callback: () => void;

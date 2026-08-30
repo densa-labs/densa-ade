@@ -14,9 +14,9 @@ import {
   type JsonValue,
   type ProjectId,
   type TaskId,
-} from "@densa/protocol";
+} from "@densa-ade/protocol";
 
-import { type DensaDatabase } from "./persistence/database.js";
+import { type DensaAdeDatabase } from "./persistence/database.js";
 import {
   type AttemptRollbackPlanRecord,
   type RollbackPathSnapshot,
@@ -513,7 +513,7 @@ function planMatches(
 export class AttemptRollbackService {
   readonly #workspaceProbe = new GitWorkspaceProbe();
 
-  constructor(private readonly database: DensaDatabase) {}
+  constructor(private readonly database: DensaAdeDatabase) {}
 
   async captureAttemptOutput(
     request: CaptureAttemptOutputRequest,
@@ -547,7 +547,7 @@ export class AttemptRollbackService {
       const latestAttempt = repositories.attempts.listByTaskId(request.taskId).at(-1);
       const agentRun = repositories.agentRuns.findByAttemptId(request.attemptId);
       const checkpoint = repositories.checkpoints.findByAttemptId(request.attemptId);
-      const run = repositories.densaRunBranches.findByProjectId(request.projectId);
+      const run = repositories.densaAdeRunBranches.findByProjectId(request.projectId);
       if (
         task?.projectId !== request.projectId ||
         attempt?.taskId !== request.taskId ||
@@ -777,7 +777,7 @@ export class AttemptRollbackService {
       const attempt = repositories.attempts.findById(request.attemptId);
       const latestAttempt = repositories.attempts.listByTaskId(request.taskId).at(-1);
       const checkpoint = repositories.checkpoints.findByAttemptId(request.attemptId);
-      const run = repositories.densaRunBranches.findByProjectId(request.projectId);
+      const run = repositories.densaAdeRunBranches.findByProjectId(request.projectId);
       const agentRun = repositories.agentRuns.findByAttemptId(request.attemptId);
       const validations = repositories.validationRuns
         .listByTaskId(request.taskId)

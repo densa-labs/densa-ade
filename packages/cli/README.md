@@ -1,23 +1,23 @@
-# `@densa/cli`
+# `@densa-ade/cli`
 
-The `densa` executable is a headless, non-authoritative client for Densa Core. Project and event
-commands use `@densa/protocol` over the authenticated local Unix socket. Exiting the CLI does not
+The `densa-ade` executable is a headless, non-authoritative client for Densa ADE Core. Project and event
+commands use `@densa-ade/protocol` over the authenticated local Unix socket. Exiting the CLI does not
 stop an active Core process.
 
 ```text
-densa core start
-densa core status
-densa core stop
-densa doctor
-densa project init
-densa project status
-densa project start
-densa project pause
-densa project cancel
-densa project resume
-densa project stop
-densa events
-densa version
+densa-ade core start
+densa-ade core status
+densa-ade core stop
+densa-ade doctor
+densa-ade project init
+densa-ade project status
+densa-ade project start
+densa-ade project pause
+densa-ade project cancel
+densa-ade project resume
+densa-ade project stop
+densa-ade events
+densa-ade version
 ```
 
 Human-readable output is the default. Pass `--json` anywhere in the command to emit one JSON

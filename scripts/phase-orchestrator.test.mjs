@@ -9,10 +9,10 @@ import {
   IndependentReviewService,
   PhaseLifecycleOrchestrator,
   StateTransitionService,
-} from "@densa/core";
-import { DensaDatabase } from "@densa/core/persistence";
-import { masterRoadmapSchema } from "@densa/protocol";
-import { FakeAgentAdapter } from "@densa/testing";
+} from "@densa-ade/core";
+import { DensaAdeDatabase } from "@densa-ade/core/persistence";
+import { masterRoadmapSchema } from "@densa-ade/protocol";
+import { FakeAgentAdapter } from "@densa-ade/testing";
 
 const baseTime = Date.parse("2026-08-27T10:00:00.000Z");
 let globalSequence = 0;
@@ -234,7 +234,7 @@ async function recordPhaseReview(
         summary: "The deterministic phase suite passed.",
       },
     ],
-    architectureConstraints: ["Densa Core owns the phase verdict."],
+    architectureConstraints: ["Densa ADE Core owns the phase verdict."],
     adapter: new FakeAgentAdapter({ finalMessage: JSON.stringify(reviewOutput) }),
     reviewerRunId: `reviewer-run-confirmed-${phaseId}`,
   });
@@ -277,7 +277,7 @@ function emptyGates() {
 
 async function withFixture(executionMode, work) {
   const workspace = mkdtempSync(join(tmpdir(), "densa-p5m3-"));
-  const database = DensaDatabase.openInMemory();
+  const database = DensaAdeDatabase.openInMemory();
   try {
     seed(database, executionMode);
     return await work({ database, workspace });

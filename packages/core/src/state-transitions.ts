@@ -8,7 +8,7 @@ import {
   type ProjectState,
   type Task,
   type TaskState,
-} from "@densa/protocol";
+} from "@densa-ade/protocol";
 
 type TransitionTable<State extends string> = Readonly<Record<State, readonly State[]>>;
 

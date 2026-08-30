@@ -19,9 +19,9 @@ import {
   type PermissionPolicyConfiguration,
   type PermissionPolicyPreset,
   type ProjectId,
-} from "@densa/protocol";
+} from "@densa-ade/protocol";
 
-import type { DensaDatabase } from "./persistence/database.js";
+import type { DensaAdeDatabase } from "./persistence/database.js";
 import { redactSensitiveText } from "./secret-redaction.js";
 
 const POLICY_SETTINGS_KEY = "permissionPolicy";
@@ -232,7 +232,7 @@ export class PermissionPolicyService {
   readonly #eventIdFactory: () => string;
 
   constructor(
-    private readonly database: DensaDatabase,
+    private readonly database: DensaAdeDatabase,
     options: PermissionPolicyServiceOptions = {},
   ) {
     this.#decisionIdFactory =

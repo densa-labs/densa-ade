@@ -1,8 +1,9 @@
 {
-  "name": "@densa/protocol",
+  "name": "@densa-ade/protocol",
   "version": "0.0.0",
   "private": true,
-  "description": "Versioned, editor-neutral contracts for Densa clients and Core.",
+  "description": "Versioned, editor-neutral contracts for Densa ADE clients and Core.",
+  "author": "Densa Labs",
   "type": "module",
   "exports": {
     ".": {

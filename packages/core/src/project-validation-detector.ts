@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { lstat, readFile, realpath } from "node:fs/promises";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 
-import { isoTimestampSchema, type ValidationPolicy } from "@densa/protocol";
+import { isoTimestampSchema, type ValidationPolicy } from "@densa-ade/protocol";
 
 const MAX_PROJECT_METADATA_BYTES = 1_024 * 1_024;
 const MAX_COMMAND_ARGUMENTS = 128;

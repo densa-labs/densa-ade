@@ -38,7 +38,7 @@ import {
   type Task,
   type ValidationResult,
   type ValidationRun,
-} from "@densa/protocol";
+} from "@densa-ade/protocol";
 
 import {
   DEFAULT_EVENT_REPLAY_LIMIT,
@@ -194,32 +194,41 @@ export interface RoadmapRevisionProposalRepository {
   ): RoadmapRevisionProposal;
 }
 
-export type DensaRunBranchStatus = "CREATING" | "ACTIVE" | "FAILED";
+export type DensaAdeRunBranchStatus = "CREATING" | "ACTIVE" | "FAILED";
 
-export interface DensaRunBranchRecord {
+export interface DensaAdeRunBranchRecord {
   readonly projectId: Project["id"];
   readonly workspacePath: string;
   readonly branchName: string;
   readonly sourceBranch: string;
   readonly startingCommit: string;
-  readonly status: DensaRunBranchStatus;
+  readonly status: DensaAdeRunBranchStatus;
   readonly createdAt: string;
   readonly activatedAt?: string;
   readonly failureReason?: string;
 }
 
-export type NewDensaRunBranchRecord = Omit<
-  DensaRunBranchRecord,
+export type NewDensaAdeRunBranchRecord = Omit<
+  DensaAdeRunBranchRecord,
   "status" | "activatedAt" | "failureReason"
 >;
 
-export interface DensaRunBranchRepository {
-  createCreating(run: NewDensaRunBranchRecord): DensaRunBranchRecord;
-  findByProjectId(projectId: Project["id"]): DensaRunBranchRecord | undefined;
-  findByBranchName(branchName: string): DensaRunBranchRecord | undefined;
-  activate(projectId: Project["id"], activatedAt: string): DensaRunBranchRecord;
-  fail(projectId: Project["id"], failureReason: string): DensaRunBranchRecord;
+export interface DensaAdeRunBranchRepository {
+  createCreating(run: NewDensaAdeRunBranchRecord): DensaAdeRunBranchRecord;
+  findByProjectId(projectId: Project["id"]): DensaAdeRunBranchRecord | undefined;
+  findByBranchName(branchName: string): DensaAdeRunBranchRecord | undefined;
+  activate(projectId: Project["id"], activatedAt: string): DensaAdeRunBranchRecord;
+  fail(projectId: Project["id"], failureReason: string): DensaAdeRunBranchRecord;
 }
+
+/** @deprecated Use DensaAdeRunBranchStatus. Retained for package consumer compatibility. */
+export type DensaRunBranchStatus = DensaAdeRunBranchStatus;
+/** @deprecated Use DensaAdeRunBranchRecord. Retained for package consumer compatibility. */
+export type DensaRunBranchRecord = DensaAdeRunBranchRecord;
+/** @deprecated Use NewDensaAdeRunBranchRecord. Retained for package consumer compatibility. */
+export type NewDensaRunBranchRecord = NewDensaAdeRunBranchRecord;
+/** @deprecated Use DensaAdeRunBranchRepository. Retained for package consumer compatibility. */
+export type DensaRunBranchRepository = DensaAdeRunBranchRepository;
 
 export interface TaskCommitIntentRecord {
   readonly attemptId: Attempt["id"];
@@ -315,7 +324,7 @@ export interface PhaseReportRepository {
   listByProjectId(projectId: Project["id"]): readonly PhaseReport[];
 }
 
-export interface DensaRepositories {
+export interface DensaAdeRepositories {
   readonly projects: ProjectRepository;
   readonly specifications: SpecificationRepository;
   readonly masterRoadmaps: MasterRoadmapRepository;
@@ -332,7 +341,9 @@ export interface DensaRepositories {
   readonly decisions: DecisionRepository;
   readonly roadmapRevisions: RoadmapRevisionRepository;
   readonly roadmapRevisionProposals: RoadmapRevisionProposalRepository;
-  readonly densaRunBranches: DensaRunBranchRepository;
+  readonly densaAdeRunBranches: DensaAdeRunBranchRepository;
+  /** @deprecated Use densaAdeRunBranches. Retained for package consumer compatibility. */
+  readonly densaRunBranches: DensaAdeRunBranchRepository;
   readonly taskCommitIntents: TaskCommitIntentRepository;
   readonly attemptRollbackPlans: AttemptRollbackPlanRepository;
   readonly checkpoints: CheckpointRepository;
@@ -340,6 +351,9 @@ export interface DensaRepositories {
   readonly projectSettings: ProjectSettingsRepository;
   readonly phaseReports: PhaseReportRepository;
 }
+
+/** @deprecated Use DensaAdeRepositories. Retained for package consumer compatibility. */
+export type DensaRepositories = DensaAdeRepositories;
 
 function parseJson(text: string): unknown {
   try {
@@ -1516,34 +1530,40 @@ class SqliteCheckpointRepository implements CheckpointRepository {
   }
 }
 
-function validateRunBranch(input: DensaRunBranchRecord): DensaRunBranchRecord {
-  requireNonEmpty(input.projectId, "Densa run projectId");
-  requireNonEmpty(input.workspacePath, "Densa run workspacePath");
-  requireNonEmpty(input.branchName, "Densa run branchName");
-  requireNonEmpty(input.sourceBranch, "Densa run sourceBranch");
-  requireNonEmpty(input.startingCommit, "Densa run startingCommit");
+function validateRunBranch(
+  input: DensaAdeRunBranchRecord,
+  options: { readonly allowLegacyNamespace?: boolean } = {},
+): DensaAdeRunBranchRecord {
+  requireNonEmpty(input.projectId, "Densa ADE run projectId");
+  requireNonEmpty(input.workspacePath, "Densa ADE run workspacePath");
+  requireNonEmpty(input.branchName, "Densa ADE run branchName");
+  requireNonEmpty(input.sourceBranch, "Densa ADE run sourceBranch");
+  requireNonEmpty(input.startingCommit, "Densa ADE run startingCommit");
   isoTimestampSchema.parse(input.createdAt);
-  if (!input.branchName.startsWith("densa/run/")) {
-    throw new PersistenceError("Densa run branch must use the reserved namespace");
+  if (
+    !input.branchName.startsWith("densa-ade/run/") &&
+    !(options.allowLegacyNamespace === true && input.branchName.startsWith("densa/run/"))
+  ) {
+    throw new PersistenceError("Densa ADE run branch must use the reserved namespace");
   }
   if (!(["CREATING", "ACTIVE", "FAILED"] as const).includes(input.status)) {
-    throw new PersistenceError("Densa run branch has an invalid status");
+    throw new PersistenceError("Densa ADE run branch has an invalid status");
   }
   if (input.activatedAt !== undefined) isoTimestampSchema.parse(input.activatedAt);
   if (input.failureReason !== undefined) requireNonEmpty(input.failureReason, "failureReason");
   if ((input.status === "ACTIVE") !== (input.activatedAt !== undefined)) {
-    throw new PersistenceError("Only active Densa runs have an activation timestamp");
+    throw new PersistenceError("Only active Densa ADE runs have an activation timestamp");
   }
   if ((input.status === "FAILED") !== (input.failureReason !== undefined)) {
-    throw new PersistenceError("Only failed Densa runs have a failure reason");
+    throw new PersistenceError("Only failed Densa ADE runs have a failure reason");
   }
   return Object.freeze({ ...input });
 }
 
-class SqliteDensaRunBranchRepository implements DensaRunBranchRepository {
+class SqliteDensaAdeRunBranchRepository implements DensaAdeRunBranchRepository {
   constructor(private readonly connection: SqliteConnection) {}
 
-  createCreating(input: NewDensaRunBranchRecord): DensaRunBranchRecord {
+  createCreating(input: NewDensaAdeRunBranchRecord): DensaAdeRunBranchRecord {
     const run = validateRunBranch({ ...input, status: "CREATING" });
     this.connection.run(
       `INSERT INTO densa_run_branches
@@ -1560,7 +1580,7 @@ class SqliteDensaRunBranchRepository implements DensaRunBranchRepository {
     return run;
   }
 
-  findByProjectId(projectId: Project["id"]): DensaRunBranchRecord | undefined {
+  findByProjectId(projectId: Project["id"]): DensaAdeRunBranchRecord | undefined {
     const row = this.connection.get(
       "SELECT * FROM densa_run_branches WHERE project_id = ?",
       projectId,
@@ -1568,7 +1588,7 @@ class SqliteDensaRunBranchRepository implements DensaRunBranchRepository {
     return row === undefined ? undefined : this.parse(row);
   }
 
-  findByBranchName(branchName: string): DensaRunBranchRecord | undefined {
+  findByBranchName(branchName: string): DensaAdeRunBranchRecord | undefined {
     const row = this.connection.get(
       "SELECT * FROM densa_run_branches WHERE branch_name = ?",
       branchName,
@@ -1576,7 +1596,7 @@ class SqliteDensaRunBranchRepository implements DensaRunBranchRepository {
     return row === undefined ? undefined : this.parse(row);
   }
 
-  activate(projectId: Project["id"], activatedAt: string): DensaRunBranchRecord {
+  activate(projectId: Project["id"], activatedAt: string): DensaAdeRunBranchRecord {
     isoTimestampSchema.parse(activatedAt);
     const changes = this.connection.run(
       `UPDATE densa_run_branches SET status = 'ACTIVE', activated_at = ?
@@ -1585,15 +1605,18 @@ class SqliteDensaRunBranchRepository implements DensaRunBranchRepository {
       projectId,
     );
     if (changes !== 1) {
-      throw new PersistenceError("Densa run branch could not transition from CREATING to ACTIVE");
+      throw new PersistenceError(
+        "Densa ADE run branch could not transition from CREATING to ACTIVE",
+      );
     }
     const stored = this.findByProjectId(projectId);
-    if (stored === undefined) throw new PersistenceError("Activated Densa run branch is missing");
+    if (stored === undefined)
+      throw new PersistenceError("Activated Densa ADE run branch is missing");
     return stored;
   }
 
-  fail(projectId: Project["id"], failureReason: string): DensaRunBranchRecord {
-    requireNonEmpty(failureReason, "Densa run failure reason");
+  fail(projectId: Project["id"], failureReason: string): DensaAdeRunBranchRecord {
+    requireNonEmpty(failureReason, "Densa ADE run failure reason");
     const changes = this.connection.run(
       `UPDATE densa_run_branches SET status = 'FAILED', failure_reason = ?
        WHERE project_id = ? AND status = 'CREATING'`,
@@ -1601,27 +1624,32 @@ class SqliteDensaRunBranchRepository implements DensaRunBranchRepository {
       projectId,
     );
     if (changes !== 1) {
-      throw new PersistenceError("Densa run branch could not transition from CREATING to FAILED");
+      throw new PersistenceError(
+        "Densa ADE run branch could not transition from CREATING to FAILED",
+      );
     }
     const stored = this.findByProjectId(projectId);
-    if (stored === undefined) throw new PersistenceError("Failed Densa run branch is missing");
+    if (stored === undefined) throw new PersistenceError("Failed Densa ADE run branch is missing");
     return stored;
   }
 
-  private parse(row: SqliteRow): DensaRunBranchRecord {
+  private parse(row: SqliteRow): DensaAdeRunBranchRecord {
     const activatedAt = optionalString(row, "activated_at");
     const failureReason = optionalString(row, "failure_reason");
-    return validateRunBranch({
-      projectId: requiredString(row, "project_id") as Project["id"],
-      workspacePath: requiredString(row, "workspace_path"),
-      branchName: requiredString(row, "branch_name"),
-      sourceBranch: requiredString(row, "source_branch"),
-      startingCommit: requiredString(row, "starting_commit"),
-      status: requiredString(row, "status") as DensaRunBranchStatus,
-      createdAt: requiredString(row, "created_at"),
-      ...(activatedAt === undefined ? {} : { activatedAt }),
-      ...(failureReason === undefined ? {} : { failureReason }),
-    });
+    return validateRunBranch(
+      {
+        projectId: requiredString(row, "project_id") as Project["id"],
+        workspacePath: requiredString(row, "workspace_path"),
+        branchName: requiredString(row, "branch_name"),
+        sourceBranch: requiredString(row, "source_branch"),
+        startingCommit: requiredString(row, "starting_commit"),
+        status: requiredString(row, "status") as DensaAdeRunBranchStatus,
+        createdAt: requiredString(row, "created_at"),
+        ...(activatedAt === undefined ? {} : { activatedAt }),
+        ...(failureReason === undefined ? {} : { failureReason }),
+      },
+      { allowLegacyNamespace: true },
+    );
   }
 }
 
@@ -2106,9 +2134,10 @@ class SqlitePhaseReportRepository implements PhaseReportRepository {
 export function createRepositories(
   connection: SqliteConnection,
   publishEvent: (event: Readonly<PersistedEvent>) => void = () => undefined,
-): DensaRepositories {
+): DensaAdeRepositories {
   const taskDependencies = new SqliteTaskDependencyRepository(connection);
   const acceptanceCriteria = new SqliteAcceptanceCriterionRepository(connection);
+  const densaAdeRunBranches = new SqliteDensaAdeRunBranchRepository(connection);
   return Object.freeze({
     projects: new SqliteProjectRepository(connection),
     specifications: new SqliteSpecificationRepository(connection),
@@ -2126,7 +2155,8 @@ export function createRepositories(
     decisions: new SqliteDecisionRepository(connection),
     roadmapRevisions: new SqliteRoadmapRevisionRepository(connection),
     roadmapRevisionProposals: new SqliteRoadmapRevisionProposalRepository(connection),
-    densaRunBranches: new SqliteDensaRunBranchRepository(connection),
+    densaAdeRunBranches,
+    densaRunBranches: densaAdeRunBranches,
     taskCommitIntents: new SqliteTaskCommitIntentRepository(connection),
     attemptRollbackPlans: new SqliteAttemptRollbackPlanRepository(connection),
     checkpoints: new SqliteCheckpointRepository(connection),

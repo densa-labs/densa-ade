@@ -5,8 +5,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { MAX_VALIDATION_DIAGNOSTICS_BYTES, ValidationPipeline } from "@densa/core";
-import { DensaDatabase } from "@densa/core/persistence";
+import { MAX_VALIDATION_DIAGNOSTICS_BYTES, ValidationPipeline } from "@densa-ade/core";
+import { DensaAdeDatabase } from "@densa-ade/core/persistence";
 
 const createdAt = "2026-08-27T01:00:00.000Z";
 
@@ -68,7 +68,7 @@ function fakeValidator(id, outcome, calls) {
 }
 
 test("fake validators run deterministically and advisory failure does not fail the plan", async () => {
-  const database = DensaDatabase.openInMemory();
+  const database = DensaAdeDatabase.openInMemory();
   try {
     const { project, task } = seedTask(database, "ordering");
     const calls = [];
@@ -163,7 +163,7 @@ test("fake validators run deterministically and advisory failure does not fail t
 });
 
 test("a required failure or provider error fails the plan while later evidence still runs", async () => {
-  const database = DensaDatabase.openInMemory();
+  const database = DensaAdeDatabase.openInMemory();
   try {
     const { project, task } = seedTask(database, "required-failure");
     const calls = [];
@@ -220,7 +220,7 @@ test("a required failure or provider error fails the plan while later evidence s
 });
 
 test("diagnostics are bounded before persistence", async () => {
-  const database = DensaDatabase.openInMemory();
+  const database = DensaAdeDatabase.openInMemory();
   try {
     const { project, task } = seedTask(database, "bounds");
     const calls = [];
@@ -269,7 +269,7 @@ test("detailed validation evidence persists and replays after Core restarts", as
   const directory = mkdtempSync(join(tmpdir(), "densa-validation-replay-"));
   const path = join(directory, "runtime.sqlite");
   try {
-    const first = DensaDatabase.open(path);
+    const first = DensaAdeDatabase.open(path);
     const { project, task } = seedTask(first, "replay");
     const calls = [];
     const completed = await new ValidationPipeline(first, { now: monotonicClock() }).execute({
@@ -301,7 +301,7 @@ test("detailed validation evidence persists and replays after Core restarts", as
     });
     first.close();
 
-    const reopened = DensaDatabase.open(path);
+    const reopened = DensaAdeDatabase.open(path);
     const replay = new ValidationPipeline(reopened).replay("validation-replay");
     assert.deepEqual(replay, { run: completed.run, results: completed.results });
     reopened.close();
@@ -311,7 +311,7 @@ test("detailed validation evidence persists and replays after Core restarts", as
 });
 
 test("plans reject duplicate plugins and acceptance criteria from another task", async () => {
-  const database = DensaDatabase.openInMemory();
+  const database = DensaAdeDatabase.openInMemory();
   try {
     const { project, task } = seedTask(database, "invalid-plan");
     const calls = [];

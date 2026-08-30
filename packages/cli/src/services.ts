@@ -2,19 +2,19 @@ import { execFile } from "node:child_process";
 import process from "node:process";
 import { promisify } from "node:util";
 
-import { CodexAdapter } from "@densa/agent-sdk";
+import { CodexAdapter } from "@densa-ade/agent-sdk";
 import {
   CoreDaemonManager,
   CoreIpcClient,
   CoreIpcError,
   runHeadlessOnePhaseProof,
-} from "@densa/core";
+} from "@densa-ade/core";
 import {
   jsonValueSchema,
   type CoreDaemonLifecycleStatus,
   type JsonValue,
   type RequestEnvelope,
-} from "@densa/protocol";
+} from "@densa-ade/protocol";
 
 import { CliCommandError, EXIT_FAILURE, EXIT_UNAVAILABLE } from "./contracts.js";
 
@@ -87,7 +87,7 @@ export class LocalCoreClient implements CoreClient {
       }
       throw new CliCommandError(
         "PROCESS_FAILURE",
-        error instanceof Error ? error.message : "Densa Core is unavailable",
+        error instanceof Error ? error.message : "Densa ADE Core is unavailable",
         EXIT_UNAVAILABLE,
       );
     } finally {
@@ -116,7 +116,7 @@ export class PlaceholderCoreClient implements CoreClient {
   async request(request: RequestEnvelope): Promise<JsonValue> {
     throw new CliCommandError(
       "PROCESS_FAILURE",
-      `Densa Core is not available for ${request.method}; this command is a Phase 0 placeholder.`,
+      `Densa ADE Core is not available for ${request.method}; this command is a Phase 0 placeholder.`,
       EXIT_UNAVAILABLE,
       { method: request.method },
     );

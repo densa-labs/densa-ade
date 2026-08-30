@@ -1,8 +1,9 @@
 {
-  "name": "@densa/agent-sdk",
+  "name": "@densa-ade/agent-sdk",
   "version": "0.0.0",
   "private": true,
-  "description": "Agent-neutral adapter boundary for Densa Core.",
+  "description": "Agent-neutral adapter boundary for Densa ADE Core.",
+  "author": "Densa Labs",
   "type": "module",
   "exports": {
     ".": {
@@ -14,6 +15,6 @@
     "dist"
   ],
   "dependencies": {
-    "@densa/protocol": "0.0.0"
+    "@densa-ade/protocol": "0.0.0"
   }
 }

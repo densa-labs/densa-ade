@@ -1,6 +1,6 @@
 # Acceptance evidence
 
-Densa treats a validator run and an acceptance decision as separate facts. A validator can pass
+Densa ADE treats a validator run and an acceptance decision as separate facts. A validator can pass
 while task completion remains blocked because one or more required criteria have no usable
 evidence.
 

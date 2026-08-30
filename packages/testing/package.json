@@ -1,8 +1,9 @@
 {
-  "name": "@densa/testing",
+  "name": "@densa-ade/testing",
   "version": "0.0.0",
   "private": true,
-  "description": "Reusable fakes, fixtures, and helpers for deterministic Densa tests.",
+  "description": "Reusable fakes, fixtures, and helpers for deterministic Densa ADE tests.",
+  "author": "Densa Labs",
   "type": "module",
   "exports": {
     ".": {
@@ -14,8 +15,8 @@
     "dist"
   ],
   "dependencies": {
-    "@densa/agent-sdk": "0.0.0",
-    "@densa/core": "0.0.0",
-    "@densa/protocol": "0.0.0"
+    "@densa-ade/agent-sdk": "0.0.0",
+    "@densa-ade/core": "0.0.0",
+    "@densa-ade/protocol": "0.0.0"
   }
 }

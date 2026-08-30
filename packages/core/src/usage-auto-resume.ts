@@ -11,9 +11,9 @@ import {
   type ProjectId,
   type Task,
   type UsageState,
-} from "@densa/protocol";
+} from "@densa-ade/protocol";
 
-import type { DensaDatabase } from "./persistence/database.js";
+import type { DensaAdeDatabase } from "./persistence/database.js";
 import { RecoveryInspector, type RecoveryPlan, type WorkspaceProbe } from "./recovery-inspector.js";
 import type { SchedulerGateSnapshot } from "./scheduler.js";
 import { stateTransitionService } from "./state-transitions.js";
@@ -278,7 +278,7 @@ export class UsageAutoResumeService {
   readonly #probing = new Set<ProjectId>();
 
   constructor(
-    private readonly database: DensaDatabase,
+    private readonly database: DensaAdeDatabase,
     private readonly options: UsageAutoResumeOptions,
   ) {
     this.#clock = options.clock ?? systemClock();

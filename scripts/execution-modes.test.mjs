@@ -9,10 +9,10 @@ import {
   IndependentReviewService,
   ProjectExecutionOrchestrator,
   StateTransitionService,
-} from "@densa/core";
-import { DensaDatabase } from "@densa/core/persistence";
-import { masterRoadmapSchema } from "@densa/protocol";
-import { FakeAgentAdapter } from "@densa/testing";
+} from "@densa-ade/core";
+import { DensaAdeDatabase } from "@densa-ade/core/persistence";
+import { masterRoadmapSchema } from "@densa-ade/protocol";
+import { FakeAgentAdapter } from "@densa-ade/testing";
 
 const baseTime = Date.parse("2026-08-27T12:00:00.000Z");
 let sequence = 0;
@@ -184,7 +184,7 @@ function phaseValidator(database) {
               summary: "Suite passed.",
             },
           ],
-          architectureConstraints: ["Densa Core owns the phase verdict."],
+          architectureConstraints: ["Densa ADE Core owns the phase verdict."],
           adapter: new FakeAgentAdapter({
             finalMessage: JSON.stringify({
               verdict: "pass",
@@ -230,7 +230,7 @@ function request(database, workspace, taskExecutor, overrides = {}) {
 
 async function withFixture(executionMode, work) {
   const workspace = mkdtempSync(join(tmpdir(), "densa-p5m4-"));
-  const database = DensaDatabase.openInMemory();
+  const database = DensaAdeDatabase.openInMemory();
   try {
     seed(database, executionMode);
     return await work({ database, workspace });
@@ -459,7 +459,7 @@ test("mode changes persist across restart, emit audit facts, and take effect at 
   const directory = mkdtempSync(join(tmpdir(), "densa-p5m4-restart-"));
   const workspace = join(directory, "workspace");
   const databasePath = join(directory, "runtime.sqlite");
-  let database = DensaDatabase.open(databasePath);
+  let database = DensaAdeDatabase.open(databasePath);
   try {
     seed(database, "continuous");
     const order = [];
@@ -484,7 +484,7 @@ test("mode changes persist across restart, emit audit facts, and take effect at 
     assert.equal(guided.taskId, "task.alpha");
     database.close();
 
-    database = DensaDatabase.open(databasePath);
+    database = DensaAdeDatabase.open(databasePath);
     assert.equal(database.repositories.projects.findById("project-modes").executionMode, "guided");
     assert.equal(
       new ExecutionModeService(database, { now }).change(

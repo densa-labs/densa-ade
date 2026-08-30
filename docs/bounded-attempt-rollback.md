@@ -1,6 +1,6 @@
 # Bounded failed-attempt rollback
 
-Phase 3 Milestone 3 adds the only Core boundary allowed to return failed Densa work to its task
+Phase 3 Milestone 3 adds the only Core boundary allowed to return failed Densa ADE work to its task
 checkpoint. `AttemptRollbackService` is deliberately a two-step protocol: it records evidence
 first, then performs a separately requested, path-scoped rollback. It never invokes `git reset`,
 `git clean`, a repository-wide checkout, or a remote operation.

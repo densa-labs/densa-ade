@@ -1,7 +1,7 @@
 # Master roadmap generation
 
-Phase 4 Milestone 2 turns a sufficiently resolved `ProjectSpecification` into Densa's complete
-initial Master Roadmap. The version 1 roadmap contract is editor- and model-neutral. Densa Core,
+Phase 4 Milestone 2 turns a sufficiently resolved `ProjectSpecification` into Densa ADE's complete
+initial Master Roadmap. The version 1 roadmap contract is editor- and model-neutral. Densa ADE Core,
 not the Master agent, owns readiness checks, structural validation, rendering, and scheduling.
 
 ## Readiness and agent boundary

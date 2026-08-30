@@ -14,10 +14,10 @@ import {
   type ValidationRun,
   type ValidationRunId,
   type ValidatorOutcome,
-} from "@densa/protocol";
+} from "@densa-ade/protocol";
 
 import { buildAcceptanceReport } from "./acceptance-evidence.js";
-import type { DensaDatabase } from "./persistence/database.js";
+import type { DensaAdeDatabase } from "./persistence/database.js";
 
 export const MAX_VALIDATION_DIAGNOSTICS_BYTES = 32 * 1_024;
 export const MAX_VALIDATION_METADATA_BYTES = 64 * 1_024;
@@ -206,7 +206,7 @@ export class ValidationPipeline {
   readonly #now: () => string;
 
   constructor(
-    private readonly database: DensaDatabase,
+    private readonly database: DensaAdeDatabase,
     options: ValidationPipelineOptions = {},
   ) {
     const clock = options.now ?? (() => new Date().toISOString());

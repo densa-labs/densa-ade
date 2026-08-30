@@ -8,9 +8,9 @@ import {
   TASK_PACKET_MAX_BYTES,
   TaskPacketBuilder,
   renderTaskPacketPrompt,
-} from "@densa/core";
-import { DensaDatabase } from "@densa/core/persistence";
-import { masterRoadmapSchema } from "@densa/protocol";
+} from "@densa-ade/core";
+import { DensaAdeDatabase } from "@densa-ade/core/persistence";
+import { masterRoadmapSchema } from "@densa-ade/protocol";
 
 const createdAt = "2026-08-27T09:00:00.000Z";
 const projectId = "project-task-packet";
@@ -203,7 +203,7 @@ function request(overrides = {}) {
 }
 
 function withDatabase(work, options) {
-  const database = DensaDatabase.openInMemory();
+  const database = DensaAdeDatabase.openInMemory();
   try {
     seed(database, options);
     return work(database);
@@ -263,7 +263,7 @@ test("builds deterministic focused context and omits irrelevant decisions and hi
     );
 
     const prompt = renderTaskPacketPrompt(first.packet);
-    assert.match(prompt, /^# Densa Worker Task Packet/mu);
+    assert.match(prompt, /^# Densa ADE Worker Task Packet/mu);
     assert.match(prompt, /## Exact task/u);
     assert.match(prompt, /## Permission envelope/u);
     assert.match(prompt, /## Scope boundary/u);
@@ -289,22 +289,22 @@ test("retry packets include only the latest relevant prior failed-attempt diagno
       startedAt: "2026-08-27T09:01:00.000Z",
       completedAt: "2026-08-27T09:02:00.000Z",
     });
-    database.repositories.densaRunBranches.createCreating({
+    database.repositories.densaAdeRunBranches.createCreating({
       projectId,
       workspacePath: "/tmp/task-packet-proof",
-      branchName: "densa/run/project-task-packet",
+      branchName: "densa-ade/run/project-task-packet",
       sourceBranch: "main",
       startingCommit: "1111111111111111111111111111111111111111",
       createdAt: "2026-08-27T09:00:30.000Z",
     });
-    database.repositories.densaRunBranches.activate(projectId, "2026-08-27T09:00:31.000Z");
+    database.repositories.densaAdeRunBranches.activate(projectId, "2026-08-27T09:00:31.000Z");
     database.repositories.attemptRollbackPlans.create({
       attemptId: "attempt-1",
       agentRunId: "agent-run-1",
       projectId,
       taskId,
       workspacePath: "/tmp/task-packet-proof",
-      branchName: "densa/run/project-task-packet",
+      branchName: "densa-ade/run/project-task-packet",
       checkpointHead: "1111111111111111111111111111111111111111",
       ownedPaths: [{ path: "src/task-packet.ts", kind: "ABSENT", temporary: false }],
       recordedAt: "2026-08-27T09:02:01.000Z",
@@ -394,7 +394,7 @@ test("stale or unsafe context selections fail closed", () => {
 test("durable active constraints affect future packets while conflicts and supersession stay auditable", async () => {
   const workspacePath = "/tmp/densa-p8m1-task-packet";
   await rm(workspacePath, { force: true, recursive: true });
-  const database = DensaDatabase.openInMemory();
+  const database = DensaAdeDatabase.openInMemory();
   try {
     seed(database);
     let tick = 0;
@@ -478,7 +478,7 @@ test("durable active constraints affect future packets while conflicts and super
     );
     assert.equal(JSON.stringify(futurePacket.packet).includes("Use Firebase instead"), false);
 
-    const portable = await readFile(`${workspacePath}/.densa/DECISIONS.md`, "utf8");
+    const portable = await readFile(`${workspacePath}/.densa-ade/DECISIONS.md`, "utf8");
     assert.match(portable, /Status: superseded/u);
     assert.match(portable, /Supersedes: `decision\.constraint\.1`/u);
     assert.match(portable, /Use SQLite for authoritative runtime state\./u);

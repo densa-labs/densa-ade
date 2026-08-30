@@ -1,6 +1,6 @@
-# `@densa/protocol`
+# `@densa-ade/protocol`
 
-This package owns Densa's editor-neutral and agent-neutral domain and local IPC contracts. Public
+This package owns Densa ADE's editor-neutral and agent-neutral domain and local IPC contracts. Public
 contracts pair TypeScript types with Zod schemas so every value received across a process boundary
 is validated before use.
 

@@ -1,6 +1,6 @@
 # Task packets
 
-Phase 5 Milestone 1 adds the editor- and model-independent `TaskPacketBuilder` in Densa Core. A
+Phase 5 Milestone 1 adds the editor- and model-independent `TaskPacketBuilder` in Densa ADE Core. A
 task packet is focused worker context, not a transcript or project-history dump. The builder reads
 the authoritative project, specification, roadmap, phase, task, dependency, decision, attempt, and
 failed-attempt records through Core repositories. It never reads the event journal or Master

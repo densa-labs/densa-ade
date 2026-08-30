@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 
-import type { AgentAdapter } from "@densa/agent-sdk";
+import type { AgentAdapter } from "@densa-ade/agent-sdk";
 import {
   masterRoadmapSchema,
   eventIdSchema,
@@ -16,11 +16,11 @@ import {
   type JsonObject,
   type MasterRoadmap,
   type PhaseReport,
-} from "@densa/protocol";
+} from "@densa-ade/protocol";
 
 import { FreshContextPhaseValidator, IndependentReviewService } from "./independent-review.js";
 import { MasterRoadmapGenerator } from "./master-roadmap.js";
-import { DensaDatabase } from "./persistence/database.js";
+import { DensaAdeDatabase } from "./persistence/database.js";
 import { PortableProjectSynchronizer } from "./persistence/portable-project.js";
 import { ProjectExecutionOrchestrator } from "./execution-modes.js";
 import { SingleTaskPhaseExecutor } from "./phase-orchestrator.js";
@@ -52,7 +52,7 @@ const specification = projectSpecificationSchema.parse({
   ],
   architectureConstraints: [
     "Only src/normalize-name.js may be changed by the implementation task.",
-    "Densa Core validation and Git evidence, not worker prose, decide completion.",
+    "Densa ADE Core validation and Git evidence, not worker prose, decide completion.",
   ],
   platformRuntimeConstraints: ["Run on the installed Node.js runtime as an ECMAScript module."],
   integrations: ["Node.js built-in test runner."],
@@ -209,7 +209,7 @@ async function initializeFixture(workspacePath: string): Promise<void> {
   ]);
   if (initialized.exitCode !== 0) throw new Error(`git init failed: ${initialized.stderr}`);
   for (const [key, value] of [
-    ["user.name", "Densa P9M0 Proof"],
+    ["user.name", "Densa ADE P9M0 Proof"],
     ["user.email", "densa-p9m0@localhost"],
     ["commit.gpgsign", "false"],
   ] as const) {
@@ -220,7 +220,7 @@ async function initializeFixture(workspacePath: string): Promise<void> {
 }
 
 function transitionProject(
-  database: DensaDatabase,
+  database: DensaAdeDatabase,
   state: "PLANNING" | "READY" | "RUNNING",
   now: () => string,
 ): void {
@@ -238,7 +238,7 @@ function transitionProject(
 }
 
 function seedProject(
-  database: DensaDatabase,
+  database: DensaAdeDatabase,
   generatedRoadmap: MasterRoadmap,
   now: () => string,
 ): void {
@@ -318,7 +318,7 @@ function seedProject(
 async function commitBaseline(workspacePath: string): Promise<string> {
   const added = await command(workspacePath, "git", [
     "add",
-    ".densa",
+    ".densa-ade",
     "package.json",
     "src",
     "test",
@@ -326,7 +326,7 @@ async function commitBaseline(workspacePath: string): Promise<string> {
   if (added.exitCode !== 0) throw new Error(`git add failed: ${added.stderr}`);
   const committed = await command(workspacePath, "git", [
     "-c",
-    "user.name=Densa P9M0 Proof",
+    "user.name=Densa ADE P9M0 Proof",
     "-c",
     "user.email=densa-p9m0@localhost",
     "-c",
@@ -403,7 +403,7 @@ export async function runHeadlessOnePhaseProof(
   const databasePath = join(temporaryRoot, "state.sqlite");
   const diagnosticsPath = join(temporaryRoot, "proof-result.json");
   const failureReasons: string[] = [];
-  let database: DensaDatabase | undefined;
+  let database: DensaAdeDatabase | undefined;
   try {
     await mkdir(workspacePath);
     await initializeFixture(workspacePath);
@@ -417,7 +417,7 @@ export async function runHeadlessOnePhaseProof(
     }
 
     const now = clock();
-    database = DensaDatabase.open(databasePath);
+    database = DensaAdeDatabase.open(databasePath);
     seedProject(database, generated.roadmap, now);
     const initialSync = await new PortableProjectSynchronizer(database.repositories).synchronize(
       workspacePath,
@@ -428,7 +428,7 @@ export async function runHeadlessOnePhaseProof(
     const startingCommit = await commitBaseline(workspacePath);
 
     database.close();
-    database = DensaDatabase.open(databasePath);
+    database = DensaAdeDatabase.open(databasePath);
     if (
       database.repositories.specifications.findByProjectId(PROJECT_ID)?.specification
         .projectGoal !== specification.projectGoal ||
@@ -454,9 +454,9 @@ export async function runHeadlessOnePhaseProof(
         return {
           workerPrompt: [
             "Implement the complete normalizeName fixture task.",
-            "Edit only src/normalize-name.js. Do not edit tests, package metadata, .densa files, or Git metadata, and do not commit.",
+            "Edit only src/normalize-name.js. Do not edit tests, package metadata, .densa-ade files, or Git metadata, and do not commit.",
             "Requirements: accept only strings; trim surrounding whitespace; split on one or more whitespace characters; lowercase each word; join words with a single hyphen; preserve already-hyphenated text; throw TypeError for non-string input.",
-            "Run node --test before finishing. Your prose is not completion evidence; Densa Core will validate and commit independently.",
+            "Run node --test before finishing. Your prose is not completion evidence; Densa ADE Core will validate and commit independently.",
           ].join("\n"),
           ownedPaths: [SOURCE_PATH],
           intendedPaths: [SOURCE_PATH],
@@ -507,7 +507,7 @@ export async function runHeadlessOnePhaseProof(
     const taskCommitSha = completedAttempt?.commitSha;
 
     database.close();
-    database = DensaDatabase.open(databasePath);
+    database = DensaAdeDatabase.open(databasePath);
     const finalProject = database.repositories.projects.findById(PROJECT_ID);
     const finalPhase = database.repositories.phases.findById(PHASE_ID);
     const finalTask = database.repositories.tasks.findById(TASK_ID);
@@ -526,7 +526,7 @@ export async function runHeadlessOnePhaseProof(
     if (finalTask?.state !== "COMPLETED") failureReasons.push("Task did not persist COMPLETED.");
     if (persistedReport?.outcome !== "awaiting_approval")
       failureReasons.push("Phase report did not survive restart accurately.");
-    if (!gitSubjects.some((subject) => subject.startsWith(`densa: ${TASK_ID} `)))
+    if (!gitSubjects.some((subject) => subject.startsWith(`densa-ade: ${TASK_ID} `)))
       failureReasons.push("Git history does not map the task ID to its commit.");
     if (!events.some((event) => event.type === "VALIDATION_PASSED" && event.taskId === TASK_ID))
       failureReasons.push("No authoritative passing task-validation fact was persisted.");

@@ -9,8 +9,8 @@ import {
   RoadmapMutationError,
   RoadmapMutationService,
   StateTransitionService,
-} from "@densa/core";
-import { DensaDatabase } from "@densa/core/persistence";
+} from "@densa-ade/core";
+import { DensaAdeDatabase } from "@densa-ade/core/persistence";
 
 const projectId = "project-roadmap-workflow";
 const createdAt = "2026-08-30T01:00:00.000Z";
@@ -168,7 +168,7 @@ function workflow(database, workspace, overrides = {}) {
 
 test("minor multi-operation steering applies as one revision with inspectable before and after", async () => {
   const workspace = await mkdtemp(join(tmpdir(), "densa-p8m2-minor-"));
-  const database = DensaDatabase.openInMemory();
+  const database = DensaAdeDatabase.openInMemory();
   try {
     seed(database);
     const result = await workflow(database, workspace).propose(projectId, {
@@ -203,7 +203,7 @@ test("minor multi-operation steering applies as one revision with inspectable be
       revisions[0].operations.map(({ kind }) => kind),
       ["add_task", "change_dependency"],
     );
-    const portable = await readFile(join(workspace, ".densa", "ROADMAP.md"), "utf8");
+    const portable = await readFile(join(workspace, ".densa-ade", "ROADMAP.md"), "utf8");
     assert.match(portable, /mobile/u);
   } finally {
     database.close();
@@ -213,7 +213,7 @@ test("minor multi-operation steering applies as one revision with inspectable be
 
 test("scope replacement waits for explicit approval and applies the exact inspected snapshot", async () => {
   const workspace = await mkdtemp(join(tmpdir(), "densa-p8m2-scope-"));
-  const database = DensaDatabase.openInMemory();
+  const database = DensaAdeDatabase.openInMemory();
   try {
     seed(database);
     const service = workflow(database, workspace);
@@ -287,7 +287,7 @@ test("scope replacement waits for explicit approval and applies the exact inspec
 
 test("cyclic proposals fail before proposal or authoritative state is persisted", async () => {
   const workspace = await mkdtemp(join(tmpdir(), "densa-p8m2-cycle-"));
-  const database = DensaDatabase.openInMemory();
+  const database = DensaAdeDatabase.openInMemory();
   try {
     seed(database);
     await assert.rejects(
@@ -312,7 +312,7 @@ test("cyclic proposals fail before proposal or authoritative state is persisted"
 
 test("an affected running task defers a minor change until its safe boundary", async () => {
   const workspace = await mkdtemp(join(tmpdir(), "densa-p8m2-boundary-"));
-  const database = DensaDatabase.openInMemory();
+  const database = DensaAdeDatabase.openInMemory();
   try {
     seed(database, { runningTaskId: "search" });
     const service = workflow(database, workspace);
@@ -352,7 +352,7 @@ test("an affected running task defers a minor change until its safe boundary", a
 
 test("an intervening authoritative revision makes an inspected proposal stale instead of rebasing it", async () => {
   const workspace = await mkdtemp(join(tmpdir(), "densa-p8m2-stale-"));
-  const database = DensaDatabase.openInMemory();
+  const database = DensaAdeDatabase.openInMemory();
   try {
     seed(database);
     const service = workflow(database, workspace);

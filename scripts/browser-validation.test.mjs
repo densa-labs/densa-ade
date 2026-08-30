@@ -9,8 +9,8 @@ import {
   BrowserValidationDetector,
   BrowserValidationValidator,
   ValidationPipeline,
-} from "@densa/core";
-import { DensaDatabase } from "@densa/core/persistence";
+} from "@densa-ade/core";
+import { DensaAdeDatabase } from "@densa-ade/core/persistence";
 
 const workspaces = [];
 const createdAt = "2026-08-28T00:00:00.000Z";
@@ -52,7 +52,7 @@ writeFileSync(pidPath, String(process.pid));
 ${noisy ? 'console.error("Bearer fixture-secret " + "x".repeat(100000));' : ""}
 const server = createServer((_request, response) => {
   response.writeHead(200, { "content-type": "text/html" });
-  response.end('<!doctype html><title>Densa fixture</title><main><h1 data-testid="heading">Browser proof</h1></main>');
+  response.end('<!doctype html><title>Densa ADE fixture</title><main><h1 data-testid="heading">Browser proof</h1></main>');
 });
 server.listen(Number(port), "127.0.0.1");
 const stop = () => server.close(() => process.exit(0));
@@ -206,7 +206,7 @@ test("a real Playwright fixture starts, validates, stops, and satisfies acceptan
   });
   assert.equal(detection.status, "configured");
 
-  const database = DensaDatabase.openInMemory();
+  const database = DensaAdeDatabase.openInMemory();
   try {
     const { project, task } = seedTask(database, "passing");
     const validator = new BrowserValidationValidator(

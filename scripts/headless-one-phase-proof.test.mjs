@@ -3,7 +3,7 @@ import { readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 
-import { runHeadlessOnePhaseProof } from "@densa/core";
+import { runHeadlessOnePhaseProof } from "@densa-ade/core";
 
 function reviewerOutput() {
   return {
@@ -91,7 +91,7 @@ test("the P9M0 proof survives restarts and stops at an independently validated p
   assert.equal(result.phaseReport.outcome, "awaiting_approval");
   assert.equal(result.phaseReport.phaseValidation.status, "passed");
   assert.equal(result.phaseReport.commits[0]?.sha, result.taskCommitSha);
-  assert.match(result.gitSubjects[0] ?? "", /^densa: task\.normalize-name /u);
+  assert.match(result.gitSubjects[0] ?? "", /^densa-ade: task\.normalize-name /u);
   assert.equal(adapter.workerRuns, 1);
   assert.equal(adapter.reviewerRuns, 1);
 

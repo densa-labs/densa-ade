@@ -8,9 +8,9 @@ import {
   parseMasterRoadmapMarkdown,
   renderMasterRoadmapMarkdown,
   topologicallyScheduleRoadmap,
-} from "@densa/core";
-import { masterRoadmapSchema, projectSpecificationSchema } from "@densa/protocol";
-import { FakeAgentAdapter } from "@densa/testing";
+} from "@densa-ade/core";
+import { masterRoadmapSchema, projectSpecificationSchema } from "@densa-ade/protocol";
+import { FakeAgentAdapter } from "@densa-ade/testing";
 
 function specification(overrides = {}) {
   return projectSpecificationSchema.parse({

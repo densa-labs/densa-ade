@@ -7,7 +7,7 @@ import {
   type EventId,
   type JsonObject,
   type ProjectId,
-} from "@densa/protocol";
+} from "@densa-ade/protocol";
 
 import {
   type ExecuteProjectLifecycleRequest,
@@ -15,7 +15,7 @@ import {
   type ProjectLifecycleResult,
 } from "./execution-modes.js";
 import { KeepAwakeManager } from "./keep-awake.js";
-import { type DensaDatabase } from "./persistence/database.js";
+import { type DensaAdeDatabase } from "./persistence/database.js";
 import {
   GitWorkspaceProbe,
   RecoveryInspector,
@@ -114,9 +114,9 @@ interface ActiveExecution {
   readonly controller: AbortController;
 }
 
-const activeExecutions = new WeakMap<DensaDatabase, Map<ProjectId, ActiveExecution>>();
+const activeExecutions = new WeakMap<DensaAdeDatabase, Map<ProjectId, ActiveExecution>>();
 
-function executionsFor(database: DensaDatabase): Map<ProjectId, ActiveExecution> {
+function executionsFor(database: DensaAdeDatabase): Map<ProjectId, ActiveExecution> {
   let executions = activeExecutions.get(database);
   if (executions === undefined) {
     executions = new Map();
@@ -278,7 +278,7 @@ export class ProjectExecutionControlService {
   readonly #keepAwake: ProjectKeepAwakeBoundary;
 
   constructor(
-    private readonly database: DensaDatabase,
+    private readonly database: DensaAdeDatabase,
     options: ProjectExecutionControlOptions = {},
   ) {
     const clock = options.now ?? (() => new Date().toISOString());

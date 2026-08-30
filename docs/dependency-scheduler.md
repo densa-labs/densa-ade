@@ -1,6 +1,6 @@
 # Dependency scheduler
 
-Phase 5 Milestone 0 adds the editor-independent, read-only `DependencyScheduler` in Densa Core. It
+Phase 5 Milestone 0 adds the editor-independent, read-only `DependencyScheduler` in Densa ADE Core. It
 selects at most one executable task from the authoritative persisted roadmap and runtime state; it
 does not change lifecycle state, reserve work, create checkpoints, or invoke an `AgentAdapter`.
 Those side effects belong to the later orchestrator lifecycle.

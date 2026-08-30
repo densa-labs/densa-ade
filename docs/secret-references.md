@@ -1,7 +1,7 @@
 # Secret references and scoped credential use
 
-Phase 7 Milestone 3 keeps credential values outside Densa's authoritative SQLite state and portable
-`.densa/` projection. Persistable configuration uses `SecretRef`, an opaque project-scoped locator
+Phase 7 Milestone 3 keeps credential values outside Densa ADE's authoritative SQLite state and portable
+`.densa-ade/` projection. Persistable configuration uses `SecretRef`, an opaque project-scoped locator
 whose schema deliberately has no value field. The v1 `MacOsKeychainSecretStore` maps that locator to
 a generic-password item in the user's default macOS Keychain.
 
@@ -28,4 +28,4 @@ recovery can distinguish an operation that may have started from one that did no
 The shared redactor covers prompts, log text, JSON event payloads, explicit secret markers, common
 credential shapes, sensitive object keys, and the exact transient values resolved for a scoped
 operation. Redaction is defense in depth: raw values still must not be inserted into task packets,
-project settings, events, reports, or `.densa/` in the first place.
+project settings, events, reports, or `.densa-ade/` in the first place.

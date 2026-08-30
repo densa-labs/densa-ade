@@ -17,11 +17,11 @@ import {
   type PhaseId,
   type ProjectId,
   type TaskId,
-} from "@densa/protocol";
+} from "@densa-ade/protocol";
 
 import { PermissionPolicyService } from "./permission-policy.js";
 import type { PersistedEvent } from "./event-publisher.js";
-import type { DensaDatabase } from "./persistence/database.js";
+import type { DensaAdeDatabase } from "./persistence/database.js";
 import type { PortableSyncResult } from "./persistence/portable-project.js";
 import { redactSensitiveText } from "./secret-redaction.js";
 
@@ -92,7 +92,7 @@ export class ProjectDecisionService {
   readonly #eventIdFactory: () => string;
 
   constructor(
-    private readonly database: DensaDatabase,
+    private readonly database: DensaAdeDatabase,
     private readonly options: ProjectDecisionServiceOptions,
   ) {
     if (!isAbsolute(options.workspacePath)) {
@@ -368,7 +368,7 @@ function sameReferences(left: readonly string[], right: readonly string[]): bool
 function scopesOverlap(
   existing: Decision,
   proposed: Pick<RecordProjectDecisionRequest, "scope" | "affectedPhaseIds" | "affectedTaskIds">,
-  database: DensaDatabase,
+  database: DensaAdeDatabase,
 ): boolean {
   if (existing.scope === "project" || proposed.scope === "project") return true;
   if (existing.scope === "phase" && proposed.scope === "phase") {

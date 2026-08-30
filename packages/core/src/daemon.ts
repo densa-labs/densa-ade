@@ -27,9 +27,9 @@ import {
   type NotificationEnvelope,
   type ProtocolError,
   type RequestEnvelope,
-} from "@densa/protocol";
+} from "@densa-ade/protocol";
 
-import { DensaDatabase } from "./persistence/database.js";
+import { DensaAdeDatabase } from "./persistence/database.js";
 
 const MAX_FRAME_BYTES = 1024 * 1024;
 const RUNTIME_DIRECTORY_MODE = 0o700;
@@ -58,7 +58,7 @@ export interface CoreDaemonOptions {
   readonly now?: () => string;
   readonly instanceId?: string;
   readonly ownerPid?: number;
-  readonly database?: DensaDatabase;
+  readonly database?: DensaAdeDatabase;
 }
 
 export interface CoreDaemonManagerOptions {
@@ -85,7 +85,7 @@ function currentUserId(): number | undefined {
 export function defaultCoreRuntimeDirectory(): string {
   const configured = process.env["DENSA_CORE_RUNTIME_DIR"];
   return configured === undefined || configured.length === 0
-    ? join(homedir(), ".densa", "runtime")
+    ? join(homedir(), ".densa-ade", "runtime")
     : resolve(configured);
 }
 
@@ -107,11 +107,11 @@ async function assertOwnedPath(path: string, kind: "directory" | "file" | "socke
     (kind === "file" && metadata.isFile()) ||
     (kind === "socket" && metadata.isSocket());
   if (!validKind || metadata.isSymbolicLink()) {
-    throw new Error(`Densa Core ${kind} path is unsafe: ${path}`);
+    throw new Error(`Densa ADE Core ${kind} path is unsafe: ${path}`);
   }
   const uid = currentUserId();
   if (uid !== undefined && metadata.uid !== uid) {
-    throw new Error(`Densa Core ${kind} path is not owned by the current user: ${path}`);
+    throw new Error(`Densa ADE Core ${kind} path is not owned by the current user: ${path}`);
   }
 }
 
@@ -124,7 +124,7 @@ async function ensureRuntimeDirectory(path: string): Promise<void> {
 async function assertPrivateRuntimeDirectory(path: string): Promise<void> {
   await assertOwnedPath(path, "directory");
   if (((await lstat(path)).mode & 0o077) !== 0) {
-    throw new Error(`Densa Core runtime directory is accessible by another user: ${path}`);
+    throw new Error(`Densa ADE Core runtime directory is accessible by another user: ${path}`);
   }
 }
 
@@ -143,7 +143,7 @@ async function readPrivateFile(path: string): Promise<string> {
   await assertOwnedPath(path, "file");
   const metadata = await lstat(path);
   if ((metadata.mode & 0o077) !== 0) {
-    throw new Error(`Densa Core credential file is accessible by another user: ${path}`);
+    throw new Error(`Densa ADE Core credential file is accessible by another user: ${path}`);
   }
   return await readFile(path, "utf8");
 }
@@ -176,7 +176,7 @@ function parseProcessState(value: string): PersistedProcessState {
     typeof parsed.socketPath !== "string" ||
     parsed.socketPath.length === 0
   ) {
-    throw new Error("Densa Core PID metadata is malformed");
+    throw new Error("Densa ADE Core PID metadata is malformed");
   }
   isoTimestampSchema.parse(parsed.startedAt);
   return {
@@ -210,10 +210,10 @@ async function removeIfPresent(path: string, expectedKind: "file" | "socket"): P
 async function recoverStaleState(paths: CoreRuntimePaths): Promise<void> {
   const state = await readProcessState(paths);
   if (state !== undefined && processExists(state.pid)) {
-    throw new Error(`Densa Core already has a live owner process (${String(state.pid)})`);
+    throw new Error(`Densa ADE Core already has a live owner process (${String(state.pid)})`);
   }
   if (state === undefined && (await socketIsLive(paths.socket))) {
-    throw new Error(`Densa Core already has a live socket endpoint: ${paths.socket}`);
+    throw new Error(`Densa ADE Core already has a live socket endpoint: ${paths.socket}`);
   }
   await removeIfPresent(paths.socket, "socket");
   await removeIfPresent(paths.token, "file");
@@ -317,7 +317,7 @@ function jsonRequestId(value: unknown): string {
 /** Authoritative local Core process. Clients can disconnect without changing its lifecycle. */
 export class CoreDaemon {
   readonly #paths: CoreRuntimePaths;
-  readonly #database: DensaDatabase;
+  readonly #database: DensaAdeDatabase;
   readonly #server: Server;
   readonly #token: string;
   readonly #instanceId: string;
@@ -330,7 +330,7 @@ export class CoreDaemon {
 
   private constructor(
     options: CoreDaemonOptions,
-    database: DensaDatabase,
+    database: DensaAdeDatabase,
     token: string,
     ownsDatabase: boolean,
   ) {
@@ -350,9 +350,9 @@ export class CoreDaemon {
     await recoverStaleState(paths);
     const token = randomBytes(32).toString("base64url");
     await writePrivateFile(paths.token, token);
-    let database: DensaDatabase | undefined;
+    let database: DensaAdeDatabase | undefined;
     try {
-      database = options.database ?? DensaDatabase.open(paths.database);
+      database = options.database ?? DensaAdeDatabase.open(paths.database);
       if (options.database === undefined) await chmod(paths.database, PRIVATE_FILE_MODE);
       const daemon = new CoreDaemon(options, database, token, options.database === undefined);
       await writePrivateFile(
@@ -471,7 +471,7 @@ export class CoreDaemon {
           socket,
           responseError(envelope.requestId, {
             code: "AUTHENTICATION_REQUIRED",
-            message: "Densa Core IPC authentication failed",
+            message: "Densa ADE Core IPC authentication failed",
           }),
         );
         socket.end();
@@ -570,7 +570,7 @@ export class CoreIpcClient {
     socket.removeAllListeners("error");
     socket.on("data", (chunk) => this.#receive(chunk));
     socket.on("error", (error) => this.#disconnect(error));
-    socket.on("close", () => this.#disconnect(new Error("Densa Core disconnected")));
+    socket.on("close", () => this.#disconnect(new Error("Densa ADE Core disconnected")));
     this.#socket = socket;
   }
 
@@ -581,7 +581,7 @@ export class CoreIpcClient {
 
   disconnect(): void {
     this.#socket?.destroy();
-    this.#disconnect(new Error("Densa Core client disconnected"));
+    this.#disconnect(new Error("Densa ADE Core client disconnected"));
   }
 
   onNotification(listener: CoreNotificationListener): () => void {
@@ -594,7 +594,8 @@ export class CoreIpcClient {
     const envelope = requestEnvelopeSchema.parse(request);
     const token = this.#token;
     const socket = this.#socket;
-    if (token === undefined || socket === undefined) throw new Error("Densa Core is disconnected");
+    if (token === undefined || socket === undefined)
+      throw new Error("Densa ADE Core is disconnected");
     return await new Promise<JsonValue>((resolvePromise, reject) => {
       this.#pending.set(envelope.requestId, { resolve: resolvePromise, reject });
       socket.write(`${JSON.stringify({ authToken: token, envelope })}\n`, (error) => {
@@ -606,10 +607,10 @@ export class CoreIpcClient {
     });
   }
 
-  #receive(chunk: Buffer): void {
-    this.#buffer += chunk.toString("utf8");
+  #receive(chunk: string | Buffer): void {
+    this.#buffer += typeof chunk === "string" ? chunk : chunk.toString("utf8");
     if (Buffer.byteLength(this.#buffer, "utf8") > MAX_FRAME_BYTES) {
-      this.#socket?.destroy(new Error("Densa Core response exceeded the frame limit"));
+      this.#socket?.destroy(new Error("Densa ADE Core response exceeded the frame limit"));
       return;
     }
     let boundary = this.#buffer.indexOf("\n");
@@ -689,7 +690,7 @@ export class CoreDaemonManager {
       await delay(wait);
       wait = Math.min(wait * 2, 250);
     }
-    throw new Error("Timed out waiting for Densa Core to start");
+    throw new Error("Timed out waiting for Densa ADE Core to start");
   }
 
   async status(): Promise<CoreDaemonLifecycleStatus> {
@@ -708,7 +709,7 @@ export class CoreDaemonManager {
       const state = await readProcessState(this.#paths);
       if (state !== undefined && processExists(state.pid)) {
         throw new Error(
-          `Densa Core owner process ${String(state.pid)} is live but its authenticated endpoint is unavailable`,
+          `Densa ADE Core owner process ${String(state.pid)} is live but its authenticated endpoint is unavailable`,
           { cause: error },
         );
       }
@@ -742,7 +743,7 @@ export class CoreDaemonManager {
       await delay(wait);
       wait = Math.min(wait * 2, 250);
     }
-    throw new Error("Timed out waiting for Densa Core to stop");
+    throw new Error("Timed out waiting for Densa ADE Core to stop");
   }
 }
 

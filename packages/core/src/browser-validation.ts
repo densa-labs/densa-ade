@@ -6,7 +6,7 @@ import process from "node:process";
 import type { Readable } from "node:stream";
 import { tmpdir } from "node:os";
 
-import type { JsonObject, ValidationDiagnostic, ValidatorOutcome } from "@densa/protocol";
+import type { JsonObject, ValidationDiagnostic, ValidatorOutcome } from "@densa-ade/protocol";
 import { chromium, type Browser, type Page } from "playwright";
 
 import type { Validator, ValidatorContext } from "./validation-pipeline.js";

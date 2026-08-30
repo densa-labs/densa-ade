@@ -1,4 +1,4 @@
-import type { Event } from "@densa/protocol";
+import type { Event } from "@densa-ade/protocol";
 
 import {
   EventPublisher,
