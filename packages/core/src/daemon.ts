@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 
 import {
   CORE_EVENT_NOTIFICATION,
+  CORE_IPC_EVENT_REPLAY_DEFAULT,
   CORE_IPC_EVENT_REPLAY_LIMIT,
   PROTOCOL_VERSION,
   ProtocolVersionMismatchError,
@@ -496,23 +497,36 @@ export class CoreDaemon {
       case "events.list":
       case "events.replay": {
         const filter = eventReplayRequestSchema.parse(request.payload);
+        const limit = filter.limit ?? CORE_IPC_EVENT_REPLAY_DEFAULT;
         const replayFilter = {
           ...(filter.projectId === undefined ? {} : { projectId: filter.projectId }),
           ...(filter.afterSequence === undefined ? {} : { afterSequence: filter.afterSequence }),
-          limit: filter.limit ?? CORE_IPC_EVENT_REPLAY_LIMIT,
+          limit: Math.min(limit + 1, CORE_IPC_EVENT_REPLAY_LIMIT + 1),
         };
-        return asJson({ events: this.#database.eventJournal.replay(replayFilter) });
+        const replay = this.#database.eventJournal.replay(replayFilter);
+        const events = replay.slice(0, limit);
+        const latestSequence =
+          filter.projectId === undefined
+            ? events.reduce((latest, event) => Math.max(latest, event.sequenceNumber), 0)
+            : (this.#database.repositories.events.latest(filter.projectId)?.sequenceNumber ?? 0);
+        return asJson({ events, latestSequence, hasMore: replay.length > limit });
       }
       case "events.subscribe": {
         const filter = eventSubscriptionRequestSchema.parse(request.payload);
+        const limit = filter.limit ?? CORE_IPC_EVENT_REPLAY_DEFAULT;
         const replayFilter = {
           projectId: filter.projectId,
           ...(filter.afterSequence === undefined ? {} : { afterSequence: filter.afterSequence }),
-          limit: filter.limit ?? CORE_IPC_EVENT_REPLAY_LIMIT,
+          limit: Math.min(limit + 1, CORE_IPC_EVENT_REPLAY_LIMIT + 1),
         };
         this.#subscriptions.get(socket)?.();
         const replay = this.#database.eventJournal.replay(replayFilter);
-        const unsubscribe = this.#database.eventJournal.subscribe(replayFilter, (event) => {
+        const events = replay.slice(0, limit);
+        const subscriptionFilter = {
+          projectId: filter.projectId,
+          ...(filter.afterSequence === undefined ? {} : { afterSequence: filter.afterSequence }),
+        };
+        const unsubscribe = this.#database.eventJournal.subscribe(subscriptionFilter, (event) => {
           const notification: NotificationEnvelope = {
             protocolVersion: PROTOCOL_VERSION,
             kind: "notification",
@@ -522,7 +536,13 @@ export class CoreDaemon {
           writeFrame(socket, asJson(notification));
         });
         this.#subscriptions.set(socket, unsubscribe);
-        return asJson({ events: replay, subscribed: true });
+        return asJson({
+          events,
+          latestSequence:
+            this.#database.repositories.events.latest(filter.projectId)?.sequenceNumber ?? 0,
+          hasMore: replay.length > limit,
+          subscribed: true,
+        });
       }
       case "project.status":
         return { state: "no_project_selected" };

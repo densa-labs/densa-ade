@@ -15,17 +15,23 @@ is validated before use.
 - Core transport frames carry a per-instance authentication token around a versioned request.
 - Event replay uses an exclusive per-project sequence cursor and a bounded page size; live committed
   facts use `core.event` notifications.
+- The frozen IDE-facing operation catalog is exported as `CORE_V1_METHODS`. `CoreV1Client` validates
+  every operation payload and result, so clients never need Core repository or database types.
 
 On macOS the Core transport is a user-local Unix-domain socket. No TCP listener is part of the v0.1
 protocol contract.
 
 ## Compatibility policy
 
-Before v0.1, contract changes may update `PROTOCOL_VERSION` while the protocol is still being
-formed. Once v0.1 ships, additive changes that preserve meaning remain within the same supported
-protocol line. Breaking field, meaning, or payload changes require a new protocol version and an
-explicit compatibility adapter at the client/Core boundary. Core rejects unsupported versions with
-`PROTOCOL_VERSION_MISMATCH`; it never guesses how to interpret them.
+Protocol `1.0.0` is frozen for the first IDE integration pass. New methods may be added within the v1
+line because clients negotiate named capabilities; existing strict request and result shapes remain
+frozen. Adding, removing, or renaming a field, changing a field's meaning, or changing
+cursor/reconnect behavior requires a new protocol major and an explicit compatibility adapter at the
+client/Core boundary. Core rejects unsupported versions with `PROTOCOL_VERSION_MISMATCH`; it never
+guesses how to interpret them.
+
+See [`docs/core-v1-protocol.md`](../../docs/core-v1-protocol.md) for the complete UI-operation map,
+history bounds, and reconnect algorithm.
 
 Persisted events also carry their own `eventVersion`. Readers must preserve old event facts and
 upgrade their payloads through version-aware readers rather than rewriting event history.

@@ -18,6 +18,7 @@ import { DensaAdeDatabase } from "../packages/core/dist/persistence/index.js";
 import {
   CORE_EVENT_NOTIFICATION,
   PROTOCOL_VERSION,
+  CoreV1Client,
   requestEnvelopeSchema,
 } from "../packages/protocol/dist/index.js";
 
@@ -95,6 +96,8 @@ test("clients disconnect and reconnect while the authoritative daemon and a seco
       subscription.events.map((event) => event.sequenceNumber),
       [1],
     );
+    assert.equal(subscription.latestSequence, 1);
+    assert.equal(subscription.hasMore, false);
 
     database.eventJournal.append({
       id: "event-daemon-2",
@@ -119,6 +122,20 @@ test("clients disconnect and reconnect while the authoritative daemon and a seco
     assert.deepEqual(
       replay.events.map((event) => event.sequenceNumber),
       [2],
+    );
+    assert.equal(replay.latestSequence, 2);
+    assert.equal(replay.hasMore, false);
+
+    const v1Client = new CoreV1Client(first, () => "request-v1-events");
+    assert.deepEqual(
+      (
+        await v1Client.request("events.replay", {
+          projectId: "project-daemon",
+          afterSequence: 0,
+          limit: 200,
+        })
+      ).events.map((event) => event.sequenceNumber),
+      [1, 2],
     );
 
     first.disconnect();

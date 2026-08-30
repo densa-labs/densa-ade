@@ -36,7 +36,8 @@ export interface AuthenticatedRequestFrame {
   readonly envelope: RequestEnvelope;
 }
 
-export const CORE_IPC_EVENT_REPLAY_LIMIT = 10 as const;
+export const CORE_IPC_EVENT_REPLAY_DEFAULT = 50 as const;
+export const CORE_IPC_EVENT_REPLAY_LIMIT = 200 as const;
 const replayLimitSchema = z.number().int().min(1).max(CORE_IPC_EVENT_REPLAY_LIMIT).optional();
 const afterSequenceSchema = z.number().int().nonnegative().optional();
 
