@@ -1196,6 +1196,10 @@ export class PhaseLifecycleOrchestrator {
           scope: "task",
           taskId: task.id,
           validatorId: validation.validatorId,
+          validationRunId: validation.id,
+          validationResultIds: this.database.repositories.validationResults
+            .listByRunId(validation.id)
+            .map((result) => result.id),
           passed: validation.passed,
           summary: validation.passed ? "Task validation passed." : "Task validation failed.",
           startedAt: validation.startedAt,
@@ -1206,6 +1210,7 @@ export class PhaseLifecycleOrchestrator {
     const phaseValidationChecks: PhaseReportValidationCheck[] = phaseChecks.map((check) => ({
       scope: "phase",
       validatorId: check.validatorId,
+      validationResultIds: [],
       passed: check.passed,
       summary: cleanText(check.summary),
     }));

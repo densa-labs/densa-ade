@@ -6,6 +6,8 @@ import {
   projectIdSchema,
   roadmapRevisionIdSchema,
   taskIdSchema,
+  validationResultIdSchema,
+  validationRunIdSchema,
 } from "./ids.js";
 import { isoTimestampSchema } from "./json.js";
 import {
@@ -25,6 +27,8 @@ export const phaseReportValidationCheckSchema = z
     scope: z.enum(["task", "phase"]),
     validatorId: nonEmptyText,
     taskId: taskIdSchema.optional(),
+    validationRunId: validationRunIdSchema.optional(),
+    validationResultIds: z.array(validationResultIdSchema).default([]),
     passed: z.boolean(),
     summary: nonEmptyText,
     startedAt: isoTimestampSchema.optional(),
@@ -36,6 +40,16 @@ export const phaseReportValidationCheckSchema = z
         code: "custom",
         message: "Task validation checks require taskId and phase checks must omit it",
         path: ["taskId"],
+      });
+    }
+    if (
+      check.scope === "phase" &&
+      (check.validationRunId !== undefined || check.validationResultIds.length > 0)
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "Phase checks without persisted validation runs must omit run/result references",
+        path: ["validationRunId"],
       });
     }
   })

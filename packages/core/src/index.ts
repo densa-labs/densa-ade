@@ -18,6 +18,7 @@ export * from "./project-specification.js";
 export * from "./project-decisions.js";
 export * from "./roadmap-mutations.js";
 export * from "./roadmap-revision-workflow.js";
+export * from "./rundown.js";
 export * from "./scheduler.js";
 export * from "./attempt-rollback.js";
 export * from "./recovery-inspector.js";
