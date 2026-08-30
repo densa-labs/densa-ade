@@ -2,10 +2,21 @@ import { execFile } from "node:child_process";
 import process from "node:process";
 import { promisify } from "node:util";
 
-import { CoreDaemonManager, CoreIpcClient, CoreIpcError } from "@densa/core";
-import type { CoreDaemonLifecycleStatus, JsonValue, RequestEnvelope } from "@densa/protocol";
+import { CodexAdapter } from "@densa/agent-sdk";
+import {
+  CoreDaemonManager,
+  CoreIpcClient,
+  CoreIpcError,
+  runHeadlessOnePhaseProof,
+} from "@densa/core";
+import {
+  jsonValueSchema,
+  type CoreDaemonLifecycleStatus,
+  type JsonValue,
+  type RequestEnvelope,
+} from "@densa/protocol";
 
-import { CliCommandError, EXIT_UNAVAILABLE } from "./contracts.js";
+import { CliCommandError, EXIT_FAILURE, EXIT_UNAVAILABLE } from "./contracts.js";
 
 export type DoctorCheckName = "node" | "git" | "platform" | "agent" | "core";
 export type DoctorCheckStatus = "available" | "unavailable" | "placeholder";
@@ -34,7 +45,29 @@ export interface CliServices {
   coreClient: CoreClient;
   coreLifecycle: CoreLifecycleService;
   doctorService: DoctorService;
+  phaseOneProofService: PhaseOneProofService;
   createRequestId(): string;
+}
+
+export interface PhaseOneProofService {
+  run(): Promise<JsonValue>;
+}
+
+export class LocalPhaseOneProofService implements PhaseOneProofService {
+  async run(): Promise<JsonValue> {
+    const result = await runHeadlessOnePhaseProof({
+      adapter: new CodexAdapter(),
+      retainArtifacts: true,
+    });
+    if (result.verdict === "FAIL") {
+      throw new CliCommandError("PROCESS_FAILURE", result.failureReasons.join(" "), EXIT_FAILURE, {
+        diagnosticsPath: result.diagnosticsPath,
+        workspacePath: result.workspacePath,
+        databasePath: result.databasePath,
+      });
+    }
+    return jsonValueSchema.parse(result);
+  }
 }
 
 export class LocalCoreClient implements CoreClient {

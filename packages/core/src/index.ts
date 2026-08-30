@@ -1,4 +1,5 @@
 export * from "./event-publisher.js";
+export * from "./headless-one-phase-proof.js";
 export * from "./daemon.js";
 export * from "./acceptance-evidence.js";
 export * from "./browser-validation.js";

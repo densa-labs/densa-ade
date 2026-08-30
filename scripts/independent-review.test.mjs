@@ -194,6 +194,12 @@ for (const verdict of ["pass", "advisory", "fail"]) {
       assert.equal(adapter.requests[0].runId, `reviewer-run-${verdict}`);
       assert.equal(adapter.requests[0].accessMode, "read-only");
       assert.equal(adapter.requests[0].outputSchema.properties.verdict.type, "string");
+      assert.deepEqual(adapter.requests[0].outputSchema.properties.findings.items.required, [
+        "severity",
+        "title",
+        "detail",
+        "criterionPosition",
+      ]);
       assert.match(
         adapter.requests[0].prompt,
         /Do not defend or continue the implementing worker/u,

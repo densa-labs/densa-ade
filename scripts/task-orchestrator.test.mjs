@@ -420,6 +420,37 @@ test("four validation failures persist diagnostics, restore Git, and block the t
   reopened.close();
 });
 
+test("a non-retryable adapter contract failure rolls back once and blocks", async () => {
+  const fixture = createFixture("densa-orchestrator-contract-block-");
+  const adapter = new FakeAgentAdapter({
+    outcome: "failed",
+    error: {
+      code: "PROTOCOL_VERSION_MISMATCH",
+      message: "The installed adapter contract is not supported.",
+    },
+    onExecute() {
+      writeFileSync(join(fixture.repository, "task.txt"), "untrusted output\n", "utf8");
+    },
+  });
+
+  const result = await new SingleTaskOrchestrator(fixture.database, { now: clock() }).execute(
+    requestFor(fixture, adapter, passingValidator("untrusted output\n")),
+  );
+
+  assert.equal(result.status, "BLOCKED");
+  assert.equal(result.attemptCount, 1);
+  assert.equal(adapter.requests.length, 1);
+  assert.equal(fixture.database.repositories.tasks.findById(fixture.task.id).state, "BLOCKED");
+  assert.equal(readFileSync(join(fixture.repository, "task.txt"), "utf8"), "baseline\n");
+  const [attempt] = fixture.database.repositories.attempts.listByTaskId(fixture.task.id);
+  assert.equal(
+    fixture.database.repositories.attemptRollbackPlans.findByAttemptId(attempt.id).diagnostics
+      .errorCode,
+    "PROTOCOL_VERSION_MISMATCH",
+  );
+  fixture.database.close();
+});
+
 test("cancellation is explicit, durable, and rolls back owned output", async () => {
   const fixture = createFixture("densa-orchestrator-cancel-");
   const controller = new globalThis.AbortController();

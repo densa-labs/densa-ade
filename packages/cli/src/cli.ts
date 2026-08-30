@@ -26,6 +26,7 @@ import {
   LocalDoctorService,
   LocalCoreClient,
   LocalCoreLifecycleService,
+  LocalPhaseOneProofService,
   type CliServices,
   type DoctorCheck,
 } from "./services.js";
@@ -39,6 +40,7 @@ Commands:
   core status            Show daemon connectivity and process status
   core stop              Stop the Densa Core daemon cleanly
   doctor                 Check Node, Git, platform, agent, and Core readiness
+  proof phase-one        Run the P9M0 disposable real-agent headless proof
   project init           Initialize a Densa project through Core
   project status         Show the current project status
   project start          Start the current project
@@ -136,6 +138,14 @@ function parseInvocation(arguments_: readonly string[]): ParsedInvocation {
     throw usageError(`Unknown core command: ${subcommand ?? ""}`);
   }
 
+  if (tokens[0] === "proof") {
+    if (tokens[1] === "phase-one") {
+      assertNoExtraArguments(tokens, 2);
+      return { command: "proof phase-one", json };
+    }
+    throw usageError(`Unknown proof command: ${tokens[1] ?? ""}`);
+  }
+
   if (tokens[0] === "project") {
     if (tokens.length === 1 || tokens[1] === "--help" || tokens[1] === "-h") {
       assertNoExtraArguments(tokens, tokens.length === 1 ? 1 : 2);
@@ -186,6 +196,10 @@ async function executeCommand(
       };
     case "doctor":
       return runDoctor(services);
+    case "proof phase-one": {
+      const data = jsonValueSchema.parse(await services.phaseOneProofService.run());
+      return { data, human: `proof phase-one: ${formatHumanValue(data)}` };
+    }
     case "core start":
       return runCoreLifecycle(command, await services.coreLifecycle.start());
     case "core status":
@@ -318,6 +332,7 @@ function createDefaultServices(): CliServices {
     coreClient: new LocalCoreClient(),
     coreLifecycle,
     doctorService: new LocalDoctorService(coreLifecycle),
+    phaseOneProofService: new LocalPhaseOneProofService(),
     createRequestId: () => randomUUID(),
   };
 }

@@ -20,7 +20,7 @@ export const independentReviewFindingSchema = z
     severity: z.enum(["info", "warning", "error", "critical"]),
     title: nonEmptyText.max(256),
     detail: nonEmptyText.max(4_096),
-    criterionPosition: z.number().int().nonnegative().optional(),
+    criterionPosition: z.number().int().nonnegative(),
   })
   .readonly();
 export type IndependentReviewFinding = z.infer<typeof independentReviewFindingSchema>;
@@ -138,7 +138,7 @@ export const independentReviewOutputJsonSchema = Object.freeze({
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["severity", "title", "detail"],
+        required: ["severity", "title", "detail", "criterionPosition"],
         properties: {
           severity: { type: "string", enum: ["info", "warning", "error", "critical"] },
           title: { type: "string", minLength: 1, maxLength: 256 },

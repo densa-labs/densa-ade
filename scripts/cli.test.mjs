@@ -64,6 +64,11 @@ function createServices(overrides = {}) {
         ];
       },
     },
+    phaseOneProofService: {
+      async run() {
+        return { verdict: "PASS", finalPhaseState: "AWAITING_APPROVAL" };
+      },
+    },
     createRequestId() {
       return "request-test-1";
     },
@@ -83,6 +88,7 @@ test("top-level help coherently lists every milestone command", async () => {
     "core status",
     "core stop",
     "doctor",
+    "proof phase-one",
     "project init",
     "project status",
     "project start",
@@ -95,6 +101,29 @@ test("top-level help coherently lists every milestone command", async () => {
   ]) {
     assert.match(output.stdout, new RegExp(command));
   }
+});
+
+test("the phase-one proof command uses the dedicated real-loop service", async () => {
+  const { io, output } = captureIo();
+  let calls = 0;
+  const exitCode = await runCli(["proof", "phase-one", "--json"], {
+    io,
+    services: createServices({
+      phaseOneProofService: {
+        async run() {
+          calls += 1;
+          return { verdict: "PASS", finalPhaseState: "AWAITING_APPROVAL" };
+        },
+      },
+    }),
+  });
+
+  assert.equal(exitCode, EXIT_SUCCESS);
+  assert.equal(calls, 1);
+  assert.deepEqual(JSON.parse(output.stdout).data, {
+    verdict: "PASS",
+    finalPhaseState: "AWAITING_APPROVAL",
+  });
 });
 
 test("Core lifecycle commands use the daemon lifecycle boundary", async () => {

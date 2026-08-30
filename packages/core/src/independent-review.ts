@@ -204,7 +204,7 @@ function failedOutput(
   return independentReviewOutputSchema.parse({
     verdict: "fail",
     summary: safeTitle,
-    findings: [{ severity: "error", title: safeTitle, detail: safeDetail }],
+    findings: [{ severity: "error", title: safeTitle, detail: safeDetail, criterionPosition: 0 }],
     criteria: criteria.map((criterion, criterionPosition) => ({
       criterionPosition,
       criterion: bounded(criterion, 4_096),

@@ -180,6 +180,21 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+const NON_RETRYABLE_AGENT_ERROR_CODES = new Set([
+  "AGENT_UNAVAILABLE",
+  "AUTHENTICATION_REQUIRED",
+  "PERMISSION_DENIED",
+  "PROTOCOL_VERSION_MISMATCH",
+  "USER_CONFIGURATION_ERROR",
+]);
+
+function nonRetryableAgentErrorCode(diagnostics: Readonly<JsonObject>): string | undefined {
+  const errorCode = diagnostics["errorCode"];
+  return typeof errorCode === "string" && NON_RETRYABLE_AGENT_ERROR_CODES.has(errorCode)
+    ? errorCode
+    : undefined;
+}
+
 function normalizePaths(paths: readonly string[]): readonly string[] | undefined {
   if (paths.length === 0) return undefined;
   const normalized = [...new Set(paths)].sort((left, right) => left.localeCompare(right));
@@ -975,6 +990,17 @@ export class SingleTaskOrchestrator {
             ? "Worker cancellation was confirmed for project pause; task remains resumable"
             : "Worker process outcome was not confirmed; task remains interrupted",
       });
+    }
+    const terminalErrorCode = nonRetryableAgentErrorCode(diagnostics);
+    if (terminalErrorCode !== undefined) {
+      return this.#completeWithTransition(
+        request,
+        attempt,
+        task,
+        "BLOCKED",
+        "blocked",
+        `Worker reported non-retryable ${terminalErrorCode}`,
+      );
     }
     if (attempt.number >= MAX_TASK_ATTEMPTS) {
       return this.#completeWithTransition(

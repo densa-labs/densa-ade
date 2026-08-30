@@ -17,6 +17,7 @@ export type CliCommandName =
   | "core status"
   | "core stop"
   | "doctor"
+  | "proof phase-one"
   | "project init"
   | "project status"
   | "project start"
