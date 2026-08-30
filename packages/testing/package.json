@@ -15,6 +15,7 @@
   ],
   "dependencies": {
     "@densa/agent-sdk": "0.0.0",
+    "@densa/core": "0.0.0",
     "@densa/protocol": "0.0.0"
   }
 }

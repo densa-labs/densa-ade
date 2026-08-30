@@ -22,6 +22,7 @@ import {
   type PhaseLifecycleValidator,
   PhaseLifecycleOrchestrator,
   type PhaseTaskExecutor,
+  synchronizePersistedPhaseReports,
 } from "./phase-orchestrator.js";
 import { type SchedulerGateSnapshot } from "./scheduler.js";
 import { stateTransitionService } from "./state-transitions.js";
@@ -266,6 +267,19 @@ export class ProjectExecutionOrchestrator {
       );
       if (activePhase === undefined) {
         if (phases.length > 0 && phases.every((phase) => phase.state === "COMPLETED")) {
+          try {
+            await synchronizePersistedPhaseReports(
+              this.database,
+              project.id,
+              request.workspacePath,
+            );
+            this.#recordReportSynchronization(project, request.actor);
+          } catch (error) {
+            return this.#stopped(
+              request,
+              `Authoritative reports are durable but final portable report synchronization failed: ${error instanceof Error ? error.message : String(error)}`,
+            );
+          }
           this.#completeProject(project, request.actor);
           return Object.freeze({ status: "COMPLETED" as const, projectId: project.id });
         }
@@ -410,6 +424,22 @@ export class ProjectExecutionOrchestrator {
       }),
       projectEventId(project.id, "completed"),
     );
+  }
+
+  #recordReportSynchronization(project: Project, actor: string): void {
+    const id = projectEventId(project.id, "reports-synchronized");
+    if (this.database.eventJournal.findById(id) !== undefined) return;
+    const occurredAt = this.#now();
+    const reports = this.database.repositories.phaseReports.listByProjectId(project.id);
+    this.database.repositories.events.append({
+      id,
+      projectId: project.id,
+      type: "PHASE_REPORTS_SYNCHRONIZED",
+      eventVersion: 1,
+      occurredAt,
+      actor,
+      payload: { reportPaths: reports.map((report) => report.reportPath) },
+    });
   }
 
   #blocked(

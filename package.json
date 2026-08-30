@@ -27,6 +27,7 @@
     "test:live:interview": "DENSA_LIVE_CODEX_INTERVIEW=1 node --test scripts/adaptive-interview-live.test.mjs",
     "test:live:task-proof": "DENSA_LIVE_CODEX_TASK_PROOF=1 node --test scripts/task-proof-live.test.mjs",
     "proof:p9m0": "node packages/cli/dist/bin.js --json proof phase-one",
+    "proof:p9m1": "npm run pretest && node --test scripts/headless-continuous-recovery.test.mjs",
     "check": "npm run format:check && npm run build && npm run typecheck && npm run lint && npm test"
   },
   "devDependencies": {

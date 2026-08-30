@@ -19,6 +19,16 @@ export type FakeAgentScriptEvent = NonTerminalAgentEvent extends infer Event
     : never
   : never;
 
+export interface FakeAgentRunScript {
+  events?: FakeAgentScriptEvent[];
+  outcome?: AgentRunOutcome;
+  error?: AgentError;
+  finalMessage?: string;
+  exitCode?: number;
+  holdOpen?: boolean;
+  onExecute?: (request: AgentRunRequest) => void | Promise<void>;
+}
+
 export interface FakeAgentAdapterOptions {
   detection?: AgentDetection;
   status?: AgentStatus;
@@ -30,6 +40,8 @@ export interface FakeAgentAdapterOptions {
   exitCode?: number;
   holdOpen?: boolean;
   onExecute?: (request: AgentRunRequest) => void | Promise<void>;
+  /** Per-run overrides; the final entry is reused if execution exceeds the script length. */
+  scripts?: readonly FakeAgentRunScript[];
   now?: () => string;
 }
 
@@ -71,6 +83,10 @@ export class FakeAgentAdapter implements AgentAdapter {
 
   async *execute(request: AgentRunRequest): AsyncIterable<AgentEvent> {
     this.requests.push(request);
+    const script =
+      this.options.scripts?.[
+        Math.min(this.requests.length - 1, Math.max(0, (this.options.scripts?.length ?? 1) - 1))
+      ];
     let release = (): void => undefined;
     const cancellation = new Promise<void>((resolve) => {
       release = resolve;
@@ -80,8 +96,8 @@ export class FakeAgentAdapter implements AgentAdapter {
 
     try {
       yield { type: "run.started", runId: request.runId, occurredAt: this.now() };
-      await this.options.onExecute?.(request);
-      for (const event of this.options.events ?? []) {
+      await (script?.onExecute ?? this.options.onExecute)?.(request);
+      for (const event of script?.events ?? this.options.events ?? []) {
         if (control.cancelled) {
           yield this.cancelledEvent(request.runId);
           return;
@@ -90,23 +106,28 @@ export class FakeAgentAdapter implements AgentAdapter {
         await Promise.resolve();
       }
 
-      if (this.options.holdOpen === true && !control.cancelled) await control.cancellation;
+      if ((script?.holdOpen ?? this.options.holdOpen) === true && !control.cancelled)
+        await control.cancellation;
       if (control.cancelled) {
         yield this.cancelledEvent(request.runId);
         return;
       }
 
-      const outcome = this.options.outcome ?? "succeeded";
+      const outcome = script?.outcome ?? this.options.outcome ?? "succeeded";
       yield {
         type: "run.terminal",
         runId: request.runId,
         occurredAt: this.now(),
         outcome,
-        ...(this.options.exitCode === undefined ? {} : { exitCode: this.options.exitCode }),
-        ...(this.options.finalMessage === undefined
+        ...((script?.exitCode ?? this.options.exitCode) === undefined
           ? {}
-          : { finalMessage: this.options.finalMessage }),
-        ...(this.options.error === undefined ? {} : { error: this.options.error }),
+          : { exitCode: script?.exitCode ?? this.options.exitCode }),
+        ...((script?.finalMessage ?? this.options.finalMessage) === undefined
+          ? {}
+          : { finalMessage: script?.finalMessage ?? this.options.finalMessage }),
+        ...((script?.error ?? this.options.error) === undefined
+          ? {}
+          : { error: script?.error ?? this.options.error }),
       };
     } finally {
       this.activeRuns.delete(request.runId);

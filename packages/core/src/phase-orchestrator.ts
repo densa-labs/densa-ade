@@ -390,6 +390,19 @@ async function synchronizePhaseReport(workspacePath: string, report: PhaseReport
   await atomicReplaceFile(outputPath, content);
 }
 
+/**
+ * Projects all durable reports only after Continuous mode reaches a no-more-tasks boundary.
+ * This prevents Core's own portable files from looking like user changes to the next checkpoint.
+ */
+export async function synchronizePersistedPhaseReports(
+  database: DensaDatabase,
+  projectId: ProjectId,
+  workspacePath: string,
+): Promise<void> {
+  const reports = database.repositories.phaseReports.listByProjectId(projectId);
+  for (const report of reports) await synchronizePhaseReport(workspacePath, report);
+}
+
 function validGateSnapshot(
   gates: SchedulerGateSnapshot | undefined,
 ): gates is SchedulerGateSnapshot {
@@ -1119,7 +1132,14 @@ export class PhaseLifecycleOrchestrator {
         eventVersion: 1,
         occurredAt: generatedAt,
         actor: request.actor,
-        payload: { outcome, reportPath: report.reportPath },
+        payload: {
+          outcome,
+          reportPath: report.reportPath,
+          portableSync:
+            project.executionMode === "continuous" && nextPersistedPhase !== undefined
+              ? "deferred_until_project_boundary"
+              : "immediate",
+        },
       });
       this.database.persistStateTransition(
         stateTransitionService.transitionPhase(phase, targetState, {
@@ -1146,15 +1166,17 @@ export class PhaseLifecycleOrchestrator {
       }
     });
 
-    try {
-      await synchronizePhaseReport(request.workspacePath, report);
-    } catch (error) {
-      return stopped(
-        "REPORT_SYNC_FAILED",
-        request,
-        `Authoritative report is durable but portable report synchronization failed: ${errorMessage(error)}`,
-        report,
-      );
+    if (project.executionMode !== "continuous" || nextPersistedPhase === undefined) {
+      try {
+        await synchronizePhaseReport(request.workspacePath, report);
+      } catch (error) {
+        return stopped(
+          "REPORT_SYNC_FAILED",
+          request,
+          `Authoritative report is durable but portable report synchronization failed: ${errorMessage(error)}`,
+          report,
+        );
+      }
     }
     return Object.freeze({
       status:
