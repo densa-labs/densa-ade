@@ -9,6 +9,7 @@ import {
   phaseIdSchema,
   projectIdSchema,
   roadmapMutationOperationSchema,
+  roadmapMutationBatchRequestSchema,
   roadmapMutationRequestSchema,
   roadmapRevisionIdSchema,
   roadmapRevisionSchema,
@@ -19,8 +20,10 @@ import {
   type MasterRoadmapTask,
   type ProjectId,
   type RoadmapMutationClassification,
+  type RoadmapMutationBatchRequest,
   type RoadmapMutationOperation,
   type RoadmapMutationRequest,
+  type RoadmapRevisionProposal,
 } from "@densa/protocol";
 
 import type { PersistedEvent } from "./event-publisher.js";
@@ -68,6 +71,21 @@ export interface RoadmapMutationResult extends RoadmapMutationImpact {
   readonly revisionNumber: number;
   readonly event: PersistedEvent;
   readonly portableSync: RoadmapPortableSyncOutcome;
+}
+
+export interface RoadmapMutationBatchPreview extends RoadmapMutationImpact {
+  readonly classification: RoadmapMutationClassification;
+  readonly operationClassifications: readonly RoadmapMutationClassification[];
+}
+
+export interface RoadmapMutationBatchResult extends RoadmapMutationResult {
+  readonly operations: readonly RoadmapMutationOperation[];
+  readonly proposal?: RoadmapRevisionProposal;
+}
+
+export interface RoadmapMutationProposalResolution {
+  readonly proposal: RoadmapRevisionProposal;
+  readonly expectedStatus: RoadmapRevisionProposal["status"];
 }
 
 export interface RoadmapPortableSyncFailure {
@@ -154,6 +172,16 @@ function assertInsertPosition(position: number, length: number, target: string):
 
 function unique(values: readonly string[]): string[] {
   return [...new Set(values)];
+}
+
+function highestClassification(
+  values: readonly RoadmapMutationClassification[],
+): RoadmapMutationClassification {
+  return values.reduce<RoadmapMutationClassification>(
+    (highest, value) =>
+      CLASSIFICATION_RANK[value] > CLASSIFICATION_RANK[highest] ? value : highest,
+    "minor",
+  );
 }
 
 function validateMutationResult(roadmap: MasterRoadmap): MasterRoadmap {
@@ -374,6 +402,45 @@ export function applyRoadmapMutation(
   });
 }
 
+/** Previews a complete operation batch; every intermediate and final graph must remain valid. */
+export function previewRoadmapMutations(
+  input: MasterRoadmap,
+  operationInputs: readonly RoadmapMutationOperation[],
+  proposed?: RoadmapMutationClassification,
+): RoadmapMutationBatchPreview {
+  if (operationInputs.length === 0 || operationInputs.length > 32) {
+    throw invalid("Roadmap revision proposals require between 1 and 32 operations");
+  }
+  let roadmap = cloneRoadmap(input);
+  const affectedPhaseIds: string[] = [];
+  const affectedTaskIds: string[] = [];
+  const operationClassifications: RoadmapMutationClassification[] = [];
+  for (const operationInput of operationInputs) {
+    const operation = roadmapMutationOperationSchema.parse(operationInput);
+    operationClassifications.push(classifyAgainstCurrentRoadmap(roadmap, operation));
+    const impact = applyRoadmapMutation(roadmap, operation);
+    roadmap = impact.roadmap;
+    affectedPhaseIds.push(...impact.affectedPhaseIds);
+    affectedTaskIds.push(...impact.affectedTaskIds);
+  }
+  const minimum = highestClassification(operationClassifications);
+  if (proposed !== undefined && CLASSIFICATION_RANK[proposed] < CLASSIFICATION_RANK[minimum]) {
+    throw invalid(
+      `Roadmap revision requires at least ${minimum.toUpperCase()} classification; received ${proposed.toUpperCase()}`,
+    );
+  }
+  if (JSON.stringify(roadmap) === JSON.stringify(input)) {
+    throw invalid("Roadmap revision proposal did not change the authoritative roadmap");
+  }
+  return Object.freeze({
+    roadmap,
+    affectedPhaseIds: unique(affectedPhaseIds),
+    affectedTaskIds: unique(affectedTaskIds),
+    classification: proposed ?? minimum,
+    operationClassifications: Object.freeze([...operationClassifications]),
+  });
+}
+
 export function classifyRoadmapMutation(
   operation: RoadmapMutationOperation,
   proposed?: RoadmapMutationClassification,
@@ -494,6 +561,51 @@ export class RoadmapMutationService {
 
   async apply(projectId: string, input: RoadmapMutationRequest): Promise<RoadmapMutationResult> {
     const request = roadmapMutationRequestSchema.parse(input);
+    const result = await this.applyBatch(projectId, {
+      operations: [request.operation],
+      ...(request.classification === undefined ? {} : { classification: request.classification }),
+      rationale: request.rationale,
+      actor: request.actor,
+      sessionId: request.sessionId,
+      applicationMode: request.applicationMode,
+      ...(request.approval === undefined ? {} : { approval: request.approval }),
+    });
+    return Object.freeze({
+      roadmap: result.roadmap,
+      affectedPhaseIds: result.affectedPhaseIds,
+      affectedTaskIds: result.affectedTaskIds,
+      classification: result.classification,
+      revisionNumber: result.revisionNumber,
+      event: result.event,
+      portableSync: result.portableSync,
+    });
+  }
+
+  preview(
+    projectId: string,
+    operations: readonly RoadmapMutationOperation[],
+    classification?: RoadmapMutationClassification,
+  ): Readonly<{ baseRevisionNumber: number; before: MasterRoadmap }> & RoadmapMutationBatchPreview {
+    const parsedProjectId = projectIdSchema.parse(projectId);
+    const project = this.database.repositories.projects.findById(parsedProjectId);
+    if (project === undefined)
+      throw invalid(`Cannot preview a roadmap for missing project ${projectId}`);
+    const current = this.database.repositories.masterRoadmaps.findByProjectId(project.id);
+    if (current === undefined)
+      throw invalid(`Project ${projectId} has no authoritative master roadmap`);
+    return Object.freeze({
+      baseRevisionNumber: current.revisionNumber,
+      before: current.roadmap,
+      ...previewRoadmapMutations(current.roadmap, operations, classification),
+    });
+  }
+
+  async applyBatch(
+    projectId: string,
+    input: RoadmapMutationBatchRequest,
+    proposalResolution?: RoadmapMutationProposalResolution,
+  ): Promise<RoadmapMutationBatchResult> {
+    const request = roadmapMutationBatchRequestSchema.parse(input);
     const parsedProjectId = projectIdSchema.parse(projectId);
     const project = this.database.repositories.projects.findById(parsedProjectId);
     if (project === undefined)
@@ -501,11 +613,27 @@ export class RoadmapMutationService {
     const current = this.database.repositories.masterRoadmaps.findByProjectId(project.id);
     if (current === undefined)
       throw invalid(`Project ${projectId} has no authoritative master roadmap`);
-    const classification = classifyAgainstCurrentRoadmap(
+    const impact = previewRoadmapMutations(
       current.roadmap,
-      request.operation,
+      request.operations,
       request.classification,
     );
+    const classification = impact.classification;
+    if (proposalResolution !== undefined) {
+      const proposal = proposalResolution.proposal;
+      if (
+        proposal.projectId !== project.id ||
+        proposal.baseRevisionNumber !== current.revisionNumber ||
+        request.proposalEventId !== proposal.proposalEventId ||
+        proposal.classification !== classification ||
+        proposal.rationale !== request.rationale ||
+        JSON.stringify(proposal.operations) !== JSON.stringify(request.operations) ||
+        JSON.stringify(proposal.beforeValue) !== JSON.stringify(current.roadmap) ||
+        JSON.stringify(proposal.afterValue) !== JSON.stringify(impact.roadmap)
+      ) {
+        throw invalid("Roadmap proposal resolution does not match the inspected base and result");
+      }
+    }
     if (request.approval !== undefined) {
       const approvalDecision = this.database.repositories.decisions.findById(
         request.approval.decisionId,
@@ -572,10 +700,6 @@ export class RoadmapMutationService {
         classification === "scope" ? "roadmap_scope_change" : "roadmap_significant_change",
       );
     }
-    const impact = applyRoadmapMutation(current.roadmap, request.operation);
-    if (JSON.stringify(impact.roadmap) === JSON.stringify(current.roadmap)) {
-      throw invalid(`${request.operation.kind} did not change the authoritative roadmap`);
-    }
     const revisionId = roadmapRevisionIdSchema.parse(this.#revisionIdFactory());
     const eventId = eventIdSchema.parse(this.#eventIdFactory());
     const revision = roadmapRevisionSchema.parse({
@@ -590,7 +714,9 @@ export class RoadmapMutationService {
       affectedTaskIds: impact.affectedTaskIds.map((id) => taskIdSchema.parse(id)),
       oldValue: jsonObjectSchema.parse(current.roadmap),
       newValue: jsonObjectSchema.parse(impact.roadmap),
-      operation: request.operation,
+      ...(request.operations.length === 1
+        ? { operation: request.operations[0] }
+        : { operations: request.operations }),
       ...(request.approval === undefined ? {} : { approval: request.approval }),
     });
     const event = eventSchema.parse({
@@ -604,7 +730,9 @@ export class RoadmapMutationService {
         revisionId,
         revisionNumber: current.revisionNumber + 1,
         classification,
-        operation: request.operation.kind,
+        ...(request.operations.length === 1
+          ? { operation: request.operations[0]?.kind ?? "unknown" }
+          : { operations: request.operations.map(({ kind }) => kind) }),
         rationale: request.rationale,
         sessionId: request.sessionId,
         executionMode: project.executionMode,
@@ -614,8 +742,25 @@ export class RoadmapMutationService {
         ...(request.approval === undefined
           ? {}
           : { approvalDecisionId: request.approval.decisionId }),
+        ...(request.proposalEventId === undefined
+          ? {}
+          : { proposalEventId: request.proposalEventId }),
       },
     });
+    const resolvedProposal =
+      proposalResolution === undefined
+        ? undefined
+        : {
+            ...proposalResolution.proposal,
+            status: "applied" as const,
+            activeTaskIds: [],
+            updatedAt: now,
+            resolvedAt: now,
+            ...(request.approval === undefined
+              ? {}
+              : { approvalDecisionId: request.approval.decisionId }),
+            appliedRevisionId: revisionId,
+          };
     const persistedEvent = this.database.persistRoadmapMutation({
       expectedRevisionNumber: current.revisionNumber,
       roadmap: {
@@ -626,6 +771,14 @@ export class RoadmapMutationService {
       },
       revision,
       event,
+      ...(resolvedProposal === undefined
+        ? {}
+        : {
+            proposalResolution: {
+              proposal: resolvedProposal,
+              expectedStatus: proposalResolution?.expectedStatus ?? "ready_to_apply",
+            },
+          }),
     });
     const portableSync = await this.#synchronize(project.id, workspacePermission.authorization);
     return Object.freeze({
@@ -634,6 +787,8 @@ export class RoadmapMutationService {
       revisionNumber: current.revisionNumber + 1,
       event: persistedEvent,
       portableSync,
+      operations: Object.freeze([...request.operations]),
+      ...(resolvedProposal === undefined ? {} : { proposal: resolvedProposal }),
     });
   }
 

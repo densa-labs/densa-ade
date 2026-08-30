@@ -38,6 +38,9 @@ export type DecisionId = z.infer<typeof decisionIdSchema>;
 export const roadmapRevisionIdSchema = id().brand<"RoadmapRevisionId">();
 export type RoadmapRevisionId = z.infer<typeof roadmapRevisionIdSchema>;
 
+export const roadmapRevisionProposalIdSchema = id().brand<"RoadmapRevisionProposalId">();
+export type RoadmapRevisionProposalId = z.infer<typeof roadmapRevisionProposalIdSchema>;
+
 export const eventIdSchema = id().brand<"EventId">();
 export type EventId = z.infer<typeof eventIdSchema>;
 

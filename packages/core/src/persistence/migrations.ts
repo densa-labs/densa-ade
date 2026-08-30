@@ -585,6 +585,47 @@ CREATE INDEX decisions_project_kind_category
   ON decisions (project_id, kind, category, status, created_at, id);
 `;
 
+const masterRoadmapRevisionWorkflow = `
+CREATE TABLE roadmap_revision_proposals (
+  id TEXT PRIMARY KEY CHECK (length(id) > 0),
+  proposal_event_id TEXT NOT NULL UNIQUE REFERENCES events(id) ON DELETE RESTRICT,
+  project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  base_revision_number INTEGER NOT NULL CHECK (base_revision_number >= 0),
+  classification TEXT NOT NULL CHECK (classification IN ('minor', 'significant', 'scope')),
+  rationale TEXT NOT NULL CHECK (length(trim(rationale)) > 0),
+  actor TEXT NOT NULL CHECK (length(trim(actor)) > 0),
+  session_id TEXT NOT NULL CHECK (length(trim(session_id)) > 0),
+  operations_json TEXT NOT NULL CHECK (
+    json_valid(operations_json) AND json_array_length(operations_json) BETWEEN 1 AND 32
+  ),
+  before_value_json TEXT NOT NULL CHECK (json_valid(before_value_json)),
+  after_value_json TEXT NOT NULL CHECK (json_valid(after_value_json)),
+  affected_phase_ids_json TEXT NOT NULL CHECK (json_valid(affected_phase_ids_json)),
+  affected_task_ids_json TEXT NOT NULL CHECK (json_valid(affected_task_ids_json)),
+  active_task_ids_json TEXT NOT NULL CHECK (json_valid(active_task_ids_json)),
+  approval_required INTEGER NOT NULL CHECK (approval_required IN (0, 1)),
+  status TEXT NOT NULL CHECK (status IN (
+    'awaiting_approval', 'waiting_for_safe_boundary', 'ready_to_apply',
+    'applied', 'rejected', 'stale'
+  )),
+  created_at TEXT NOT NULL CHECK (length(created_at) >= 20),
+  updated_at TEXT NOT NULL CHECK (length(updated_at) >= 20),
+  resolved_at TEXT CHECK (resolved_at IS NULL OR length(resolved_at) >= 20),
+  approval_decision_id TEXT REFERENCES decisions(id) ON DELETE RESTRICT,
+  applied_revision_id TEXT UNIQUE REFERENCES roadmap_revisions(id) ON DELETE RESTRICT,
+  UNIQUE (project_id, id),
+  CHECK ((status IN ('applied', 'rejected', 'stale')) = (resolved_at IS NOT NULL)),
+  CHECK ((status = 'applied') = (applied_revision_id IS NOT NULL)),
+  CHECK (approval_decision_id IS NULL OR approval_required = 1),
+  CHECK (status <> 'applied' OR approval_required = 0 OR approval_decision_id IS NOT NULL)
+) STRICT;
+
+CREATE INDEX roadmap_revision_proposals_project_created
+  ON roadmap_revision_proposals (project_id, created_at, id);
+CREATE INDEX roadmap_revision_proposals_project_status
+  ON roadmap_revision_proposals (project_id, status, updated_at, id);
+`;
+
 export const schemaMigrations: readonly SchemaMigration[] = Object.freeze([
   Object.freeze({ version: 1, name: "authoritative_runtime_schema", sql: initialSchema }),
   Object.freeze({ version: 2, name: "ordered_event_journal", sql: orderedEventJournal }),
@@ -630,6 +671,11 @@ export const schemaMigrations: readonly SchemaMigration[] = Object.freeze([
     version: 13,
     name: "durable_project_decisions",
     sql: durableProjectDecisions,
+  }),
+  Object.freeze({
+    version: 14,
+    name: "master_roadmap_revision_workflow",
+    sql: masterRoadmapRevisionWorkflow,
   }),
 ]);
 

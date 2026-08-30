@@ -13,6 +13,7 @@ import {
   type MasterRoadmapRecord,
   type ProjectId,
   type RoadmapRevision,
+  type RoadmapRevisionProposal,
   type ValidationRunId,
 } from "@densa/protocol";
 
@@ -65,6 +66,21 @@ export interface PersistRoadmapMutationRequest {
   readonly expectedRevisionNumber: number;
   readonly roadmap: MasterRoadmapRecord;
   readonly revision: RoadmapRevision;
+  readonly event: Event;
+  readonly proposalResolution?: Readonly<{
+    proposal: RoadmapRevisionProposal;
+    expectedStatus: RoadmapRevisionProposal["status"];
+  }>;
+}
+
+export interface PersistRoadmapRevisionProposalRequest {
+  readonly proposal: RoadmapRevisionProposal;
+  readonly event: Event;
+}
+
+export interface PersistRoadmapRevisionProposalResolutionRequest {
+  readonly proposal: RoadmapRevisionProposal;
+  readonly expectedStatus: RoadmapRevisionProposal["status"];
   readonly event: Event;
 }
 
@@ -156,6 +172,38 @@ export class DensaDatabase {
     return this.#connection.transaction(() => this.repositories.masterRoadmaps.create(record));
   }
 
+  /** Atomically records an inspectable roadmap proposal and its append-only audit fact. */
+  persistRoadmapRevisionProposal(request: PersistRoadmapRevisionProposalRequest): PersistedEvent {
+    if (
+      request.event.type !== "ROADMAP_REVISION_PROPOSED" ||
+      request.event.id !== request.proposal.proposalEventId ||
+      request.event.projectId !== request.proposal.projectId
+    ) {
+      throw new PersistenceError("Roadmap revision proposal persistence request is inconsistent");
+    }
+    return this.#connection.transaction(() => {
+      const event = this.repositories.events.append(request.event);
+      this.repositories.roadmapRevisionProposals.create(request.proposal);
+      return event;
+    });
+  }
+
+  /** Atomically resolves a non-applied proposal and records why it stopped. */
+  persistRoadmapRevisionProposalResolution(
+    request: PersistRoadmapRevisionProposalResolutionRequest,
+  ): PersistedEvent {
+    if (
+      request.event.projectId !== request.proposal.projectId ||
+      !["ROADMAP_REVISION_REJECTED", "ROADMAP_REVISION_STALE"].includes(request.event.type)
+    ) {
+      throw new PersistenceError("Roadmap proposal resolution request is inconsistent");
+    }
+    return this.#connection.transaction(() => {
+      this.repositories.roadmapRevisionProposals.replace(request.proposal, request.expectedStatus);
+      return this.repositories.events.append(request.event);
+    });
+  }
+
   /** Atomically replaces one authoritative roadmap revision and appends its complete audit fact. */
   persistRoadmapMutation(request: PersistRoadmapMutationRequest): PersistedEvent {
     if (
@@ -169,6 +217,19 @@ export class DensaDatabase {
     return this.#connection.transaction(() => {
       this.repositories.masterRoadmaps.replace(request.roadmap, request.expectedRevisionNumber);
       this.repositories.roadmapRevisions.create(request.revision);
+      if (request.proposalResolution !== undefined) {
+        if (
+          request.proposalResolution.proposal.projectId !== request.revision.projectId ||
+          request.proposalResolution.proposal.status !== "applied" ||
+          request.proposalResolution.proposal.appliedRevisionId !== request.revision.id
+        ) {
+          throw new PersistenceError("Applied roadmap proposal does not match its revision");
+        }
+        this.repositories.roadmapRevisionProposals.replace(
+          request.proposalResolution.proposal,
+          request.proposalResolution.expectedStatus,
+        );
+      }
       return this.repositories.events.append(request.event);
     });
   }

@@ -317,7 +317,7 @@ test("migration 2 preserves version-1 facts and assigns deterministic project se
     raw.close();
 
     const database = DensaDatabase.open(path);
-    assert.equal(database.schemaVersion, 13);
+    assert.equal(database.schemaVersion, 14);
     assert.deepEqual(
       database.eventJournal.replay({ projectId: "project-migration" }).map((event) => ({
         id: event.id,

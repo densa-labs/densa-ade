@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { decisionIdSchema } from "./ids.js";
+import { decisionIdSchema, eventIdSchema } from "./ids.js";
 import {
   masterRoadmapPhaseSchema,
   masterRoadmapTaskSchema,
@@ -132,3 +132,33 @@ export const roadmapMutationRequestSchema = z
   })
   .readonly();
 export type RoadmapMutationRequest = z.infer<typeof roadmapMutationRequestSchema>;
+
+export const roadmapMutationBatchRequestSchema = z
+  .strictObject({
+    operations: z.array(roadmapMutationOperationSchema).min(1).max(32),
+    classification: roadmapMutationClassificationSchema.optional(),
+    rationale: nonEmptyText,
+    actor: nonEmptyText,
+    sessionId: nonEmptyText,
+    applicationMode: z.enum(["automatic", "approved"]),
+    approval: roadmapMutationApprovalSchema.optional(),
+    proposalEventId: eventIdSchema.optional(),
+  })
+  .superRefine((request, context) => {
+    if (request.applicationMode === "approved" && request.approval === undefined) {
+      context.addIssue({
+        code: "custom",
+        message: "Approved roadmap mutation batches require explicit approval evidence",
+        path: ["approval"],
+      });
+    }
+    if (request.applicationMode === "automatic" && request.approval !== undefined) {
+      context.addIssue({
+        code: "custom",
+        message: "Automatic roadmap mutation batches must not attach approval evidence",
+        path: ["approval"],
+      });
+    }
+  })
+  .readonly();
+export type RoadmapMutationBatchRequest = z.infer<typeof roadmapMutationBatchRequestSchema>;

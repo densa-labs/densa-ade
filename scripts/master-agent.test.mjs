@@ -190,6 +190,14 @@ test("fake-agent structured proposals map exactly to Core commands", async () =>
           taskId: "task-blocked",
           acceptanceCriteria: ["The blocker has deterministic evidence."],
         },
+        additionalOperations: [
+          {
+            kind: "reorder_task",
+            taskId: "task-blocked",
+            phaseId: "phase-current",
+            position: 0,
+          },
+        ],
         rationale: "Make completion independently verifiable.",
       },
     },
@@ -213,6 +221,15 @@ test("fake-agent structured proposals map exactly to Core commands", async () =>
     {
       intent: "request_project_control",
       action: { kind: "request_mode_change", mode: "phase" },
+    },
+    {
+      intent: "resolve_roadmap_revision",
+      action: {
+        kind: "resolve_roadmap_revision",
+        proposalEventId: "event-roadmap-proposal",
+        resolution: "approve",
+        rationale: "The user approved the inspected proposal.",
+      },
     },
   ];
 
@@ -315,7 +332,7 @@ test("validated gateway routes pause requests through the centralized state tran
   database.close();
 });
 
-test("scope roadmap proposals cannot bypass Core permission policy", async () => {
+test("scope roadmap proposals stop for inspectable user approval without mutating the roadmap", async () => {
   const database = seed();
   database.persistInitialMasterRoadmap({
     projectId: "project-master",
@@ -350,8 +367,12 @@ test("scope roadmap proposals cannot bypass Core permission policy", async () =>
   });
   const structured = proposal("propose_roadmap_change", {
     kind: "propose_roadmap_change",
-    operation: { kind: "remove_phase", phaseId: "phase-current" },
-    rationale: "Remove promised scope without user approval.",
+    operation: {
+      kind: "modify_acceptance_criteria",
+      taskId: "task-blocked",
+      acceptanceCriteria: ["A weaker replacement criterion."],
+    },
+    rationale: "Replace a promised acceptance criterion without user approval.",
   });
   const { service } = serviceWithGateway(
     database,
@@ -359,25 +380,117 @@ test("scope roadmap proposals cannot bypass Core permission policy", async () =>
     new ValidatedMasterCoreCommandGateway(database, { now: () => "2026-08-29T02:00:00.000Z" }),
   );
 
-  await assert.rejects(
-    service.handle(request("Remove the current phase.")),
-    /SCOPE roadmap mutations require explicit user approval/u,
+  const response = await service.handle(request("Weaken the acceptance criterion."));
+
+  assert.equal(response.commandResult.status, "AWAITING_USER_APPROVAL");
+  assert.equal(response.commandResult.details.classification, "scope");
+  assert.equal(response.commandResult.details.approvalRequired, true);
+  assert.equal(
+    response.commandResult.details.before.phases[0].tasks[0].acceptanceCriteria[0],
+    "The blocker is resolved.",
+  );
+  assert.equal(
+    response.commandResult.details.after.phases[0].tasks[0].acceptanceCriteria[0],
+    "A weaker replacement criterion.",
   );
   assert.equal(
     database.repositories.masterRoadmaps.findByProjectId("project-master").revisionNumber,
     0,
   );
   assert.equal(database.repositories.roadmapRevisions.listByProjectId("project-master").length, 0);
-  const permissionEvent = database.eventJournal
+  assert.equal(
+    database.repositories.roadmapRevisionProposals.listByProjectId("project-master").length,
+    1,
+  );
+  const proposalEvent = database.eventJournal
     .replay({ projectId: "project-master", limit: 50 })
-    .find(
-      (event) =>
-        event.type === "PERMISSION_DECISION_RECORDED" &&
-        event.payload.operation === "roadmap_scope_change",
-    );
-  assert.ok(permissionEvent);
-  assert.equal(permissionEvent.payload.disposition, "ask_user");
+    .find((event) => event.type === "ROADMAP_REVISION_PROPOSED");
+  assert.ok(proposalEvent);
+  assert.equal(proposalEvent.payload.status, "awaiting_approval");
   database.close();
+});
+
+test("an explicit follow-up approval resolves and applies the persisted roadmap proposal", async () => {
+  await rm(workspacePath, { force: true, recursive: true });
+  const database = seed();
+  database.persistInitialMasterRoadmap({
+    projectId: "project-master",
+    roadmap: {
+      formatVersion: 1,
+      projectGoal: "Prove the Master boundary.",
+      phases: [
+        {
+          id: "phase-current",
+          title: "Current phase",
+          goal: "Keep the authoritative phase.",
+          required: true,
+          completionCriteria: ["The phase remains inspectable."],
+          tasks: [
+            {
+              id: "task-blocked",
+              title: "Blocked task",
+              goal: "Resolve the blocker.",
+              executable: true,
+              dependencyIds: [],
+              acceptanceCriteria: ["The blocker is resolved."],
+              riskLevel: "medium",
+              expectedValidators: ["acceptance"],
+            },
+          ],
+        },
+      ],
+    },
+    revisionNumber: 0,
+    createdAt,
+    updatedAt: createdAt,
+  });
+  let tick = 0;
+  const now = () => new Date(Date.parse(createdAt) + 30_000 + ++tick * 1_000).toISOString();
+  const gateway = new ValidatedMasterCoreCommandGateway(database, { now });
+  const proposedAction = proposal("propose_roadmap_change", {
+    kind: "propose_roadmap_change",
+    operation: {
+      kind: "modify_acceptance_criteria",
+      taskId: "task-blocked",
+      acceptanceCriteria: ["A replacement criterion is explicitly approved."],
+    },
+    rationale: "Replace an existing acceptance promise.",
+  });
+  const first = serviceWithGateway(database, proposedAction, gateway);
+  const proposed = await first.service.handle(request("Propose the replacement."));
+  const proposalEventId = proposed.commandResult.details.proposalEventId;
+
+  const approvalAction = proposal(
+    "resolve_roadmap_revision",
+    {
+      kind: "resolve_roadmap_revision",
+      proposalEventId,
+      resolution: "approve",
+      rationale: "I approve the inspected before and after.",
+    },
+    { citations: [{ kind: "event", id: proposalEventId }] },
+  );
+  const second = serviceWithGateway(database, approvalAction, gateway);
+  const applied = await second.service.handle(request("Approve that roadmap revision."));
+
+  assert.equal(applied.commandResult.status, "APPLIED");
+  assert.equal(applied.commandResult.details.revisionNumber, 1);
+  assert.equal(
+    database.repositories.roadmapRevisionProposals.findByEventId(proposalEventId).status,
+    "applied",
+  );
+  const approval = database.repositories.decisions
+    .listByProjectId("project-master")
+    .find((decision) => decision.category.startsWith("roadmap.revision.approval."));
+  assert.ok(approval);
+  assert.equal(approval.source, "user");
+  assert.equal(
+    database.repositories.masterRoadmaps.findByProjectId("project-master").roadmap.phases[0]
+      .tasks[0].acceptanceCriteria[0],
+    "A replacement criterion is explicitly approved.",
+  );
+  database.close();
+  await rm(workspacePath, { force: true, recursive: true });
 });
 
 test("constraint actions persist through Core and update the portable decision record", async () => {

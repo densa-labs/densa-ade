@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { jsonValueSchema, type JsonObject } from "./json.js";
+import { eventIdSchema } from "./ids.js";
 import { roadmapMutationOperationSchema } from "./roadmap-mutation.js";
 import { executionModeSchema } from "./states.js";
 
@@ -13,6 +14,7 @@ export const masterAgentIntentSchema = z.enum([
   "explain_decision",
   "explain_current_phase",
   "propose_roadmap_change",
+  "resolve_roadmap_revision",
   "propose_project_constraint_change",
   "request_project_control",
   "summarize_failures",
@@ -21,7 +23,15 @@ export type MasterAgentIntent = z.infer<typeof masterAgentIntentSchema>;
 
 export const masterAgentCitationSchema = z
   .strictObject({
-    kind: z.enum(["project", "phase", "task", "decision", "event", "roadmap_revision"]),
+    kind: z.enum([
+      "project",
+      "phase",
+      "task",
+      "decision",
+      "event",
+      "roadmap_revision",
+      "roadmap_revision_proposal",
+    ]),
     id: nonEmptyText,
   })
   .readonly();
@@ -58,6 +68,15 @@ export const masterAgentActionSchema = z.discriminatedUnion("kind", [
     .strictObject({
       kind: z.literal("propose_roadmap_change"),
       operation: roadmapMutationOperationSchema,
+      additionalOperations: z.array(roadmapMutationOperationSchema).max(31).optional(),
+      rationale: nonEmptyText,
+    })
+    .readonly(),
+  z
+    .strictObject({
+      kind: z.literal("resolve_roadmap_revision"),
+      proposalEventId: eventIdSchema,
+      resolution: z.enum(["approve", "reject"]),
       rationale: nonEmptyText,
     })
     .readonly(),
@@ -90,6 +109,8 @@ function actionMatchesIntent(intent: MasterAgentIntent, action: MasterAgentActio
       return action.kind === "propose_roadmap_change";
     case "propose_project_constraint_change":
       return action.kind === "propose_project_constraint_change";
+    case "resolve_roadmap_revision":
+      return action.kind === "resolve_roadmap_revision";
     case "request_project_control":
       return (
         action.kind === "request_pause" ||

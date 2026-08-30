@@ -32,6 +32,7 @@ export type {
   ProjectSettingsRecord,
   ProjectSettingsRepository,
   RoadmapRevisionRepository,
+  RoadmapRevisionProposalRepository,
   RollbackPathKind,
   RollbackPathSnapshot,
   SpecificationRecord,

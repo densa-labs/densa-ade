@@ -15,6 +15,7 @@ import {
   projectSpecificationSchema,
   projectSchema,
   roadmapRevisionSchema,
+  roadmapRevisionProposalSchema,
   taskSchema,
   validationResultSchema,
   validationRunSchema,
@@ -33,6 +34,7 @@ import {
   type Project,
   type ProjectSpecification,
   type RoadmapRevision,
+  type RoadmapRevisionProposal,
   type Task,
   type ValidationResult,
   type ValidationRun,
@@ -181,6 +183,17 @@ export interface RoadmapRevisionRepository {
   listByProjectId(projectId: Project["id"]): readonly RoadmapRevision[];
 }
 
+export interface RoadmapRevisionProposalRepository {
+  create(proposal: RoadmapRevisionProposal): RoadmapRevisionProposal;
+  findById(id: RoadmapRevisionProposal["id"]): RoadmapRevisionProposal | undefined;
+  findByEventId(eventId: Event["id"]): RoadmapRevisionProposal | undefined;
+  listByProjectId(projectId: Project["id"]): readonly RoadmapRevisionProposal[];
+  replace(
+    proposal: RoadmapRevisionProposal,
+    expectedStatus: RoadmapRevisionProposal["status"],
+  ): RoadmapRevisionProposal;
+}
+
 export type DensaRunBranchStatus = "CREATING" | "ACTIVE" | "FAILED";
 
 export interface DensaRunBranchRecord {
@@ -318,6 +331,7 @@ export interface DensaRepositories {
   readonly independentReviews: IndependentReviewRepository;
   readonly decisions: DecisionRepository;
   readonly roadmapRevisions: RoadmapRevisionRepository;
+  readonly roadmapRevisionProposals: RoadmapRevisionProposalRepository;
   readonly densaRunBranches: DensaRunBranchRepository;
   readonly taskCommitIntents: TaskCommitIntentRepository;
   readonly attemptRollbackPlans: AttemptRollbackPlanRepository;
@@ -1257,7 +1271,11 @@ class SqliteRoadmapRevisionRepository implements RoadmapRevisionRepository {
       JSON.stringify(revision.affectedTaskIds),
       JSON.stringify(revision.oldValue),
       JSON.stringify(revision.newValue),
-      revision.operation === undefined ? null : JSON.stringify(revision.operation),
+      revision.operations !== undefined
+        ? JSON.stringify(revision.operations)
+        : revision.operation === undefined
+          ? null
+          : JSON.stringify(revision.operation),
       revision.approval === undefined ? null : JSON.stringify(revision.approval),
     );
     return revision;
@@ -1295,8 +1313,132 @@ class SqliteRoadmapRevisionRepository implements RoadmapRevisionRepository {
       affectedTaskIds: parseJson(requiredString(row, "affected_task_ids_json")),
       oldValue: parseJson(requiredString(row, "old_value_json")),
       newValue: parseJson(requiredString(row, "new_value_json")),
-      ...(operation === undefined ? {} : { operation: parseJson(operation) }),
+      ...(operation === undefined
+        ? {}
+        : Array.isArray(parseJson(operation))
+          ? { operations: parseJson(operation) }
+          : { operation: parseJson(operation) }),
       ...(approval === undefined ? {} : { approval: parseJson(approval) }),
+    });
+  }
+}
+
+class SqliteRoadmapRevisionProposalRepository implements RoadmapRevisionProposalRepository {
+  constructor(private readonly connection: SqliteConnection) {}
+
+  create(input: RoadmapRevisionProposal): RoadmapRevisionProposal {
+    const proposal = roadmapRevisionProposalSchema.parse(input);
+    this.connection.run(
+      `INSERT INTO roadmap_revision_proposals
+       (id, proposal_event_id, project_id, base_revision_number, classification, rationale,
+        actor, session_id, operations_json, before_value_json, after_value_json,
+        affected_phase_ids_json, affected_task_ids_json, active_task_ids_json,
+        approval_required, status, created_at, updated_at, resolved_at,
+        approval_decision_id, applied_revision_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      proposal.id,
+      proposal.proposalEventId,
+      proposal.projectId,
+      proposal.baseRevisionNumber,
+      proposal.classification,
+      proposal.rationale,
+      proposal.actor,
+      proposal.sessionId,
+      JSON.stringify(proposal.operations),
+      JSON.stringify(proposal.beforeValue),
+      JSON.stringify(proposal.afterValue),
+      JSON.stringify(proposal.affectedPhaseIds),
+      JSON.stringify(proposal.affectedTaskIds),
+      JSON.stringify(proposal.activeTaskIds),
+      proposal.approvalRequired ? 1 : 0,
+      proposal.status,
+      proposal.createdAt,
+      proposal.updatedAt,
+      proposal.resolvedAt ?? null,
+      proposal.approvalDecisionId ?? null,
+      proposal.appliedRevisionId ?? null,
+    );
+    return proposal;
+  }
+
+  findById(id: RoadmapRevisionProposal["id"]): RoadmapRevisionProposal | undefined {
+    const row = this.connection.get("SELECT * FROM roadmap_revision_proposals WHERE id = ?", id);
+    return row === undefined ? undefined : this.parse(row);
+  }
+
+  findByEventId(eventId: Event["id"]): RoadmapRevisionProposal | undefined {
+    const row = this.connection.get(
+      "SELECT * FROM roadmap_revision_proposals WHERE proposal_event_id = ?",
+      eventId,
+    );
+    return row === undefined ? undefined : this.parse(row);
+  }
+
+  listByProjectId(projectId: Project["id"]): readonly RoadmapRevisionProposal[] {
+    return Object.freeze(
+      this.connection
+        .all(
+          `SELECT * FROM roadmap_revision_proposals
+           WHERE project_id = ? ORDER BY created_at, id`,
+          projectId,
+        )
+        .map((row) => this.parse(row)),
+    );
+  }
+
+  replace(
+    input: RoadmapRevisionProposal,
+    expectedStatus: RoadmapRevisionProposal["status"],
+  ): RoadmapRevisionProposal {
+    const proposal = roadmapRevisionProposalSchema.parse(input);
+    const changes = this.connection.run(
+      `UPDATE roadmap_revision_proposals
+       SET status = ?, active_task_ids_json = ?, updated_at = ?, resolved_at = ?,
+           approval_decision_id = ?, applied_revision_id = ?
+       WHERE id = ? AND status = ?`,
+      proposal.status,
+      JSON.stringify(proposal.activeTaskIds),
+      proposal.updatedAt,
+      proposal.resolvedAt ?? null,
+      proposal.approvalDecisionId ?? null,
+      proposal.appliedRevisionId ?? null,
+      proposal.id,
+      expectedStatus,
+    );
+    if (changes !== 1) {
+      throw new PersistenceError(
+        `Roadmap revision proposal ${proposal.id} is missing or no longer ${expectedStatus}`,
+      );
+    }
+    return proposal;
+  }
+
+  private parse(row: SqliteRow): RoadmapRevisionProposal {
+    const resolvedAt = optionalString(row, "resolved_at");
+    const approvalDecisionId = optionalString(row, "approval_decision_id");
+    const appliedRevisionId = optionalString(row, "applied_revision_id");
+    return roadmapRevisionProposalSchema.parse({
+      id: requiredString(row, "id"),
+      proposalEventId: requiredString(row, "proposal_event_id"),
+      projectId: requiredString(row, "project_id"),
+      baseRevisionNumber: requiredNumber(row, "base_revision_number"),
+      classification: requiredString(row, "classification"),
+      rationale: requiredString(row, "rationale"),
+      actor: requiredString(row, "actor"),
+      sessionId: requiredString(row, "session_id"),
+      operations: parseJson(requiredString(row, "operations_json")),
+      beforeValue: parseJson(requiredString(row, "before_value_json")),
+      afterValue: parseJson(requiredString(row, "after_value_json")),
+      affectedPhaseIds: parseJson(requiredString(row, "affected_phase_ids_json")),
+      affectedTaskIds: parseJson(requiredString(row, "affected_task_ids_json")),
+      activeTaskIds: parseJson(requiredString(row, "active_task_ids_json")),
+      approvalRequired: requiredNumber(row, "approval_required") === 1,
+      status: requiredString(row, "status"),
+      createdAt: requiredString(row, "created_at"),
+      updatedAt: requiredString(row, "updated_at"),
+      ...(resolvedAt === undefined ? {} : { resolvedAt }),
+      ...(approvalDecisionId === undefined ? {} : { approvalDecisionId }),
+      ...(appliedRevisionId === undefined ? {} : { appliedRevisionId }),
     });
   }
 }
@@ -1983,6 +2125,7 @@ export function createRepositories(
     independentReviews: new SqliteIndependentReviewRepository(connection),
     decisions: new SqliteDecisionRepository(connection),
     roadmapRevisions: new SqliteRoadmapRevisionRepository(connection),
+    roadmapRevisionProposals: new SqliteRoadmapRevisionProposalRepository(connection),
     densaRunBranches: new SqliteDensaRunBranchRepository(connection),
     taskCommitIntents: new SqliteTaskCommitIntentRepository(connection),
     attemptRollbackPlans: new SqliteAttemptRollbackPlanRepository(connection),

@@ -9,6 +9,7 @@ import {
   phaseIdSchema,
   projectIdSchema,
   roadmapRevisionIdSchema,
+  roadmapRevisionProposalIdSchema,
   taskIdSchema,
   validationRunIdSchema,
 } from "./ids.js";
@@ -225,22 +226,108 @@ export const decisionSchema = z
   });
 export type Decision = z.infer<typeof decisionSchema>;
 
-export const roadmapRevisionSchema = z.strictObject({
-  id: roadmapRevisionIdSchema,
-  projectId: projectIdSchema,
-  classification: roadmapMutationClassificationSchema,
-  reason: nonEmptyText,
-  actor: nonEmptyText,
-  sessionId: nonEmptyText.optional(),
-  createdAt: isoTimestampSchema,
-  affectedPhaseIds: z.array(phaseIdSchema),
-  affectedTaskIds: z.array(taskIdSchema),
-  oldValue: jsonObjectSchema,
-  newValue: jsonObjectSchema,
-  operation: roadmapMutationOperationSchema.optional(),
-  approval: roadmapMutationApprovalSchema.optional(),
-});
+export const roadmapRevisionSchema = z
+  .strictObject({
+    id: roadmapRevisionIdSchema,
+    projectId: projectIdSchema,
+    classification: roadmapMutationClassificationSchema,
+    reason: nonEmptyText,
+    actor: nonEmptyText,
+    sessionId: nonEmptyText.optional(),
+    createdAt: isoTimestampSchema,
+    affectedPhaseIds: z.array(phaseIdSchema),
+    affectedTaskIds: z.array(taskIdSchema),
+    oldValue: jsonObjectSchema,
+    newValue: jsonObjectSchema,
+    operation: roadmapMutationOperationSchema.optional(),
+    operations: z.array(roadmapMutationOperationSchema).min(2).max(32).optional(),
+    approval: roadmapMutationApprovalSchema.optional(),
+  })
+  .superRefine((revision, context) => {
+    if (revision.operation !== undefined && revision.operations !== undefined) {
+      context.addIssue({
+        code: "custom",
+        message: "A roadmap revision records either one operation or an operation batch",
+        path: ["operations"],
+      });
+    }
+  });
 export type RoadmapRevision = z.infer<typeof roadmapRevisionSchema>;
+
+export const roadmapRevisionProposalStatusSchema = z.enum([
+  "awaiting_approval",
+  "waiting_for_safe_boundary",
+  "ready_to_apply",
+  "applied",
+  "rejected",
+  "stale",
+]);
+export type RoadmapRevisionProposalStatus = z.infer<typeof roadmapRevisionProposalStatusSchema>;
+
+export const roadmapRevisionProposalSchema = z
+  .strictObject({
+    id: roadmapRevisionProposalIdSchema,
+    proposalEventId: eventIdSchema,
+    projectId: projectIdSchema,
+    baseRevisionNumber: z.number().int().nonnegative(),
+    classification: roadmapMutationClassificationSchema,
+    rationale: nonEmptyText,
+    actor: nonEmptyText,
+    sessionId: nonEmptyText,
+    operations: z.array(roadmapMutationOperationSchema).min(1).max(32),
+    beforeValue: jsonObjectSchema,
+    afterValue: jsonObjectSchema,
+    affectedPhaseIds: z.array(phaseIdSchema),
+    affectedTaskIds: z.array(taskIdSchema),
+    activeTaskIds: z.array(taskIdSchema),
+    approvalRequired: z.boolean(),
+    status: roadmapRevisionProposalStatusSchema,
+    createdAt: isoTimestampSchema,
+    updatedAt: isoTimestampSchema,
+    resolvedAt: isoTimestampSchema.optional(),
+    approvalDecisionId: decisionIdSchema.optional(),
+    appliedRevisionId: roadmapRevisionIdSchema.optional(),
+  })
+  .superRefine((proposal, context) => {
+    const terminal =
+      proposal.status === "applied" ||
+      proposal.status === "rejected" ||
+      proposal.status === "stale";
+    if (terminal !== (proposal.resolvedAt !== undefined)) {
+      context.addIssue({
+        code: "custom",
+        message: "Applied or rejected roadmap proposals require a resolution timestamp",
+        path: ["resolvedAt"],
+      });
+    }
+    if ((proposal.status === "applied") !== (proposal.appliedRevisionId !== undefined)) {
+      context.addIssue({
+        code: "custom",
+        message: "Only applied roadmap proposals reference an applied revision",
+        path: ["appliedRevisionId"],
+      });
+    }
+    if (proposal.approvalDecisionId !== undefined && !proposal.approvalRequired) {
+      context.addIssue({
+        code: "custom",
+        message: "Approval evidence is only valid for proposals that required approval",
+        path: ["approvalDecisionId"],
+      });
+    }
+    if (
+      proposal.status === "applied" &&
+      proposal.approvalRequired &&
+      proposal.approvalDecisionId === undefined
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "Applied approval-required proposals must retain their user decision",
+        path: ["approvalDecisionId"],
+      });
+    }
+  })
+  .readonly();
+export type RoadmapRevisionProposal = z.infer<typeof roadmapRevisionProposalSchema>;
 
 export const masterRoadmapRecordSchema = z
   .strictObject({
