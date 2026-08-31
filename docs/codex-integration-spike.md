@@ -154,7 +154,8 @@ a real account remains deliberately unforced. They do not claim to be real accou
 2. Run `codex login status` as the supported low-cost auth-presence probe; preserve `unknown` for
    unexpected output/exit combinations.
 3. Spawn `codex` with global policy flags before `exec`, pass the task through stdin, set the target
-   cwd explicitly, and request `--json --ephemeral`.
+   cwd explicitly, inherit only an explicit non-secret environment allowlist, and request
+   `--json --ephemeral`.
 4. Parse stdout line-by-line as JSONL and keep stderr as bounded diagnostic text only.
 5. Classify the run from structured terminal events plus process exit. Never infer completion from
    final agent prose, and never treat one failed command item as automatically equivalent to a

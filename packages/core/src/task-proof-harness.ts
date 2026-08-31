@@ -6,8 +6,15 @@ import { open } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import process from "node:process";
+import { StringDecoder } from "node:string_decoder";
 
-import { isTerminalAgentEvent, type AgentAdapter, type AgentEvent } from "@densa-ade/agent-sdk";
+import {
+  isTerminalAgentEvent,
+  redactAgentText,
+  redactAgentValue,
+  type AgentAdapter,
+  type AgentEvent,
+} from "@densa-ade/agent-sdk";
 
 const DIAGNOSTIC_SCHEMA_VERSION = 1;
 const COMMAND_OUTPUT_LIMIT_BYTES = 1024 * 1024;
@@ -19,6 +26,8 @@ const DEFAULT_RETAINED_AGENT_EVENT_BYTES = 2 * 1024 * 1024;
 const INDIVIDUAL_AGENT_EVENT_LIMIT_BYTES = 64 * 1024;
 const WORKSPACE_SCAN_ENTRY_LIMIT = 10_000;
 const WORKSPACE_SCAN_BYTE_LIMIT = 256 * 1024 * 1024;
+const GIT_CONTROL_VOLATILE_PATHS = new Set(["COMMIT_EDITMSG", "index"]);
+const GIT_CONTROL_VOLATILE_PREFIXES = ["logs/", "objects/"];
 const COMMAND_ENV = {
   PATH: process.env["PATH"] ?? "/usr/bin:/bin",
   LC_ALL: "C",
@@ -57,6 +66,8 @@ export interface WorkspaceChanges {
   deleted: string[];
   outOfScope: string[];
   unsafeSymlinks: string[];
+  gitControlChanges: string[];
+  validationChanges: string[];
   head: string;
   gitStatus: string;
   gitDiff: string;
@@ -100,6 +111,7 @@ export interface TaskProofResult {
     head: string;
     gitStatus: string;
     files: WorkspaceFile[];
+    gitControlFiles: WorkspaceFile[];
   };
   agentEvents: AgentEvent[];
   agentEventsTruncated: boolean;
@@ -143,33 +155,16 @@ class OutputCapture {
 
   value(): CapturedText {
     return {
-      value: redactSecrets(Buffer.concat(this.chunks).toString("utf8")),
+      value: redactAgentText(Buffer.concat(this.chunks).toString("utf8")),
       truncated: this.wasTruncated,
     };
   }
 }
 
-function redactSecrets(value: string): string {
-  return value
-    .replace(/(Bearer\s+)[A-Za-z0-9._~-]+/giu, "$1[REDACTED]")
-    .replace(/\bsk-[A-Za-z0-9_-]{8,}\b/gu, "[REDACTED]")
-    .replace(
-      /(["']?(?:api[_-]?key|access[_-]?token|refresh[_-]?token|password)["']?\s*[:=]\s*["']?)[^"',\s}]+/giu,
-      "$1[REDACTED]",
-    );
-}
-
-function redactValue(value: unknown): unknown {
-  if (typeof value === "string") return redactSecrets(value);
-  if (Array.isArray(value)) return value.map((entry) => redactValue(entry));
-  if (typeof value !== "object" || value === null) return value;
-  return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, redactValue(entry)]));
-}
-
 function truncateText(value: string, limitBytes: number): { text: string; truncated: boolean } {
   const bytes = Buffer.from(value);
   if (bytes.length <= limitBytes) return { text: value, truncated: false };
-  return { text: bytes.subarray(0, limitBytes).toString("utf8"), truncated: true };
+  return { text: new StringDecoder("utf8").write(bytes.subarray(0, limitBytes)), truncated: true };
 }
 
 interface BoundedAgentEvent {
@@ -178,7 +173,7 @@ interface BoundedAgentEvent {
 }
 
 function boundedAgentEvent(event: AgentEvent): BoundedAgentEvent {
-  const redacted = redactValue(event) as AgentEvent;
+  const redacted = redactAgentValue(event) as AgentEvent;
   if (Buffer.byteLength(JSON.stringify(redacted)) <= INDIVIDUAL_AGENT_EVENT_LIMIT_BYTES) {
     return { event: redacted, truncated: false };
   }
@@ -246,6 +241,11 @@ async function workspaceFiles(
   state: WorkspaceScanState = { entries: 0, bytes: 0 },
 ): Promise<WorkspaceFile[]> {
   const directory = path.join(root, relativeDirectory);
+  if (!(await lstat(directory)).isDirectory()) {
+    throw new Error(
+      `Workspace scan root is not a real directory: ${relativeDirectory || path.basename(root)}`,
+    );
+  }
   const entries = await readdir(directory, { withFileTypes: true });
   const files: WorkspaceFile[] = [];
 
@@ -281,10 +281,21 @@ async function workspaceFiles(
         kind: "file",
         sha256: await sha256File(absolutePath),
       });
+    } else {
+      throw new Error(`Unsupported workspace entry: ${relativePath}`);
     }
   }
 
   return files;
+}
+
+async function gitControlFiles(workspaceRoot: string): Promise<WorkspaceFile[]> {
+  const files = await workspaceFiles(path.join(workspaceRoot, ".git"));
+  return files.filter(
+    (file) =>
+      !GIT_CONTROL_VOLATILE_PATHS.has(file.path) &&
+      !GIT_CONTROL_VOLATILE_PREFIXES.some((prefix) => file.path.startsWith(prefix)),
+  );
 }
 
 function changedFiles(
@@ -354,7 +365,7 @@ async function requestCancellation(
   if (cancellation.status === "rejected") {
     return {
       confirmed: false,
-      failure: `Agent cancellation failed: ${redactSecrets(
+      failure: `Agent cancellation failed: ${redactAgentText(
         cancellation.reason instanceof Error
           ? cancellation.reason.message
           : String(cancellation.reason),
@@ -425,7 +436,7 @@ async function collectAgentEvents(input: {
   };
 
   const recordFailure = (message: string): void => {
-    const redacted = redactSecrets(message);
+    const redacted = redactAgentText(message);
     failure = failure === undefined ? redacted : `${failure}; ${redacted}`;
   };
 
@@ -520,11 +531,23 @@ async function runCommand(
     const child = spawn(command, args, {
       cwd,
       env: COMMAND_ENV,
+      detached: process.platform !== "win32",
       stdio: ["ignore", "pipe", "pipe"],
     });
+    let treeTerminated = false;
+    const killTree = (): void => {
+      if (child.pid === undefined || treeTerminated) return;
+      try {
+        if (process.platform === "win32") child.kill("SIGKILL");
+        else process.kill(-child.pid, "SIGKILL");
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error;
+      }
+      treeTerminated = true;
+    };
     const timer = setTimeout(() => {
       timedOut = true;
-      child.kill("SIGKILL");
+      killTree();
     }, timeoutMs);
     timer.unref();
 
@@ -533,7 +556,9 @@ async function runCommand(
     child.once("error", (error: NodeJS.ErrnoException) => {
       spawnError = error;
     });
+    child.once("exit", killTree);
     child.once("close", (exitCode, signal) => {
+      killTree();
       clearTimeout(timer);
       const capturedStdout = stdout.value();
       const capturedStderr = stderr.value();
@@ -564,6 +589,7 @@ function skippedCommandDiagnostic(
   command: string,
   args: string[],
   reason: string,
+  code = "AGENT_TERMINATION_UNCONFIRMED",
 ): CommandDiagnostic {
   return {
     command,
@@ -575,7 +601,7 @@ function skippedCommandDiagnostic(
     stdoutTruncated: false,
     stderrTruncated: false,
     timedOut: false,
-    error: { code: "AGENT_TERMINATION_UNCONFIRMED", message: reason },
+    error: { code, message: reason },
   };
 }
 
@@ -661,7 +687,33 @@ async function createFixture(temporaryBaseDirectory?: string): Promise<{
   );
   await writeFile(
     path.join(workspacePath, "test.mjs"),
-    'import assert from "node:assert/strict";\nimport { sum } from "./src/sum.js";\n\nassert.equal(sum(2, 3), 5);\nassert.equal(sum(-4, 7), 3);\nassert.equal(sum(0, 0), 0);\n',
+    [
+      'import assert from "node:assert/strict";',
+      'import { randomUUID } from "node:crypto";',
+      'import { Worker } from "node:worker_threads";',
+      "",
+      "// Keep assertions in the parent: process.exit(0) inside submitted code is not success.",
+      "const nonce = randomUUID();",
+      "const worker = new Worker(`",
+      '  const { parentPort, workerData } = require("node:worker_threads");',
+      "  const send = parentPort.postMessage.bind(parentPort);",
+      "  const nonce = ${JSON.stringify(nonce)};",
+      "  import(workerData).then(({ sum }) => {",
+      "    send({ nonce, values: [sum(2, 3), sum(-4, 7), sum(0, 0)] });",
+      "  });",
+      '`, { eval: true, workerData: new URL("./src/sum.js", import.meta.url).href });',
+      "try {",
+      "  const actual = await new Promise((resolve, reject) => {",
+      '    worker.on("message", (message) => { if (message?.nonce === nonce) resolve(message.values); });',
+      '    worker.once("error", reject);',
+      '    worker.once("exit", (code) => reject(new Error(`Evaluator exited without results: ${code}`)));',
+      "  });",
+      "  assert.deepEqual(actual, [5, 3, 0]);",
+      "} finally {",
+      "  await worker.terminate();",
+      "}",
+      "",
+    ].join("\n"),
     "utf8",
   );
 
@@ -716,7 +768,7 @@ async function writeDiagnosticExclusive(diagnosticsPath: string, value: unknown)
     const metadata = await handle.stat();
     if (!metadata.isFile()) throw new Error("Attempt diagnostic target is not a regular file");
     await handle.chmod(0o600);
-    await handle.writeFile(`${JSON.stringify(redactValue(value), null, 2)}\n`, "utf8");
+    await handle.writeFile(`${JSON.stringify(redactAgentValue(value), null, 2)}\n`, "utf8");
     await handle.sync();
   } finally {
     await handle.close();
@@ -749,6 +801,7 @@ export async function runTemporaryRepoTaskProof(
   );
   const fixture = await createFixture(options.temporaryBaseDirectory);
   const checkpointFiles = await workspaceFiles(fixture.workspacePath);
+  const checkpointGitControlFiles = await gitControlFiles(fixture.workspacePath);
   const checkpointStatus = await requireSuccessfulCommand(
     "git",
     ["status", "--porcelain=v1"],
@@ -763,6 +816,7 @@ export async function runTemporaryRepoTaskProof(
     head: checkpointHead.stdout.trim(),
     gitStatus: checkpointStatus.stdout,
     files: checkpointFiles,
+    gitControlFiles: checkpointGitControlFiles,
   };
   if (checkpoint.gitStatus.length !== 0) {
     throw new Error("Fixture checkpoint is unexpectedly dirty");
@@ -784,7 +838,9 @@ export async function runTemporaryRepoTaskProof(
     });
   } catch (error) {
     const cancellation = await requestCancellation(options.adapter, runId, cancellationTimeoutMs);
-    const executionFailure = redactSecrets(error instanceof Error ? error.message : String(error));
+    const executionFailure = redactAgentText(
+      error instanceof Error ? error.message : String(error),
+    );
     agent = {
       events: [],
       droppedEventCount: 0,
@@ -827,6 +883,8 @@ export async function runTemporaryRepoTaskProof(
       deleted: [],
       outOfScope: [],
       unsafeSymlinks: [],
+      gitControlChanges: [],
+      validationChanges: [],
       head: checkpoint.head,
       gitStatus: "",
       gitDiff: "",
@@ -848,25 +906,61 @@ export async function runTemporaryRepoTaskProof(
     }));
   } else {
     let afterFiles: WorkspaceFile[] = [];
+    let afterGitControlFiles: WorkspaceFile[] = [];
     try {
       afterFiles = await workspaceFiles(fixture.workspacePath);
+      afterGitControlFiles = await gitControlFiles(fixture.workspacePath);
     } catch (error) {
-      workspaceObservationError = redactSecrets(
+      workspaceObservationError = redactAgentText(
         error instanceof Error ? error.message : String(error),
       );
     }
-    const gitStatus = await runCommand("git", ["status", "--porcelain=v1"], fixture.workspacePath);
-    const gitHead = await runCommand("git", ["rev-parse", "HEAD"], fixture.workspacePath);
-    const gitDiff = await runCommand(
-      "git",
-      ["diff", "--no-ext-diff", "--binary", checkpoint.head, "--"],
-      fixture.workspacePath,
+    const gitControlDelta = changedFiles(checkpointGitControlFiles, afterGitControlFiles);
+    const fileDelta = changedFiles(checkpointFiles, afterFiles);
+    const changedPaths = [...fileDelta.added, ...fileDelta.modified, ...fileDelta.deleted];
+    const outOfScope = changedPaths.filter(
+      (file) => !fixture.taskPacket.editablePaths.includes(file),
     );
+    const unsafeSymlinks = afterFiles
+      .filter((file) => file.kind === "symlink")
+      .map((file) => file.path);
+    const gitControlChanges = [
+      ...gitControlDelta.added,
+      ...gitControlDelta.modified,
+      ...gitControlDelta.deleted,
+    ]
+      .map((file) => `.git/${file}`)
+      .sort();
+    const safeToExecute =
+      workspaceObservationError === undefined &&
+      outOfScope.length === 0 &&
+      unsafeSymlinks.length === 0 &&
+      gitControlChanges.length === 0;
+    const observe = async (command: string, args: string[]): Promise<CommandDiagnostic> =>
+      safeToExecute
+        ? await runCommand(command, args, fixture.workspacePath)
+        : skippedCommandDiagnostic(
+            command,
+            args,
+            "Workspace integrity failed before post-worker execution",
+            "WORKSPACE_INTEGRITY_FAILED",
+          );
+    const gitStatus = await observe("git", ["status", "--porcelain=v1"]);
+    const gitHead = await observe("git", ["rev-parse", "HEAD"]);
+    const gitDiff = await observe("git", [
+      "diff",
+      "--no-ext-diff",
+      "--binary",
+      checkpoint.head,
+      "--",
+    ]);
     changes = {
-      ...changedFiles(checkpointFiles, afterFiles),
-      outOfScope: [],
-      unsafeSymlinks: afterFiles.filter((file) => file.kind === "symlink").map((file) => file.path),
-      head: gitHead.stdout.trim(),
+      ...fileDelta,
+      outOfScope,
+      unsafeSymlinks,
+      gitControlChanges,
+      validationChanges: [],
+      head: safeToExecute ? gitHead.stdout.trim() : checkpoint.head,
       gitStatus: gitStatus.stdout,
       gitDiff: gitDiff.stdout,
       gitHeadCommand: gitHead,
@@ -876,23 +970,37 @@ export async function runTemporaryRepoTaskProof(
       after: afterFiles,
       ...(workspaceObservationError === undefined ? {} : { workspaceObservationError }),
     };
-    const changedPaths = [...changes.added, ...changes.modified, ...changes.deleted];
-    changes.outOfScope = changedPaths.filter(
-      (changedPath) => !fixture.taskPacket.editablePaths.includes(changedPath),
-    );
-
     acceptanceResults = [];
     for (const criterion of fixture.taskPacket.acceptanceCriteria) {
-      const command = await runCommand(
-        criterion.validation.command,
-        criterion.validation.args,
-        fixture.workspacePath,
-      );
+      const command = await observe(criterion.validation.command, criterion.validation.args);
       acceptanceResults.push({
         criterion,
         passed: command.exitCode === 0 && !command.timedOut,
         command,
       });
+    }
+    if (safeToExecute) {
+      try {
+        const finalFiles = await workspaceFiles(fixture.workspacePath);
+        const finalGitControlFiles = await gitControlFiles(fixture.workspacePath);
+        const validationDelta = changedFiles(afterFiles, finalFiles);
+        const validationGitDelta = changedFiles(afterGitControlFiles, finalGitControlFiles);
+        changes.validationChanges = [
+          ...validationDelta.added,
+          ...validationDelta.modified,
+          ...validationDelta.deleted,
+          ...[
+            ...validationGitDelta.added,
+            ...validationGitDelta.modified,
+            ...validationGitDelta.deleted,
+          ].map((file) => `.git/${file}`),
+        ].sort();
+      } catch (error) {
+        workspaceObservationError = redactAgentText(
+          error instanceof Error ? error.message : String(error),
+        );
+        changes.workspaceObservationError = workspaceObservationError;
+      }
     }
   }
 
@@ -933,6 +1041,16 @@ export async function runTemporaryRepoTaskProof(
     if (changes.unsafeSymlinks.length > 0) {
       failureReasons.push(
         `Symbolic links are not valid task changes: ${changes.unsafeSymlinks.join(", ")}`,
+      );
+    }
+    if (changes.gitControlChanges.length > 0) {
+      failureReasons.push(
+        `Agent run changed Git control files: ${changes.gitControlChanges.join(", ")}`,
+      );
+    }
+    if (changes.validationChanges.length > 0) {
+      failureReasons.push(
+        `Workspace changed during validation: ${changes.validationChanges.join(", ")}`,
       );
     }
     for (const acceptanceResult of acceptanceResults) {

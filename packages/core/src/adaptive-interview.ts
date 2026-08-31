@@ -116,6 +116,7 @@ export class AgentAdapterMasterInterviewAgent implements MasterInterviewAgent {
       cwd: this.cwd,
       prompt: buildMasterInterviewPrompt(request),
       outputSchema: interviewAgentProposalOutputSchema,
+      accessMode: "read-only",
     })) {
       if (!isTerminalAgentEvent(event)) continue;
       terminalCount += 1;

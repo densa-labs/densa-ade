@@ -3,6 +3,7 @@ import { mkdtemp, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import process from "node:process";
+import { StringDecoder } from "node:string_decoder";
 
 import { usageStateSchema, type UsageState } from "@densa-ade/protocol";
 
@@ -14,13 +15,34 @@ import type {
   AgentRunRequest,
   AgentStatus,
 } from "./contracts.js";
+import { redactAgentText, RedactedAgentTextStream } from "./redaction.js";
 
 const DEFAULT_CAPTURE_LIMIT = 64 * 1024;
 const DEFAULT_EVENT_TEXT_LIMIT = 16 * 1024;
 const DEFAULT_JSON_LINE_LIMIT = 1024 * 1024;
 const DEFAULT_PROBE_TIMEOUT_MS = 10_000;
 const DEFAULT_CANCELLATION_GRACE_MS = 2_000;
+const DEFAULT_EVENT_BUFFER_LIMIT = 512;
 const OBSERVED_CODEX_VERSION = "0.147.0";
+const SAFE_ENVIRONMENT_KEYS = [
+  "CODEX_HOME",
+  "HOME",
+  "LANG",
+  "LC_ALL",
+  "LC_CTYPE",
+  "LOGNAME",
+  "NO_COLOR",
+  "PATH",
+  "SHELL",
+  "SSL_CERT_DIR",
+  "SSL_CERT_FILE",
+  "TEMP",
+  "TERM",
+  "TMP",
+  "TMPDIR",
+  "USER",
+  "XDG_CONFIG_HOME",
+] as const;
 
 export interface CodexAdapterOptions {
   command?: string;
@@ -29,6 +51,9 @@ export interface CodexAdapterOptions {
   jsonLineLimitBytes?: number;
   probeTimeoutMs?: number;
   cancellationGraceMs?: number;
+  eventBufferLimit?: number;
+  /** Parent environment source; only the adapter's explicit non-secret allowlist is inherited. */
+  environment?: Readonly<NodeJS.ProcessEnv>;
   now?: () => string;
 }
 
@@ -48,6 +73,12 @@ interface ActiveRun {
   killTimer?: NodeJS.Timeout;
 }
 
+interface StartingRun {
+  controller: AbortController;
+  done: Promise<void>;
+  resolveDone: () => void;
+}
+
 interface TerminalSignal {
   kind: "completed" | "failed";
   message?: string;
@@ -60,7 +91,30 @@ class AsyncEventQueue<T> implements AsyncIterable<T> {
   private readonly readers: Array<(value: IteratorResult<T>) => void> = [];
   private ended = false;
 
+  droppedValueCount = 0;
+
+  constructor(private readonly bufferLimit: number) {}
+
   push(value: T): void {
+    if (this.ended) return;
+    const reader = this.readers.shift();
+    if (reader === undefined) {
+      if (this.values.length >= this.bufferLimit) {
+        this.droppedValueCount += 1;
+        return;
+      }
+      this.values.push(value);
+    } else reader({ value, done: false });
+  }
+
+  reserveFinalSlots(count: number): void {
+    while (this.values.length > this.bufferLimit - count) {
+      this.values.pop();
+      this.droppedValueCount += 1;
+    }
+  }
+
+  pushFinal(value: T): void {
     if (this.ended) return;
     const reader = this.readers.shift();
     if (reader === undefined) this.values.push(value);
@@ -98,6 +152,12 @@ class BoundedText {
     this.wasTruncated ||= result.truncated;
   }
 
+  replace(value: string): void {
+    const result = truncateText(value, this.limitBytes);
+    this.value = result.text;
+    this.wasTruncated = result.truncated;
+  }
+
   snapshot(): { text: string; truncated: boolean } {
     return { text: this.value, truncated: this.wasTruncated };
   }
@@ -110,24 +170,25 @@ function truncateText(
 ): { text: string; truncated: boolean } {
   const bytes = Buffer.from(value);
   if (bytes.length <= limitBytes) return { text: value, truncated: false };
-  const sliced = keepEnd
-    ? bytes.subarray(bytes.length - limitBytes)
-    : bytes.subarray(0, limitBytes);
-  return { text: sliced.toString("utf8"), truncated: true };
+  let start = keepEnd ? bytes.length - limitBytes : 0;
+  while (keepEnd && start < bytes.length && ((bytes[start] ?? 0) & 0xc0) === 0x80) start += 1;
+  const sliced = bytes.subarray(start, keepEnd ? bytes.length : limitBytes);
+  return { text: new StringDecoder("utf8").write(sliced), truncated: true };
 }
 
-function redactSecrets(value: string): string {
-  return value
-    .replace(/(Bearer\s+)[A-Za-z0-9._~-]+/giu, "$1[REDACTED]")
-    .replace(/\bsk-[A-Za-z0-9_-]{8,}\b/gu, "[REDACTED]")
-    .replace(
-      /(["']?(?:api[_-]?key|access[_-]?token|refresh[_-]?token|password)["']?\s*[:=]\s*["']?)[^"',\s}]+/giu,
-      "$1[REDACTED]",
-    );
+function codexEnvironment(source: Readonly<NodeJS.ProcessEnv>): NodeJS.ProcessEnv {
+  const environment: NodeJS.ProcessEnv = {
+    PATH: source["PATH"] ?? "/usr/bin:/bin",
+  };
+  for (const key of SAFE_ENVIRONMENT_KEYS) {
+    const value = source[key];
+    if (value !== undefined) environment[key] = value;
+  }
+  return environment;
 }
 
 function objectValue(value: unknown): Record<string, unknown> | undefined {
-  return typeof value === "object" && value !== null
+  return typeof value === "object" && value !== null && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : undefined;
 }
@@ -180,8 +241,10 @@ function normalizeVersion(stdout: string): string | undefined {
   return value.replace(/^codex-cli\s+/u, "");
 }
 
+const terminatedProcessTrees = new WeakSet<ChildProcess>();
+
 function signalProcessTree(child: ChildProcess, signal: NodeJS.Signals): void {
-  if (child.pid === undefined) return;
+  if (child.pid === undefined || terminatedProcessTrees.has(child)) return;
   try {
     if (process.platform === "win32") child.kill(signal);
     else process.kill(-child.pid, signal);
@@ -189,6 +252,9 @@ function signalProcessTree(child: ChildProcess, signal: NodeJS.Signals): void {
     const code = (error as NodeJS.ErrnoException).code;
     if (code !== "ESRCH") throw error;
   }
+  // Exit, close, timeout, and cancellation share cleanup ownership. A second signal after
+  // SIGKILL can hit a reaped/reused process group and must not target that identity again.
+  if (signal === "SIGKILL") terminatedProcessTrees.add(child);
 }
 
 /**
@@ -204,9 +270,11 @@ export class CodexAdapter implements AgentAdapter {
   private readonly jsonLineLimitBytes: number;
   private readonly probeTimeoutMs: number;
   private readonly cancellationGraceMs: number;
+  private readonly eventBufferLimit: number;
+  private readonly environment: NodeJS.ProcessEnv;
   private readonly now: () => string;
   private readonly activeRuns = new Map<string, ActiveRun>();
-  private readonly startingRunIds = new Set<string>();
+  private readonly startingRuns = new Map<string, StartingRun>();
   private usageState: UsageState = Object.freeze({
     status: "unknown",
     reason: "No reliable Codex usage signal has been observed",
@@ -219,6 +287,8 @@ export class CodexAdapter implements AgentAdapter {
     this.jsonLineLimitBytes = options.jsonLineLimitBytes ?? DEFAULT_JSON_LINE_LIMIT;
     this.probeTimeoutMs = options.probeTimeoutMs ?? DEFAULT_PROBE_TIMEOUT_MS;
     this.cancellationGraceMs = options.cancellationGraceMs ?? DEFAULT_CANCELLATION_GRACE_MS;
+    this.eventBufferLimit = options.eventBufferLimit ?? DEFAULT_EVENT_BUFFER_LIMIT;
+    this.environment = codexEnvironment(options.environment ?? process.env);
     this.now = options.now ?? (() => new Date().toISOString());
 
     for (const [name, value] of [
@@ -227,13 +297,15 @@ export class CodexAdapter implements AgentAdapter {
       ["jsonLineLimitBytes", this.jsonLineLimitBytes],
       ["probeTimeoutMs", this.probeTimeoutMs],
       ["cancellationGraceMs", this.cancellationGraceMs],
+      ["eventBufferLimit", this.eventBufferLimit],
     ] as const) {
       if (!Number.isInteger(value) || value <= 0) throw new RangeError(`${name} must be positive`);
     }
+    if (this.eventBufferLimit < 3) throw new RangeError("eventBufferLimit must be at least 3");
   }
 
-  async detect(): Promise<AgentDetection> {
-    const result = await this.runProbe(["--version"]);
+  async detect(signal?: AbortSignal): Promise<AgentDetection> {
+    const result = await this.runProbe(["--version"], signal);
     if (result.error?.code === "ENOENT") {
       return {
         status: "unavailable",
@@ -261,8 +333,8 @@ export class CodexAdapter implements AgentAdapter {
     return { status: "available", adapterId: this.adapterId, command: this.command, version };
   }
 
-  async getStatus(): Promise<AgentStatus> {
-    const detection = await this.detect();
+  async getStatus(signal?: AbortSignal): Promise<AgentStatus> {
+    const detection = await this.detect(signal);
     if (detection.status === "unavailable") {
       return { status: "unavailable", reason: detection.reason };
     }
@@ -274,7 +346,7 @@ export class CodexAdapter implements AgentAdapter {
       };
     }
 
-    const result = await this.runProbe(["login", "status"]);
+    const result = await this.runProbe(["login", "status"], signal);
     if (result.exitCode === 0) return { status: "available", version: detection.version };
     if (result.exitCode === 1 && !result.timedOut && result.error === undefined) {
       return { status: "authentication-required", version: detection.version };
@@ -289,6 +361,10 @@ export class CodexAdapter implements AgentAdapter {
   }
 
   async *execute(request: AgentRunRequest): AsyncIterable<AgentEvent> {
+    this.usageState = Object.freeze({
+      status: "unknown",
+      reason: "The current execution has not established usage availability",
+    });
     if (request.runId.length === 0 || request.prompt.length === 0 || request.cwd.length === 0) {
       yield this.startedEvent(request.runId);
       yield this.failureEvent(request.runId, {
@@ -297,17 +373,7 @@ export class CodexAdapter implements AgentAdapter {
       });
       return;
     }
-    try {
-      if (!(await stat(request.cwd)).isDirectory()) throw new Error("not a directory");
-    } catch {
-      yield this.startedEvent(request.runId);
-      yield this.failureEvent(request.runId, {
-        code: "USER_CONFIGURATION_ERROR",
-        message: `Agent working directory is not available: ${request.cwd}`,
-      });
-      return;
-    }
-    if (this.activeRuns.has(request.runId) || this.startingRunIds.has(request.runId)) {
+    if (this.activeRuns.has(request.runId) || this.startingRuns.has(request.runId)) {
       yield this.startedEvent(request.runId);
       yield this.failureEvent(request.runId, {
         code: "INTERNAL_INVARIANT_VIOLATION",
@@ -315,11 +381,52 @@ export class CodexAdapter implements AgentAdapter {
       });
       return;
     }
-    this.startingRunIds.add(request.runId);
-
-    const status = await this.getStatus();
+    let resolveStarting = (): void => undefined;
+    const starting: StartingRun = {
+      controller: new AbortController(),
+      done: new Promise<void>((resolve) => {
+        resolveStarting = resolve;
+      }),
+      resolveDone: () => resolveStarting(),
+    };
+    this.startingRuns.set(request.runId, starting);
+    const finishStarting = (): void => {
+      this.startingRuns.delete(request.runId);
+      starting.resolveDone();
+    };
+    try {
+      if (!(await stat(request.cwd)).isDirectory()) throw new Error("not a directory");
+    } catch {
+      finishStarting();
+      yield this.startedEvent(request.runId);
+      yield this.failureEvent(request.runId, {
+        code: "USER_CONFIGURATION_ERROR",
+        message: `Agent working directory is not available: ${request.cwd}`,
+      });
+      return;
+    }
+    let status: AgentStatus;
+    try {
+      status = await this.getStatus(starting.controller.signal);
+    } catch (error) {
+      finishStarting();
+      yield this.startedEvent(request.runId);
+      yield this.failureEvent(request.runId, this.spawnError(error));
+      return;
+    }
+    if (starting.controller.signal.aborted) {
+      finishStarting();
+      yield this.startedEvent(request.runId);
+      yield {
+        type: "run.terminal",
+        runId: request.runId,
+        occurredAt: this.now(),
+        outcome: "cancelled",
+      };
+      return;
+    }
     if (status.status === "unavailable") {
-      this.startingRunIds.delete(request.runId);
+      finishStarting();
       yield this.startedEvent(request.runId);
       yield this.failureEvent(request.runId, {
         code: "AGENT_UNAVAILABLE",
@@ -328,7 +435,7 @@ export class CodexAdapter implements AgentAdapter {
       return;
     }
     if (status.status === "authentication-required") {
-      this.startingRunIds.delete(request.runId);
+      finishStarting();
       yield this.startedEvent(request.runId);
       yield this.failureEvent(request.runId, {
         code: "AUTHENTICATION_REQUIRED",
@@ -337,7 +444,7 @@ export class CodexAdapter implements AgentAdapter {
       return;
     }
     if (status.status === "unknown") {
-      this.startingRunIds.delete(request.runId);
+      finishStarting();
       yield this.startedEvent(request.runId);
       yield this.failureEvent(request.runId, {
         code: "PROTOCOL_VERSION_MISMATCH",
@@ -346,7 +453,7 @@ export class CodexAdapter implements AgentAdapter {
       return;
     }
 
-    const queue = new AsyncEventQueue<AgentEvent>();
+    const queue = new AsyncEventQueue<AgentEvent>(this.eventBufferLimit);
     const stderr = new BoundedText(this.captureLimitBytes);
     const finalMessage = new BoundedText(this.captureLimitBytes);
     let outputSchemaDirectory: string | undefined;
@@ -364,7 +471,7 @@ export class CodexAdapter implements AgentAdapter {
         if (outputSchemaDirectory !== undefined) {
           await rm(outputSchemaDirectory, { recursive: true, force: true }).catch(() => undefined);
         }
-        this.startingRunIds.delete(request.runId);
+        finishStarting();
         yield this.startedEvent(request.runId);
         yield this.failureEvent(request.runId, {
           code: "PROCESS_FAILURE",
@@ -372,6 +479,20 @@ export class CodexAdapter implements AgentAdapter {
         });
         return;
       }
+    }
+    if (starting.controller.signal.aborted) {
+      if (outputSchemaDirectory !== undefined) {
+        await rm(outputSchemaDirectory, { recursive: true, force: true }).catch(() => undefined);
+      }
+      finishStarting();
+      yield this.startedEvent(request.runId);
+      yield {
+        type: "run.terminal",
+        runId: request.runId,
+        occurredAt: this.now(),
+        outcome: "cancelled",
+      };
+      return;
     }
     let child: ChildProcessWithoutNullStreams;
     try {
@@ -381,7 +502,7 @@ export class CodexAdapter implements AgentAdapter {
         {
           cwd: request.cwd,
           detached: process.platform !== "win32",
-          env: process.env,
+          env: this.environment,
           stdio: ["pipe", "pipe", "pipe"],
         },
       );
@@ -389,7 +510,7 @@ export class CodexAdapter implements AgentAdapter {
       if (outputSchemaDirectory !== undefined) {
         await rm(outputSchemaDirectory, { recursive: true, force: true }).catch(() => undefined);
       }
-      this.startingRunIds.delete(request.runId);
+      finishStarting();
       yield this.startedEvent(request.runId);
       yield this.failureEvent(request.runId, this.spawnError(error));
       return;
@@ -401,7 +522,7 @@ export class CodexAdapter implements AgentAdapter {
     });
     const active: ActiveRun = { child, cancelRequested: false, done, resolveDone };
     this.activeRuns.set(request.runId, active);
-    this.startingRunIds.delete(request.runId);
+    finishStarting();
 
     let terminalSignal: TerminalSignal | undefined;
     let observedUsageState: Extract<UsageState, { status: "limited" }> | undefined;
@@ -416,7 +537,10 @@ export class CodexAdapter implements AgentAdapter {
       if (mapped.event !== undefined) queue.push(mapped.event);
       if (mapped.usageState !== undefined) observedUsageState = mapped.usageState;
       if (mapped.errorCode !== undefined) observedErrorCode = mapped.errorCode;
-      if (mapped.terminal !== undefined) terminalSignal = mapped.terminal;
+      if (mapped.terminal !== undefined) {
+        if (terminalSignal !== undefined) malformedJson = true;
+        else terminalSignal = mapped.terminal;
+      }
     };
 
     const processStdoutLine = (line: string): void => {
@@ -461,18 +585,23 @@ export class CodexAdapter implements AgentAdapter {
       }
     });
 
-    child.stderr.setEncoding("utf8");
-    child.stderr.on("data", (chunk: string) => {
-      const redacted = redactSecrets(chunk);
-      stderr.append(redacted);
-      queue.push(this.diagnosticEvent(request.runId, "stderr", redacted, false));
+    const stderrStream = new RedactedAgentTextStream(this.jsonLineLimitBytes, (text, truncated) => {
+      stderr.append(text);
+      queue.push(this.diagnosticEvent(request.runId, "stderr", text, truncated));
     });
+    child.stderr.setEncoding("utf8");
+    child.stderr.on("data", (chunk: string) => stderrStream.append(chunk));
     child.once("error", (error: NodeJS.ErrnoException) => {
       spawnError = error;
     });
+    child.once("exit", () => signalProcessTree(child, "SIGKILL"));
 
     child.once("close", (exitCode) => {
+      stderrStream.finish();
       if (stdoutBuffer.length > 0 && !discardingOversizedLine) processStdoutLine(stdoutBuffer);
+      // A detached tool may close inherited stdio and outlive its parent. The process group is
+      // still ours after parent close; finish its cleanup before publishing terminal evidence.
+      signalProcessTree(child, "SIGKILL");
       if (active.killTimer !== undefined) clearTimeout(active.killTimer);
       this.activeRuns.delete(request.runId);
 
@@ -488,7 +617,19 @@ export class CodexAdapter implements AgentAdapter {
         stderr: stderr.snapshot(),
         finalMessage: finalMessage.snapshot(),
       });
-      queue.push(terminal);
+      queue.reserveFinalSlots(queue.droppedValueCount > 0 ? 2 : 1);
+      if (queue.droppedValueCount > 0) {
+        queue.reserveFinalSlots(2);
+        queue.pushFinal(
+          this.diagnosticEvent(
+            request.runId,
+            "adapter",
+            `Codex event buffer dropped ${String(queue.droppedValueCount)} events because the consumer was too slow`,
+            true,
+          ),
+        );
+      }
+      queue.pushFinal(terminal);
       queue.end();
       active.resolveDone();
     });
@@ -511,6 +652,12 @@ export class CodexAdapter implements AgentAdapter {
   }
 
   async cancel(runId: string): Promise<void> {
+    const starting = this.startingRuns.get(runId);
+    if (starting !== undefined) {
+      starting.controller.abort();
+      await starting.done;
+      return;
+    }
     const active = this.activeRuns.get(runId);
     if (active === undefined) return;
     this.requestCancellation(active);
@@ -579,7 +726,7 @@ export class CodexAdapter implements AgentAdapter {
     value: string,
     alreadyTruncated: boolean,
   ): AgentEvent {
-    const result = truncateText(redactSecrets(value), this.eventTextLimitBytes);
+    const result = truncateText(redactAgentText(value), this.eventTextLimitBytes);
     return {
       type: "diagnostic",
       runId,
@@ -602,7 +749,9 @@ export class CodexAdapter implements AgentAdapter {
   } {
     const record = objectValue(value);
     const type = stringValue(record?.["type"]);
-    if (record === undefined || type === undefined) return {};
+    if (record === undefined || type === undefined || type.length === 0) {
+      throw new Error("Invalid Codex event envelope");
+    }
 
     if (type === "turn.completed") return { terminal: { kind: "completed" } };
     if (type === "turn.failed") {
@@ -641,14 +790,16 @@ export class CodexAdapter implements AgentAdapter {
 
     const item = objectValue(record["item"]);
     const itemType = stringValue(item?.["type"]);
-    if (item === undefined || itemType === undefined) return {};
+    if (item === undefined || itemType === undefined || itemType.length === 0) {
+      throw new Error("Invalid Codex item envelope");
+    }
 
     if (itemType === "agent_message") {
       const text = stringValue(item["text"]);
-      if (text === undefined) return {};
-      const redacted = redactSecrets(text);
+      if (text === undefined) throw new Error("Invalid Codex message payload");
+      const redacted = redactAgentText(text);
       const result = truncateText(redacted, this.eventTextLimitBytes);
-      finalMessage.append(redacted);
+      if (type === "item.completed") finalMessage.replace(redacted);
       return {
         event: {
           type: "message",
@@ -669,11 +820,11 @@ export class CodexAdapter implements AgentAdapter {
       const commandResult =
         command === undefined
           ? undefined
-          : truncateText(redactSecrets(command), this.eventTextLimitBytes);
+          : truncateText(redactAgentText(command), this.eventTextLimitBytes);
       const outputResult =
         output === undefined
           ? undefined
-          : truncateText(redactSecrets(output), this.eventTextLimitBytes);
+          : truncateText(redactAgentText(output), this.eventTextLimitBytes);
       const exitCode = numberValue(item["exit_code"]);
       return {
         event: {
@@ -695,7 +846,7 @@ export class CodexAdapter implements AgentAdapter {
         type: "progress",
         runId,
         occurredAt: this.now(),
-        stage: `${type}:${itemType}`,
+        stage: truncateText(redactAgentText(`${type}:${itemType}`), this.eventTextLimitBytes).text,
       },
     };
   }
@@ -784,7 +935,10 @@ export class CodexAdapter implements AgentAdapter {
       reason: "Codex execution failed without a reliable usage classification",
     });
 
-    const failureMessage = redactSecrets(input.terminalSignal.message ?? "Codex execution failed");
+    const failureMessage = truncateText(
+      redactAgentText(input.terminalSignal.message ?? "Codex execution failed"),
+      this.eventTextLimitBytes,
+    ).text;
     return {
       ...base,
       outcome: "failed",
@@ -816,7 +970,10 @@ export class CodexAdapter implements AgentAdapter {
     };
   }
 
-  private async runProbe(arguments_: string[]): Promise<ProbeResult> {
+  private async runProbe(arguments_: string[], signal?: AbortSignal): Promise<ProbeResult> {
+    if (signal?.aborted === true) {
+      return { exitCode: null, stdout: "", stderr: "", timedOut: false };
+    }
     return await new Promise<ProbeResult>((resolve) => {
       const stdout = new BoundedText(this.captureLimitBytes);
       const stderr = new BoundedText(this.captureLimitBytes);
@@ -825,7 +982,7 @@ export class CodexAdapter implements AgentAdapter {
       let settled = false;
       const child = spawn(this.command, arguments_, {
         detached: process.platform !== "win32",
-        env: process.env,
+        env: this.environment,
         stdio: ["ignore", "pipe", "pipe"],
       });
       const timer = setTimeout(() => {
@@ -833,17 +990,30 @@ export class CodexAdapter implements AgentAdapter {
         signalProcessTree(child, "SIGKILL");
       }, this.probeTimeoutMs);
       timer.unref();
+      const cancel = (): void => signalProcessTree(child, "SIGKILL");
+      signal?.addEventListener("abort", cancel, { once: true });
 
+      const stdoutStream = new RedactedAgentTextStream(this.captureLimitBytes, (text) =>
+        stdout.append(text),
+      );
+      const stderrStream = new RedactedAgentTextStream(this.captureLimitBytes, (text) =>
+        stderr.append(text),
+      );
       child.stdout.setEncoding("utf8");
-      child.stdout.on("data", (chunk: string) => stdout.append(redactSecrets(chunk)));
+      child.stdout.on("data", (chunk: string) => stdoutStream.append(chunk));
       child.stderr.setEncoding("utf8");
-      child.stderr.on("data", (chunk: string) => stderr.append(redactSecrets(chunk)));
+      child.stderr.on("data", (chunk: string) => stderrStream.append(chunk));
       child.once("error", (spawnError: NodeJS.ErrnoException) => {
         error = spawnError;
       });
+      child.once("exit", () => signalProcessTree(child, "SIGKILL"));
       child.once("close", (exitCode) => {
         if (settled) return;
         settled = true;
+        stdoutStream.finish();
+        stderrStream.finish();
+        signal?.removeEventListener("abort", cancel);
+        signalProcessTree(child, "SIGKILL");
         clearTimeout(timer);
         resolve({
           exitCode,

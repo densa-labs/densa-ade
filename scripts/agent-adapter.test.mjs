@@ -6,10 +6,33 @@ import path from "node:path";
 import process from "node:process";
 import { test } from "node:test";
 
-import { CodexAdapter, isTerminalAgentEvent } from "../packages/agent-sdk/dist/index.js";
+import {
+  CodexAdapter,
+  isTerminalAgentEvent,
+  redactAgentText,
+  RedactedAgentTextStream,
+} from "../packages/agent-sdk/dist/index.js";
 import { FakeAgentAdapter } from "../packages/testing/dist/index.js";
 
 const fixedTime = "2026-08-25T12:00:00.000Z";
+
+test("diagnostic redaction preserves secret framing across multiline and oversized chunks", () => {
+  assert.equal(redactAgentText("<secret>unterminated-canary"), "[REDACTED]");
+  assert.equal(redactAgentText("[secret:unterminated-canary"), "[REDACTED]");
+  const output = [];
+  const stream = new RedactedAgentTextStream(64, (text) => output.push(text));
+  stream.append("<secret>\nexplicit-canary\n</secret>\nsafe\n");
+  stream.append(
+    "<secret>first</secret><secret>\nreopened-canary\n</secret><secret>\nnext-canary\n</secret>\n",
+  );
+  stream.append("[secret:\nbracket-canary\n]\n");
+  stream.append("-----BEGIN PRIVATE KEY-----" + "x".repeat(100));
+  stream.append("\nprivate-canary\n-----END PRIVATE KEY-----\n");
+  stream.finish();
+  assert.doesNotMatch(output.join(""), /canary/u);
+  assert.match(output.join(""), /safe/u);
+  assert.match(output.join(""), /Oversized/u);
+});
 
 async function collect(iterable) {
   const values = [];
@@ -21,7 +44,13 @@ function iteratorFor(iterable) {
   return iterable[Symbol.asyncIterator]();
 }
 
-async function createFakeCodex(t, execProgram, loginExitCode = 0, version = "0.147.0") {
+async function createFakeCodex(
+  t,
+  execProgram,
+  loginExitCode = 0,
+  version = "0.147.0",
+  versionPrefix = "",
+) {
   const directory = await mkdtemp(path.join(tmpdir(), "densa-codex-adapter-"));
   t.after(async () => await rm(directory, { recursive: true, force: true }));
   const executable = path.join(directory, "codex");
@@ -31,6 +60,7 @@ import process from "node:process";
 
 const args = process.argv.slice(2);
 if (args.length === 1 && args[0] === "--version") {
+  ${versionPrefix}
   process.stdout.write(${JSON.stringify(`codex-cli ${version}\n`)});
   process.exit(0);
 }
@@ -293,6 +323,112 @@ process.stdout.write(JSON.stringify({ type: "turn.completed" }) + "\\n");`,
   assert.ok(Buffer.byteLength(terminal.finalMessage) <= 48);
 });
 
+test("CodexAdapter inherits only an explicit non-secret environment allowlist", async (t) => {
+  const { executable } = await createFakeCodex(
+    t,
+    `process.stdout.write(JSON.stringify({ type: "turn.started" }) + "\\n");
+process.stdout.write(JSON.stringify({
+  type: "item.completed",
+  item: {
+    type: "agent_message",
+    text: JSON.stringify({
+      home: process.env.HOME,
+      codexHome: process.env.CODEX_HOME,
+      hasUnexpectedSecret: process.env.DENSA_PHASE1_SECRET !== undefined
+    })
+  }
+}) + "\\n");
+process.stdout.write(JSON.stringify({ type: "turn.completed" }) + "\\n");`,
+  );
+  const adapter = new CodexAdapter({
+    command: executable,
+    environment: {
+      PATH: process.env.PATH,
+      HOME: "/tmp/densa-safe-home",
+      CODEX_HOME: "/tmp/densa-safe-codex-home",
+      DENSA_PHASE1_SECRET: "opaque-unstructured-secret",
+    },
+    now: () => fixedTime,
+  });
+
+  const events = await collect(
+    adapter.execute({ runId: "safe-environment-1", cwd: tmpdir(), prompt: "task" }),
+  );
+  const terminal = events.find(isTerminalAgentEvent);
+  assert.equal(terminal.outcome, "succeeded");
+  assert.deepEqual(JSON.parse(terminal.finalMessage), {
+    home: "/tmp/densa-safe-home",
+    codexHome: "/tmp/densa-safe-codex-home",
+    hasUnexpectedSecret: false,
+  });
+});
+
+test("CodexAdapter bounds queued events for a slow consumer and reports dropped evidence", async (t) => {
+  const { executable } = await createFakeCodex(
+    t,
+    `process.stdout.write(JSON.stringify({ type: "turn.started" }) + "\\n");
+for (let index = 0; index < 200; index += 1) {
+  process.stdout.write(JSON.stringify({
+    type: "item.completed",
+    item: { type: "agent_message", text: "event-" + index }
+  }) + "\\n");
+}
+process.stdout.write(JSON.stringify({ type: "turn.completed" }) + "\\n");`,
+  );
+  const adapter = new CodexAdapter({
+    command: executable,
+    eventBufferLimit: 8,
+    now: () => fixedTime,
+  });
+
+  const iterator = iteratorFor(
+    adapter.execute({ runId: "bounded-queue-1", cwd: tmpdir(), prompt: "task" }),
+  );
+  const first = await iterator.next();
+  assert.equal(first.done, false);
+  await new Promise((resolve) => globalThis.setTimeout(resolve, 150));
+  const events = [first.value];
+  for (;;) {
+    const next = await iterator.next();
+    if (next.done) break;
+    events.push(next.value);
+  }
+  const terminal = events.find(isTerminalAgentEvent);
+  const dropped = events.find(
+    (event) => event.type === "diagnostic" && /event buffer dropped/u.test(event.text),
+  );
+
+  assert.equal(events[0].type, "run.started");
+  assert.equal(terminal.outcome, "succeeded");
+  assert.ok(dropped, "buffer truncation must be externally visible");
+  assert.equal(dropped.truncated, true);
+  assert.ok(events.length <= 9, `expected a bounded stream, received ${events.length} events`);
+});
+
+test("CodexAdapter redacts current credential shapes and private keys", async (t) => {
+  const { executable } = await createFakeCodex(
+    t,
+    `process.stderr.write("github_pat_ABCDEFGHIJKLMNOPQRSTUVWXYZ\\n");
+process.stdout.write(JSON.stringify({ type: "turn.started" }) + "\\n");
+process.stdout.write(JSON.stringify({
+  type: "item.completed",
+  item: {
+    type: "agent_message",
+    text: "-----BEGIN PRIVATE KEY-----\\nopaque-material\\n-----END PRIVATE KEY-----"
+  }
+}) + "\\n");
+process.stdout.write(JSON.stringify({ type: "turn.completed" }) + "\\n");`,
+  );
+  const adapter = new CodexAdapter({ command: executable, now: () => fixedTime });
+
+  const events = await collect(
+    adapter.execute({ runId: "expanded-redaction-1", cwd: tmpdir(), prompt: "task" }),
+  );
+  const serialized = JSON.stringify(events);
+  assert.doesNotMatch(serialized, /github_pat_|opaque-material/u);
+  assert.match(serialized, /REDACTED/u);
+});
+
 test("CodexAdapter fails closed when the JSONL terminal contract is malformed", async (t) => {
   const { executable } = await createFakeCodex(
     t,
@@ -306,6 +442,238 @@ process.exit(0);`,
 
   assert.equal(events.at(-1).outcome, "failed");
   assert.equal(events.at(-1).error.code, "PROTOCOL_VERSION_MISMATCH");
+});
+
+test("CodexAdapter rejects invalid envelopes and contradictory terminal signals", async (t) => {
+  for (const prefix of [
+    "null",
+    "[]",
+    '{"type":"item.completed"}',
+    '{"type":"turn.failed","error":{"message":"failed"}}',
+  ]) {
+    const { executable } = await createFakeCodex(
+      t,
+      `process.stdout.write(${JSON.stringify(`${prefix}\n{"type":"turn.completed"}\n`)});`,
+    );
+    const events = await collect(
+      new CodexAdapter({ command: executable }).execute({
+        runId: "invalid-envelope",
+        cwd: tmpdir(),
+        prompt: "task",
+      }),
+    );
+    assert.equal(events.at(-1).outcome, "failed", prefix);
+    assert.equal(events.at(-1).error.code, "PROTOCOL_VERSION_MISMATCH", prefix);
+  }
+});
+
+test("CodexAdapter preserves only the final completed message as the final response", async (t) => {
+  const { executable } = await createFakeCodex(
+    t,
+    `
+for (const text of ["Working on this.", '{"ok":true}']) {
+  process.stdout.write(JSON.stringify({ type: "item.completed", item: { type: "agent_message", text } }) + "\\n");
+}
+process.stdout.write('{"type":"turn.completed"}\\n');`,
+  );
+  const events = await collect(
+    new CodexAdapter({ command: executable }).execute({
+      runId: "final-message",
+      cwd: tmpdir(),
+      prompt: "task",
+    }),
+  );
+  assert.equal(events.filter((event) => event.type === "message").length, 2);
+  assert.deepEqual(JSON.parse(events.at(-1).finalMessage), { ok: true });
+});
+
+test("CodexAdapter does not retain stale available usage after an unclassified failure", async (t) => {
+  const { executable } = await createFakeCodex(
+    t,
+    `
+let prompt = "";
+process.stdin.on("data", (chunk) => { prompt += chunk; });
+process.stdin.on("end", () => process.stdout.write(prompt === "success" ? '{"type":"turn.completed"}\\n' : 'not-json\\n'));`,
+  );
+  const adapter = new CodexAdapter({ command: executable });
+  await collect(adapter.execute({ runId: "usage-success", cwd: tmpdir(), prompt: "success" }));
+  assert.equal((await adapter.getUsageState()).status, "available");
+  await collect(adapter.execute({ runId: "usage-malformed", cwd: tmpdir(), prompt: "failure" }));
+  assert.equal((await adapter.getUsageState()).status, "unknown");
+});
+
+test("CodexAdapter redacts split stderr, quoted JSON secrets, and all bounded text fields", async (t) => {
+  const quotedSecret = JSON.stringify({
+    password: 'prefix"suffix',
+    accessToken: "opaque-json-canary",
+  });
+  const { executable } = await createFakeCodex(
+    t,
+    `
+process.stderr.write("pass");
+await new Promise((resolve) => setTimeout(resolve, 30));
+process.stderr.write("word=split-canary\\n-----BEGIN PRIVATE KEY-----\\n");
+await new Promise((resolve) => setTimeout(resolve, 30));
+process.stderr.write("split-private-material\\n-----END PRIVATE KEY-----\\n");
+process.stdout.write(JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: ${JSON.stringify(quotedSecret)} } }) + "\\n");
+process.stdout.write(JSON.stringify({ type: "item.completed", item: { type: "password=stage-canary" } }) + "\\n");
+process.stdout.write(JSON.stringify({ type: "turn.failed", error: { message: "🙂".repeat(100) } }) + "\\n");
+process.exitCode = 1;`,
+  );
+  const events = await collect(
+    new CodexAdapter({ command: executable, eventTextLimitBytes: 65 }).execute({
+      runId: "stream-redaction",
+      cwd: tmpdir(),
+      prompt: "task",
+    }),
+  );
+  assert.doesNotMatch(
+    JSON.stringify(events),
+    /split-canary|split-private-material|prefix|suffix|opaque-json-canary|stage-canary/u,
+  );
+  const message = events.find((event) => event.type === "message");
+  assert.deepEqual(JSON.parse(message.text), { password: "[REDACTED]", accessToken: "[REDACTED]" });
+  assert.ok(Buffer.byteLength(events.at(-1).error.message) <= 65);
+});
+
+test(
+  "CodexAdapter cancellation during a status probe cannot start the worker later",
+  { timeout: 5_000 },
+  async (t) => {
+    const markerDirectory = await mkdtemp(path.join(tmpdir(), "densa-probe-cancel-"));
+    t.after(() => rm(markerDirectory, { recursive: true, force: true }));
+    const probeMarker = path.join(markerDirectory, "probe");
+    const workerMarker = path.join(markerDirectory, "worker");
+    const { executable } = await createFakeCodex(
+      t,
+      `const { writeFileSync } = await import("node:fs"); writeFileSync(${JSON.stringify(workerMarker)}, "started");`,
+      0,
+      "0.147.0",
+      `const { writeFileSync } = await import("node:fs"); writeFileSync(${JSON.stringify(probeMarker)}, "started"); await new Promise(() => { setInterval(() => {}, 1000); });`,
+    );
+    const adapter = new CodexAdapter({ command: executable });
+    const iterator = iteratorFor(
+      adapter.execute({ runId: "cancel-probe", cwd: tmpdir(), prompt: "task" }),
+    );
+    const first = iterator.next();
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      if (
+        await stat(probeMarker).then(
+          () => true,
+          () => false,
+        )
+      )
+        break;
+      await new Promise((resolve) => globalThis.setTimeout(resolve, 10));
+    }
+    await stat(probeMarker);
+    await adapter.cancel("cancel-probe");
+    assert.equal((await first).value.type, "run.started");
+    assert.equal((await iterator.next()).value.outcome, "cancelled");
+    assert.equal((await iterator.next()).done, true);
+    await assert.rejects(stat(workerMarker), { code: "ENOENT" });
+  },
+);
+
+test(
+  "CodexAdapter normal exit cleans descendants holding inherited output pipes",
+  { timeout: 5_000 },
+  async (t) => {
+    const { executable } = await createFakeCodex(
+      t,
+      `
+const child = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: "inherit" });
+process.stdout.write(JSON.stringify({ type: "item.started", item: { type: "command_execution", command: "child:" + child.pid } }) + "\\n");
+process.stdout.write('{"type":"turn.completed"}\\n');
+process.exit(0);`,
+    );
+    const events = await collect(
+      new CodexAdapter({ command: executable }).execute({
+        runId: "normal-orphan",
+        cwd: tmpdir(),
+        prompt: "task",
+      }),
+    );
+    const childPid = Number(
+      events
+        .find((event) => event.type === "tool")
+        .command.split(":")
+        .at(-1),
+    );
+    t.after(() => {
+      try {
+        process.kill(childPid, "SIGKILL");
+      } catch (error) {
+        if (error.code !== "ESRCH") throw error;
+      }
+    });
+    assert.equal(events.at(-1).outcome, "succeeded");
+    await new Promise((resolve) => globalThis.setTimeout(resolve, 100));
+    assert.throws(() => process.kill(childPid, 0), { code: "ESRCH" });
+  },
+);
+
+test("CodexAdapter process-group cleanup is idempotent across exit and close", async (t) => {
+  const { executable } = await createFakeCodex(
+    t,
+    `process.stdout.write('{"type":"turn.completed"}\\n');`,
+  );
+  const kill = process.kill;
+  const signalled = new Set();
+  t.after(() => {
+    process.kill = kill;
+  });
+  process.kill = function (pid, signal) {
+    if (pid < 0 && signal === "SIGKILL") {
+      assert.equal(signalled.has(pid), false, "do not signal a terminated group identity twice");
+      signalled.add(pid);
+    }
+    return kill.call(process, pid, signal);
+  };
+  const events = await collect(
+    new CodexAdapter({ command: executable }).execute({
+      runId: "idempotent-cleanup",
+      cwd: tmpdir(),
+      prompt: "task",
+    }),
+  );
+  assert.equal(events.at(-1).outcome, "succeeded");
+  assert.equal(signalled.size, 3, "version, status, and execution each own one cleanup");
+});
+
+test("CodexAdapter cancellation kills descendants after the parent has closed", async (t) => {
+  const { executable } = await createFakeCodex(
+    t,
+    `
+const child = spawn(process.execPath, ["-e", "process.on('SIGINT', () => {}); process.send('ready'); setInterval(() => {}, 1000)"], { stdio: ["ignore", "ignore", "ignore", "ipc"] });
+child.once("message", () => process.stdout.write(JSON.stringify({ type: "item.started", item: { type: "command_execution", command: "child:" + child.pid, status: "in_progress" } }) + "\\n"));
+setInterval(() => {}, 1000);`,
+  );
+  const adapter = new CodexAdapter({ command: executable, cancellationGraceMs: 100 });
+  const iterator = iteratorFor(
+    adapter.execute({ runId: "cancel-orphan", cwd: tmpdir(), prompt: "task" }),
+  );
+  let childPid;
+  for (;;) {
+    const next = await iterator.next();
+    if (next.value.type === "tool") {
+      childPid = Number(next.value.command.split(":").at(-1));
+      break;
+    }
+  }
+  t.after(() => {
+    try {
+      process.kill(childPid, "SIGKILL");
+    } catch (error) {
+      if (error.code !== "ESRCH") throw error;
+    }
+  });
+  await adapter.cancel("cancel-orphan");
+  const terminal = await iterator.next();
+  assert.equal(terminal.value.outcome, "cancelled");
+  await iterator.next();
+  await new Promise((resolve) => globalThis.setTimeout(resolve, 100));
+  assert.throws(() => process.kill(childPid, 0), { code: "ESRCH" });
 });
 
 test("CodexAdapter cancellation terminates the process group and emits one terminal event", async (t) => {

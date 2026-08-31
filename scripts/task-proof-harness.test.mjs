@@ -6,6 +6,7 @@ import {
   mkdtemp,
   readFile,
   readdir,
+  rename,
   rm,
   symlink,
   unlink,
@@ -118,10 +119,10 @@ test("changing acceptance tests cannot manufacture PASS", async (t) => {
   const result = await runTemporaryRepoTaskProof({ adapter, runId: "proof-test-tamper" });
   t.after(async () => await cleanupResult(result));
 
-  assert.equal(result.acceptanceResults[0].passed, true);
+  assert.equal(result.acceptanceResults[0].command.error.code, "WORKSPACE_INTEGRITY_FAILED");
   assert.deepEqual(result.changes.outOfScope, ["test.mjs"]);
   assert.equal(result.verdict, "FAIL");
-  assert.deepEqual(result.failureReasons, ["Out-of-scope workspace changes: test.mjs"]);
+  assert.ok(result.failureReasons.includes("Out-of-scope workspace changes: test.mjs"));
 });
 
 test("an agent commit cannot replace the harness checkpoint", async (t) => {
@@ -157,11 +158,12 @@ test("an agent commit cannot replace the harness checkpoint", async (t) => {
   const result = await runTemporaryRepoTaskProof({ adapter, runId: "proof-agent-commit" });
   t.after(async () => await cleanupResult(result));
 
-  assert.equal(result.acceptanceResults[0].passed, true);
-  assert.notEqual(result.changes.head, result.checkpoint.head);
-  assert.match(result.changes.gitDiff, /return a \+ b/u);
+  assert.equal(result.acceptanceResults[0].command.error.code, "WORKSPACE_INTEGRITY_FAILED");
+  assert.equal(result.changes.gitHeadCommand.error.code, "WORKSPACE_INTEGRITY_FAILED");
   assert.equal(result.verdict, "FAIL");
-  assert.deepEqual(result.failureReasons, ["Agent run changed the fixture checkpoint"]);
+  assert.ok(
+    result.failureReasons.includes("Agent run changed Git control files: .git/refs/heads/main"),
+  );
 });
 
 test("external symlinks cannot satisfy task acceptance", async (t) => {
@@ -177,7 +179,7 @@ test("external symlinks cannot satisfy task acceptance", async (t) => {
   const result = await runTemporaryRepoTaskProof({ adapter, runId: "proof-external-symlink" });
   t.after(async () => await cleanupResult(result));
 
-  assert.equal(result.acceptanceResults[0].passed, true);
+  assert.equal(result.acceptanceResults[0].command.error.code, "WORKSPACE_INTEGRITY_FAILED");
   assert.deepEqual(result.changes.unsafeSymlinks, ["src/sum.js"]);
   assert.equal(result.verdict, "FAIL");
   assert.ok(
@@ -219,17 +221,22 @@ test("workspace destruction still returns inspectable failure evidence", async (
 
 test("attempt diagnostics redact secrets from events and diffs", async (t) => {
   const adapter = new FakeAgentAdapter({
+    error: {
+      code: "PROCESS_FAILURE",
+      message: "non-authoritative success metadata",
+      details: { sessionToken: "opaque-unstructured-value" },
+    },
     events: [
       {
         type: "message",
-        text: "Bearer secret-token-value sk-abcdefghijklmnop",
+        text: "Bearer secret-token-value sk-abcdefghijklmnop github_pat_ABCDEFGHIJKLMNOPQRSTUVWXYZ",
         truncated: false,
       },
     ],
     onExecute: async ({ cwd }) => {
       await writeFile(
         path.join(cwd, "src", "sum.js"),
-        "// password=hunter2\nexport function sum(a, b) { return a + b; }\n",
+        "/* -----BEGIN PRIVATE KEY-----\nprivate-material\n-----END PRIVATE KEY----- */\n// password=hunter2\nexport function sum(a, b) { return a + b; }\n",
         "utf8",
       );
     },
@@ -239,8 +246,142 @@ test("attempt diagnostics redact secrets from events and diffs", async (t) => {
 
   const diagnostic = await readFile(result.diagnosticsPath, "utf8");
   assert.equal(result.verdict, "PASS");
-  assert.doesNotMatch(diagnostic, /secret-token-value|sk-abcdefghijklmnop|hunter2/u);
+  assert.doesNotMatch(
+    diagnostic,
+    /secret-token-value|sk-abcdefghijklmnop|github_pat_|opaque-unstructured-value|private-material|hunter2/u,
+  );
   assert.match(diagnostic, /\[REDACTED\]/u);
+});
+
+test("Git control-file changes cannot accompany an otherwise passing task", async (t) => {
+  let marker;
+  const adapter = new FakeAgentAdapter({
+    onExecute: async ({ cwd }) => {
+      await writeFile(
+        path.join(cwd, "src", "sum.js"),
+        "export function sum(a, b) { return a + b; }\n",
+        "utf8",
+      );
+      marker = path.join(cwd, "..", "fsmonitor-executed");
+      await execFileAsync("git", ["config", "core.fsmonitor", `touch ${marker}`], { cwd });
+    },
+  });
+
+  const result = await runTemporaryRepoTaskProof({ adapter, runId: "proof-git-control-change" });
+  t.after(async () => await cleanupResult(result));
+
+  assert.equal(result.acceptanceResults[0].command.error.code, "WORKSPACE_INTEGRITY_FAILED");
+  assert.deepEqual(result.changes.modified, ["src/sum.js"]);
+  assert.deepEqual(result.changes.gitControlChanges, [".git/config"]);
+  assert.equal(result.verdict, "FAIL");
+  assert.ok(result.failureReasons.includes("Agent run changed Git control files: .git/config"));
+  await assert.rejects(lstat(marker), { code: "ENOENT" });
+});
+
+test("early process exit cannot skip parent-owned acceptance assertions", async (t) => {
+  const adapter = new FakeAgentAdapter({
+    onExecute: async ({ cwd }) => {
+      await writeFile(
+        path.join(cwd, "src/sum.js"),
+        "process.exit(0); export function sum(a, b) { return a - b; }\n",
+      );
+    },
+  });
+  const result = await runTemporaryRepoTaskProof({ adapter });
+  t.after(() => cleanupResult(result));
+  assert.equal(result.verdict, "FAIL");
+  assert.equal(result.acceptanceResults[0].passed, false);
+  assert.match(result.acceptanceResults[0].command.stderr, /Evaluator exited without results/u);
+});
+
+test("validation-time protected-file changes invalidate otherwise passing results", async (t) => {
+  const adapter = new FakeAgentAdapter({
+    onExecute: async ({ cwd }) => {
+      await writeFile(
+        path.join(cwd, "src/sum.js"),
+        'import { writeFileSync } from "node:fs";\nwriteFileSync("test.mjs", "// erased\\n");\nexport function sum(a, b) { return a + b; }\n',
+      );
+    },
+  });
+  const result = await runTemporaryRepoTaskProof({ adapter });
+  t.after(() => cleanupResult(result));
+  assert.equal(result.acceptanceResults[0].passed, true);
+  assert.equal(result.verdict, "FAIL");
+  assert.deepEqual(result.changes.validationChanges, ["test.mjs"]);
+});
+
+test("submitted code cannot forge the trusted evaluator result message", async (t) => {
+  const adapter = new FakeAgentAdapter({
+    onExecute: async ({ cwd }) => {
+      await writeFile(
+        path.join(cwd, "src/sum.js"),
+        'import { parentPort } from "node:worker_threads";\nparentPort.postMessage([5, 3, 0]);\nprocess.exit(0);\nexport function sum(a, b) { return a - b; }\n',
+      );
+    },
+  });
+  const result = await runTemporaryRepoTaskProof({ adapter });
+  t.after(() => cleanupResult(result));
+  assert.equal(result.verdict, "FAIL");
+  assert.equal(result.acceptanceResults[0].passed, false);
+});
+
+test(
+  "validation cleans descendant processes holding inherited output pipes",
+  { timeout: 5_000 },
+  async (t) => {
+    const adapter = new FakeAgentAdapter({
+      onExecute: async ({ cwd }) => {
+        await writeFile(
+          path.join(cwd, "src/sum.js"),
+          'import { spawn } from "node:child_process";\nconst child = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: "inherit" });\nconsole.log("validation-child:" + child.pid);\nchild.unref();\nexport function sum(a, b) { return a + b; }\n',
+        );
+      },
+    });
+    const result = await runTemporaryRepoTaskProof({ adapter });
+    t.after(() => cleanupResult(result));
+    const childPid = Number(
+      result.acceptanceResults[0].command.stdout.match(/validation-child:(\d+)/u)?.[1],
+    );
+    assert.ok(Number.isSafeInteger(childPid) && childPid > 0);
+    t.after(() => {
+      try {
+        process.kill(childPid, "SIGKILL");
+      } catch (error) {
+        if (error.code !== "ESRCH") throw error;
+      }
+    });
+    assert.equal(result.verdict, "PASS");
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert.throws(() => process.kill(childPid, 0), { code: "ESRCH" });
+  },
+);
+
+test("a symlinked Git directory and special workspace entries fail closed before commands", async (t) => {
+  for (const mode of ["git-symlink", "fifo"]) {
+    const adapter = new FakeAgentAdapter({
+      onExecute: async ({ cwd }) => {
+        await writeFile(
+          path.join(cwd, "src/sum.js"),
+          "export function sum(a, b) { return a + b; }\n",
+        );
+        if (mode === "git-symlink") {
+          const relocated = path.join(cwd, "..", "relocated-git");
+          await rename(path.join(cwd, ".git"), relocated);
+          await symlink(relocated, path.join(cwd, ".git"));
+        } else {
+          await execFileAsync("mkfifo", [path.join(cwd, "unexpected-pipe")]);
+        }
+      },
+    });
+    const result = await runTemporaryRepoTaskProof({ adapter });
+    t.after(() => cleanupResult(result));
+    assert.equal(result.verdict, "FAIL", mode);
+    assert.equal(result.acceptanceResults[0].command.error.code, "WORKSPACE_INTEGRITY_FAILED");
+    assert.match(
+      result.changes.workspaceObservationError,
+      /not a real directory|Unsupported workspace entry/u,
+    );
+  }
 });
 
 test("retained agent events are bounded while preserving the terminal event", async (t) => {

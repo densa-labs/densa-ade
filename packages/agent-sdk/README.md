@@ -13,6 +13,27 @@ so descendant tool processes do not survive the run. The tested exec template in
 must also work in isolated non-Git temporary directories. Authentication status is classified only
 for the fixture-backed CLI version; unverified versions return `unknown`.
 
+The Codex child and its status/version probes inherit only an explicit non-secret environment
+allowlist (`PATH`, authentication-location paths such as `HOME`/`CODEX_HOME`, locale, temporary
+directory, terminal, and certificate-location variables). Arbitrary parent variables, credential
+variables, agent sockets, and process-injection options do not cross the adapter boundary. Streamed
+events are individually bounded and the in-memory event queue has a fixed limit; slow consumers
+receive an explicit truncated diagnostic if nonterminal events must be dropped, while the terminal
+event remains authoritative and retained.
+
+Diagnostic redaction frames whole lines and private-key/explicit-secret blocks, including when
+credentials span input chunks. If an oversized line makes framing unsafe, the remaining diagnostic
+stream is omitted with an explicit truncation notice. This is defense in depth, not a general secret
+discovery system: callers must still avoid injecting secrets or requesting credential disclosure.
+
+Cancellation also covers startup/version/authentication probes, so cancelling before worker launch
+cannot start a worker later. Normal process exit cleans up remaining process-group descendants,
+including children retaining stdout/stderr pipes. Cleanup is idempotent across lifecycle callbacks;
+an already-terminated process-group identity is never signalled again. Success requires an unambiguous structured terminal
+signal and exit code zero; malformed or contradictory lifecycle data cannot certify success. The
+terminal `finalMessage` is the latest completed agent message, not a concatenation of intermediate
+commentary. Each new execution resets prior usage availability until fresh evidence is obtained.
+
 An `AgentRunRequest` may include a provider-neutral JSON Schema for its final response. The Codex
 adapter materializes that schema in a user-only temporary file, passes it through the version-scoped
 `--output-schema` flag, and removes the file after success, failure, cancellation, or early consumer

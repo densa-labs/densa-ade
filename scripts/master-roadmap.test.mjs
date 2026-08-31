@@ -112,6 +112,7 @@ test("FakeAgentAdapter roadmap output is strictly parsed and produces a complete
   assert.match(requests[0].prompt, /complete intended project arc before execution begins/u);
   assert.match(requests[0].prompt, /Build a local inventory application/u);
   assert.equal(requests[0].outputSchema.additionalProperties, false);
+  assert.equal(requests[0].accessMode, "read-only");
   assert.equal(requests[0].outputSchema.properties.phases.minItems, 1);
 });
 

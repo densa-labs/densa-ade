@@ -96,6 +96,7 @@ test("different initial ideas produce different adaptive question sets through F
   assert.match(offlineRequests[0].prompt, /Do not use a fixed questionnaire/u);
   assert.match(offlineRequests[0].prompt, /Build an offline macOS app for field notes/u);
   assert.equal(offlineRequests[0].outputSchema.type, "object");
+  assert.equal(offlineRequests[0].accessMode, "read-only");
 });
 
 test("Core ranks material risks ahead of cosmetics and batches related questions", async () => {

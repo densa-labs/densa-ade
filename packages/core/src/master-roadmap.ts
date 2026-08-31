@@ -102,6 +102,7 @@ export class AgentAdapterMasterRoadmapAgent implements MasterRoadmapAgent {
       cwd: this.cwd,
       prompt: buildMasterRoadmapPrompt(request.specification),
       outputSchema: masterRoadmapOutputSchema,
+      accessMode: "read-only",
     })) {
       if (!isTerminalAgentEvent(event)) continue;
       terminalCount += 1;
