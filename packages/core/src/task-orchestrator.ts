@@ -38,6 +38,7 @@ import { RunCheckpointService, type RunCheckpointStopCode } from "./run-checkpoi
 import { NodeProcessProbe } from "./recovery-inspector.js";
 import { stateTransitionService } from "./state-transitions.js";
 import { TaskCommitService, type TaskCommitStopCode } from "./task-commit.js";
+import { claimExecutionSlot } from "./execution-slot.js";
 
 export const MAX_TASK_ATTEMPTS = 4;
 const RETRY_DIAGNOSTICS_LIMIT_BYTES = 16 * 1024;
@@ -259,7 +260,6 @@ function usageStateJson(
  */
 export class SingleTaskOrchestrator {
   readonly #now: () => string;
-  #active = false;
 
   constructor(
     private readonly database: DensaAdeDatabase,
@@ -270,7 +270,8 @@ export class SingleTaskOrchestrator {
   }
 
   async execute(request: ExecuteTaskLifecycleRequest): Promise<TaskLifecycleResult> {
-    if (this.#active) {
+    const release = claimExecutionSlot(this.database, "task");
+    if (release === undefined) {
       return stopped(
         "ACTIVE_LIFECYCLE_EXISTS",
         request,
@@ -278,15 +279,19 @@ export class SingleTaskOrchestrator {
         "This orchestrator already has an active implementation worker",
       );
     }
-    this.#active = true;
     try {
       return await this.#execute(request);
     } finally {
-      this.#active = false;
+      release();
     }
   }
 
   async #execute(request: ExecuteTaskLifecycleRequest): Promise<TaskLifecycleResult> {
+    request = {
+      ...request,
+      actor: redactSensitiveText(request.actor),
+      workerPrompt: redactSensitiveText(request.workerPrompt),
+    };
     const ownedPaths = normalizePaths(request.ownedPaths);
     const intendedPaths = normalizePaths(request.intendedPaths);
     const requestedTemporaryPaths = request.temporaryPaths ?? [];
@@ -363,7 +368,8 @@ export class SingleTaskOrchestrator {
         return stopped("TASK_NOT_FOUND", request, 0, "Task disappeared during execution");
       }
       const attempts = this.database.repositories.attempts.listByTaskId(task.id);
-      if (attempts.length >= MAX_TASK_ATTEMPTS) {
+      const incomplete = attempts.findLast((attempt) => attempt.completedAt === undefined);
+      if (attempts.length >= MAX_TASK_ATTEMPTS && incomplete === undefined) {
         return await this.#blockWithoutNewAttempt(
           request,
           task,
@@ -372,7 +378,6 @@ export class SingleTaskOrchestrator {
         );
       }
 
-      const incomplete = attempts.findLast((attempt) => attempt.completedAt === undefined);
       let identity: AttemptIdentity;
       if (incomplete !== undefined) {
         if (
@@ -819,6 +824,15 @@ export class SingleTaskOrchestrator {
       }
     }
     const validationCompletedAt = this.#now();
+    if (signalAborted(request.signal)) {
+      validation = {
+        passed: false,
+        diagnostics: {
+          kind: "cancellation",
+          message: "Validation was cancelled; its result cannot authorize a commit",
+        },
+      };
+    }
     this.database.transaction((repositories) => {
       repositories.validationRuns.recordCompleted(
         validationId,
@@ -876,6 +890,32 @@ export class SingleTaskOrchestrator {
     if (failure !== undefined) return failure;
     const latestTask = this.database.repositories.tasks.findById(request.taskId);
     if (latestTask === undefined) throw new Error("Task disappeared after failed validation");
+    if (signalAborted(request.signal)) {
+      const interruptedAt = this.#now();
+      const interrupt = request.cancellationDisposition === "interrupt";
+      this.database.persistAttemptCompletion({
+        attemptId: attempt.id,
+        completedAt: interruptedAt,
+        outcome: interrupt ? "interrupted" : "cancelled",
+        eventId: lifecycleId(key, "attempt-completed"),
+        actor: request.actor,
+        transition: stateTransitionService.transitionTask(
+          latestTask,
+          interrupt ? "INTERRUPTED" : "CANCELLED",
+          {
+            actor: request.actor,
+            occurredAt: interruptedAt,
+            reason: "Validation cancellation was confirmed and owned output rolled back",
+          },
+        ),
+      });
+      return Object.freeze({
+        status: interrupt ? ("INTERRUPTED" as const) : ("CANCELLED" as const),
+        taskId: task.id,
+        attemptCount: attempt.number,
+        reason: "Validation cancelled without accepting its result",
+      });
+    }
     if (attempt.number >= MAX_TASK_ATTEMPTS) {
       return this.#completeWithTransition(
         request,

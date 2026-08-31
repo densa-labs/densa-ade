@@ -194,14 +194,40 @@ test("help and version do not eagerly load Core or emit runtime warnings", async
 });
 
 test("every Core command uses a versioned shared-protocol request", async () => {
+  const controlArguments = [
+    "--project",
+    "project-control",
+    "--workspace",
+    "/tmp/control-workspace",
+  ];
   const commands = [
     { arguments: ["project", "init"], command: "project init", method: "project.init" },
     { arguments: ["project", "status"], command: "project status", method: "project.status" },
     { arguments: ["project", "start"], command: "project start", method: "project.start" },
-    { arguments: ["project", "pause"], command: "project pause", method: "project.pause" },
-    { arguments: ["project", "cancel"], command: "project cancel", method: "project.cancel" },
-    { arguments: ["project", "resume"], command: "project resume", method: "project.resume" },
-    { arguments: ["project", "stop"], command: "project stop", method: "project.stop" },
+    {
+      arguments: ["project", "pause", ...controlArguments],
+      command: "project pause",
+      method: "project.pause",
+      control: true,
+    },
+    {
+      arguments: ["project", "cancel", ...controlArguments],
+      command: "project cancel",
+      method: "project.cancel",
+      control: true,
+    },
+    {
+      arguments: ["project", "resume", ...controlArguments],
+      command: "project resume",
+      method: "project.resume",
+      control: true,
+    },
+    {
+      arguments: ["project", "stop", ...controlArguments],
+      command: "project stop",
+      method: "project.stop",
+      control: true,
+    },
     { arguments: ["events"], command: "events", method: "events.list" },
   ];
 
@@ -225,7 +251,14 @@ test("every Core command uses a versioned shared-protocol request", async () => 
       kind: "request",
       requestId: "request-test-1",
       method: expected.method,
-      payload: {},
+      payload:
+        expected.control === true
+          ? {
+              actor: "densa-ade:cli",
+              projectId: "project-control",
+              workspacePath: "/tmp/control-workspace",
+            }
+          : {},
     });
     assert.deepEqual(JSON.parse(output.stdout), {
       schemaVersion: CLI_OUTPUT_SCHEMA_VERSION,
@@ -234,6 +267,64 @@ test("every Core command uses a versioned shared-protocol request", async () => 
       data: { accepted: true },
     });
   }
+});
+
+test("project controls reject missing project or workspace identity before contacting Core", async () => {
+  let requestCount = 0;
+  const services = createServices({
+    coreClient: {
+      async request() {
+        requestCount += 1;
+        return { accepted: true };
+      },
+    },
+  });
+  for (const arguments_ of [
+    ["project", "pause"],
+    ["project", "cancel", "--project", "project-control"],
+    ["project", "resume", "--workspace", "/tmp/control-workspace"],
+    ["project", "stop", "--acknowledge-intervention"],
+  ]) {
+    const { io, output } = captureIo();
+    const exitCode = await runCli(arguments_, { io, services });
+    assert.equal(exitCode, EXIT_USAGE);
+    assert.match(
+      output.stderr,
+      /require --project and --workspace|Invalid project control option/u,
+    );
+  }
+  assert.equal(requestCount, 0);
+});
+
+test("project controls send explicit project and workspace identity", async () => {
+  const { io, output } = captureIo();
+  let receivedRequest;
+  const services = createServices({
+    coreClient: {
+      async request(request) {
+        receivedRequest = request;
+        return { status: "PAUSED" };
+      },
+    },
+  });
+  const exitCode = await runCli(
+    [
+      "project",
+      "pause",
+      "--project",
+      "project-control",
+      "--workspace",
+      "/tmp/control-workspace",
+      "--json",
+    ],
+    { io, services },
+  );
+  assert.equal(exitCode, EXIT_SUCCESS, output.stderr);
+  assert.deepEqual(receivedRequest.payload, {
+    actor: "densa-ade:cli",
+    projectId: "project-control",
+    workspacePath: "/tmp/control-workspace",
+  });
 });
 
 test("an unavailable Core client fails clearly without starting an agent", async () => {

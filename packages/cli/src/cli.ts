@@ -53,12 +53,16 @@ Commands:
 
 Options:
   --json                  Emit one stable JSON object instead of human text
+  --project <id>          Project ID for pause/cancel/resume/stop
+  --workspace <path>      Absolute workspace for project controls
+  --acknowledge-intervention  Accept inspected manual edits when resuming
   -h, --help              Show help
   -v, --version           Show version`;
 
 interface ParsedInvocation {
   command: CliCommandName;
   json: boolean;
+  payload?: JsonValue;
 }
 
 interface CommandResult {
@@ -81,7 +85,7 @@ export async function runCli(
 
   try {
     invocation = parseInvocation(arguments_);
-    const result = await executeCommand(invocation.command, services);
+    const result = await executeCommand(invocation.command, services, invocation.payload);
     const output: CliSuccessOutput = {
       schemaVersion: CLI_OUTPUT_SCHEMA_VERSION,
       command: invocation.command,
@@ -153,6 +157,36 @@ function parseInvocation(arguments_: readonly string[]): ParsedInvocation {
     }
 
     const subcommand = tokens[1];
+    if (["pause", "cancel", "resume", "stop"].includes(subcommand ?? "")) {
+      const payload: Record<string, string | boolean> = { actor: "densa-ade:cli" };
+      for (let index = 2; index < tokens.length; index += 1) {
+        const option = tokens[index];
+        if (option === "--acknowledge-intervention" && subcommand === "resume") {
+          if (payload["acknowledgeIntervention"] !== undefined)
+            throw usageError("Duplicate intervention acknowledgement");
+          payload["acknowledgeIntervention"] = true;
+          continue;
+        }
+        const key =
+          option === "--project"
+            ? "projectId"
+            : option === "--workspace"
+              ? "workspacePath"
+              : undefined;
+        const value = tokens[++index];
+        if (
+          key === undefined ||
+          value === undefined ||
+          value.startsWith("--") ||
+          payload[key] !== undefined
+        )
+          throw usageError(`Invalid project control option: ${option}`);
+        payload[key] = value;
+      }
+      if (payload["projectId"] === undefined || payload["workspacePath"] === undefined)
+        throw usageError("Project controls require --project and --workspace");
+      return { command: `project ${subcommand}` as CliCommandName, json, payload };
+    }
     if (
       subcommand === "init" ||
       subcommand === "status" ||
@@ -185,6 +219,7 @@ function usageError(message: string): CliCommandError {
 async function executeCommand(
   command: CliCommandName,
   services: CliServices,
+  payload: JsonValue = {},
 ): Promise<CommandResult> {
   switch (command) {
     case "help":
@@ -215,13 +250,13 @@ async function executeCommand(
     case "project start":
       return requestCore(command, "project.start", services);
     case "project pause":
-      return requestCore(command, "project.pause", services);
+      return requestCore(command, "project.pause", services, payload);
     case "project cancel":
-      return requestCore(command, "project.cancel", services);
+      return requestCore(command, "project.cancel", services, payload);
     case "project resume":
-      return requestCore(command, "project.resume", services);
+      return requestCore(command, "project.resume", services, payload);
     case "project stop":
-      return requestCore(command, "project.stop", services);
+      return requestCore(command, "project.stop", services, payload);
   }
 }
 
@@ -266,13 +301,14 @@ async function requestCore(
   command: CliCommandName,
   method: string,
   services: CliServices,
+  payload: JsonValue = {},
 ): Promise<CommandResult> {
   const request = requestEnvelopeSchema.parse({
     protocolVersion: PROTOCOL_VERSION,
     kind: "request",
     requestId: services.createRequestId(),
     method,
-    payload: {},
+    payload,
   });
   const result = await services.coreClient.request(request);
 

@@ -19,7 +19,10 @@ import {
   jsonObjectSchema,
   jsonValueSchema,
   parseProtocolEnvelope,
+  parseCoreV1Payload,
+  parseCoreV1Result,
   requestIdSchema,
+  projectIdSchema,
   requestEnvelopeSchema,
   type CoreDaemonLifecycleStatus,
   type CoreDaemonStatus,
@@ -31,6 +34,8 @@ import {
 } from "@densa-ade/protocol";
 
 import { DensaAdeDatabase } from "./persistence/database.js";
+import { ProjectExecutionControlService } from "./execution-control.js";
+import type { ProjectControlRequest, ResumeProjectRequest } from "./execution-control.js";
 
 const MAX_FRAME_BYTES = 1024 * 1024;
 const RUNTIME_DIRECTORY_MODE = 0o700;
@@ -319,6 +324,7 @@ function jsonRequestId(value: unknown): string {
 export class CoreDaemon {
   readonly #paths: CoreRuntimePaths;
   readonly #database: DensaAdeDatabase;
+  readonly #executionControl: ProjectExecutionControlService;
   readonly #server: Server;
   readonly #token: string;
   readonly #instanceId: string;
@@ -337,6 +343,10 @@ export class CoreDaemon {
   ) {
     this.#paths = coreRuntimePaths(options);
     this.#database = database;
+    this.#executionControl = new ProjectExecutionControlService(
+      database,
+      options.now === undefined ? {} : { now: options.now },
+    );
     this.#token = token;
     this.#instanceId = options.instanceId ?? randomUUID();
     this.#ownerPid = options.ownerPid ?? process.pid;
@@ -487,6 +497,51 @@ export class CoreDaemon {
 
   async #dispatch(socket: Socket, request: RequestEnvelope): Promise<JsonValue> {
     switch (request.method) {
+      case "project.pause":
+      case "projects.pause":
+      case "project.cancel":
+      case "project.resume":
+      case "projects.resume":
+      case "project.stop":
+      case "projects.stop": {
+        const method = request.method.endsWith("resume")
+          ? "projects.resume"
+          : request.method.endsWith("stop")
+            ? "projects.stop"
+            : "projects.pause";
+        const payload = parseCoreV1Payload(method, request.payload);
+        const controlRequest: ProjectControlRequest = {
+          projectId: projectIdSchema.parse(payload.projectId),
+          workspacePath: payload.workspacePath,
+          actor: payload.actor,
+        };
+        const resumeRequest: ResumeProjectRequest = {
+          ...controlRequest,
+          ...("acknowledgeIntervention" in payload && payload.acknowledgeIntervention !== undefined
+            ? { acknowledgeIntervention: payload.acknowledgeIntervention }
+            : {}),
+        };
+        const result =
+          method === "projects.resume"
+            ? await this.#executionControl.resume(resumeRequest)
+            : method === "projects.stop"
+              ? await this.#executionControl.stop(controlRequest)
+              : request.method === "project.cancel"
+                ? await this.#executionControl.cancelCurrentAgent(controlRequest)
+                : await this.#executionControl.pause(controlRequest);
+        // Keep the frozen v1 result shape; legacy CLI controls also return focused intervention context.
+        const projected = {
+          projectId: result.projectId,
+          status: result.status,
+          ...("reason" in result ? { reason: result.reason } : {}),
+          ...("recontextualization" in result && result.recontextualization !== undefined
+            ? { changedPaths: result.recontextualization.changedPaths }
+            : {}),
+        };
+        return request.method.startsWith("projects.")
+          ? asJson(parseCoreV1Result(method, projected))
+          : asJson(result);
+      }
       case "core.status":
         jsonObjectSchema.parse(request.payload);
         return this.status();

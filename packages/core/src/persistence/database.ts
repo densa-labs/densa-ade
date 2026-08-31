@@ -1,4 +1,5 @@
 import { isDeepStrictEqual } from "node:util";
+import { realpathSync } from "node:fs";
 
 import {
   executionModeSchema,
@@ -115,6 +116,8 @@ function assertEventMatchesTransition(
  * repositories and persist StateTransitionService results through persistStateTransition().
  */
 export class DensaAdeDatabase {
+  /** Coordination identity for live execution in the single Core process; SQLite owns durable state. */
+  readonly executionIdentity: string | object;
   readonly repositories: DensaAdeRepositories;
   readonly eventJournal: EventJournal;
   readonly #connection: SqliteConnection;
@@ -123,6 +126,7 @@ export class DensaAdeDatabase {
     const clock = options.now ?? (() => new Date().toISOString());
     const now = () => isoTimestampSchema.parse(clock());
     this.#connection = new SqliteConnection(path, now);
+    this.executionIdentity = path === ":memory:" ? {} : realpathSync(path);
     const eventPublisher = new EventPublisher();
     this.repositories = createRepositories(this.#connection, (event) =>
       eventPublisher.publish(event),

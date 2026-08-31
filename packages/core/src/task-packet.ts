@@ -355,6 +355,8 @@ function selectConstraints(
 function selectDecisions(
   decisions: readonly Decision[],
   decisionIds: readonly Decision["id"][],
+  phase: Phase,
+  task: Task,
   sources: TaskPacketContextSource[],
   tracker: TruncationTracker,
 ): readonly TaskPacketDecision[] | TaskPacketRejectedResult {
@@ -378,6 +380,16 @@ function selectDecisions(
       return rejected(
         "INVALID_CONTEXT_SELECTION",
         `Architectural decision ${decisionId} has been superseded`,
+      );
+    }
+    if (
+      decision.kind !== "decision" ||
+      (decision.scope === "phase" && !decision.affectedPhaseIds.includes(phase.id)) ||
+      (decision.scope === "task" && !decision.affectedTaskIds.includes(task.id))
+    ) {
+      return rejected(
+        "INVALID_CONTEXT_SELECTION",
+        `Architectural decision ${decisionId} does not apply to the requested task`,
       );
     }
   }
@@ -674,6 +686,8 @@ export class TaskPacketBuilder {
     const decisions = selectDecisions(
       projectDecisions,
       request.selection.architecturalDecisionIds,
+      phase,
+      task,
       sources,
       tracker,
     );

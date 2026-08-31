@@ -165,6 +165,22 @@ test("clients disconnect and reconnect while the authoritative daemon and a seco
   });
 });
 
+test("v1 and CLI aliases dispatch project controls through authoritative Core", async () => {
+  await withDaemon(async ({ runtimeDirectory }) => {
+    const client = new CoreIpcClient({ runtimeDirectory });
+    const payload = {
+      projectId: "project-daemon",
+      workspacePath: runtimeDirectory,
+      actor: "daemon:test",
+    };
+    const v1 = await client.request(request("request-control-v1", "projects.pause", payload));
+    assert.equal(v1.status, "REJECTED");
+    const cliAlias = await client.request(request("request-control-cli", "project.pause", payload));
+    assert.equal(cliAlias.status, "REJECTED");
+    client.disconnect();
+  });
+});
+
 test("the real CLI starts, connects to, reports, and stops a detached Core daemon", async () => {
   const runtimeDirectory = await mkdtemp(join(tmpdir(), "densa-core-cli-"));
   const execute = promisify(execFile);

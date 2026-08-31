@@ -334,6 +334,15 @@ export class DependencyScheduler {
   constructor(private readonly repositories: DensaAdeRepositories) {}
 
   selectNext(request: SchedulerRequest): SchedulerSelection {
+    return this.#select(request);
+  }
+
+  /** Continue the existing serial owner after explicit recovery; never selects new RETRYING work. */
+  selectRetry(request: SchedulerRequest, taskId: Task["id"]): SchedulerSelection {
+    return this.#select(request, taskId);
+  }
+
+  #select(request: SchedulerRequest, retryTaskId?: Task["id"]): SchedulerSelection {
     const project = this.repositories.projects.findById(request.projectId);
     if (project === undefined) {
       return noWork(
@@ -409,7 +418,24 @@ export class DependencyScheduler {
       );
     }
 
-    const activeTasks = tasks.filter((task) => ACTIVE_TASK_STATES.has(task.state));
+    const activeTasks = tasks.filter(
+      (task) =>
+        ACTIVE_TASK_STATES.has(task.state) &&
+        !(task.id === retryTaskId && task.state === "RETRYING"),
+    );
+    const unfinishedOtherTask = tasks.find(
+      (task) =>
+        task.id !== retryTaskId &&
+        this.repositories.attempts
+          .listByTaskId(task.id)
+          .some((attempt) => attempt.completedAt === undefined),
+    );
+    if (
+      unfinishedOtherTask !== undefined &&
+      !activeTasks.some((task) => task.id === unfinishedOtherTask.id)
+    ) {
+      activeTasks.push(unfinishedOtherTask);
+    }
     if (activeTasks.length > 0) {
       return noWork(
         reason(
@@ -429,7 +455,11 @@ export class DependencyScheduler {
       const phase = phaseById.get(entry.phaseId);
       const task = taskById.get(entry.taskId);
       if (phase === undefined || task === undefined) continue;
-      if (task.state !== "READY") {
+      if (
+        retryTaskId === undefined
+          ? task.state !== "READY"
+          : task.id !== retryTaskId || task.state !== "RETRYING"
+      ) {
         if (task.state === "BLOCKED") {
           reasons.push(
             reason("TASK_BLOCKED", "blocked", `Task ${task.id} is blocked`, {

@@ -200,6 +200,109 @@ test.after(() => {
   for (const root of temporaryRoots) rmSync(root, { recursive: true, force: true });
 });
 
+test("cancellation during validation cannot commit or launch another attempt", async () => {
+  const fixture = createFixture();
+  const controller = new globalThis.AbortController();
+  let executions = 0;
+  const adapter = new FakeAgentAdapter({
+    onExecute() {
+      executions += 1;
+      writeFileSync(join(executionWorkspace(fixture), "task.txt"), "accepted\n");
+    },
+  });
+  const result = await new SingleTaskOrchestrator(fixture.database, { now: clock() }).execute(
+    requestFor(
+      fixture,
+      adapter,
+      {
+        validatorId: "cancel-during-validation",
+        async validate() {
+          controller.abort();
+          return { passed: true, diagnostics: {} };
+        },
+      },
+      { signal: controller.signal, cancellationDisposition: "interrupt" },
+    ),
+  );
+  assert.equal(result.status, "INTERRUPTED");
+  assert.equal(executions, 1);
+  assert.equal(fixture.database.repositories.tasks.findById(fixture.task.id).state, "INTERRUPTED");
+  assert.equal(
+    fixture.database.repositories.attempts.listByTaskId(fixture.task.id)[0].commitSha,
+    undefined,
+  );
+  assert.equal(readFileSync(join(executionWorkspace(fixture), "task.txt"), "utf8"), "baseline\n");
+  fixture.database.close();
+});
+
+test("separate task orchestrators cannot overlap during asynchronous checkpoint preparation", async () => {
+  const fixture = createFixture();
+  const adapter = new FakeAgentAdapter({
+    onExecute() {
+      writeFileSync(join(executionWorkspace(fixture), "task.txt"), "accepted\n");
+    },
+  });
+  const request = requestFor(fixture, adapter, passingValidator("accepted\n"));
+  const first = new SingleTaskOrchestrator(fixture.database, { now: clock() }).execute(request);
+  const second = await new SingleTaskOrchestrator(fixture.database, { now: clock() }).execute(
+    request,
+  );
+  assert.equal(second.status, "STOPPED");
+  assert.equal(second.code, "ACTIVE_LIFECYCLE_EXISTS");
+  assert.equal((await first).status, "COMPLETED");
+  fixture.database.close();
+});
+
+test("an unfinished fourth attempt requires recovery instead of being misreported as exhausted", async () => {
+  const fixture = createFixture();
+  for (let number = 1; number <= 4; number += 1) {
+    const attemptId = `attempt-fourth-recovery-${number}`;
+    fixture.database.repositories.attempts.create({
+      id: attemptId,
+      taskId: fixture.task.id,
+      number,
+      startedAt: new Date(Date.parse(createdAt) + number * 1_000).toISOString(),
+    });
+    if (number < 4)
+      fixture.database.repositories.attempts.recordCompleted(
+        attemptId,
+        new Date(Date.parse(createdAt) + number * 1_000 + 500).toISOString(),
+      );
+    else
+      fixture.database.repositories.agentRuns.create({
+        id: "agent-fourth-recovery",
+        attemptId,
+        adapterId: "fixture",
+        adapterRunId: "agent-fourth-recovery",
+        startedAt: new Date(Date.parse(createdAt) + 5_000).toISOString(),
+      });
+  }
+  const state = new StateTransitionService();
+  let task = fixture.database.repositories.tasks.findById(fixture.task.id);
+  fixture.database.persistStateTransition(
+    state.transitionTask(task, "RUNNING", {
+      actor: "test",
+      occurredAt: new Date(Date.parse(createdAt) + 6_000).toISOString(),
+    }),
+    "event-fourth-running",
+  );
+  task = fixture.database.repositories.tasks.findById(fixture.task.id);
+  fixture.database.persistStateTransition(
+    state.transitionTask(task, "RETRYING", {
+      actor: "test",
+      occurredAt: new Date(Date.parse(createdAt) + 7_000).toISOString(),
+    }),
+    "event-fourth-retrying",
+  );
+  const result = await new SingleTaskOrchestrator(fixture.database, { now: clock() }).execute(
+    requestFor(fixture, new FakeAgentAdapter(), passingValidator("accepted\n")),
+  );
+  assert.equal(result.status, "STOPPED");
+  assert.equal(result.code, "RECOVERY_REQUIRED");
+  assert.equal(fixture.database.repositories.tasks.findById(fixture.task.id).state, "RETRYING");
+  fixture.database.close();
+});
+
 test("a validator changing task bytes cannot turn its earlier observation into a passing commit", async () => {
   const fixture = createFixture();
   const head = git(fixture.repository, ["rev-parse", "HEAD"]).trim();

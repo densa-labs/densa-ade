@@ -32,6 +32,23 @@ export class EventJournal {
     return this.repository.replay(filter);
   }
 
+  /** Internal complete scan: replay pages are transport bounds, never a lifecycle-history bound. */
+  *scan(
+    filter: EventFilter & { readonly projectId: Event["projectId"] },
+  ): Iterable<PersistedEvent> {
+    let afterSequence = filter.afterSequence;
+    for (;;) {
+      const page = this.replay({
+        ...filter,
+        ...(afterSequence === undefined ? {} : { afterSequence }),
+        limit: 1_000,
+      });
+      yield* page;
+      if (page.length < 1_000) return;
+      afterSequence = page.at(-1)!.sequenceNumber;
+    }
+  }
+
   subscribe(filter: EventFilter, subscriber: EventSubscriber): () => void {
     return this.publisher.subscribe(filter, subscriber);
   }

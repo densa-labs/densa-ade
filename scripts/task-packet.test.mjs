@@ -158,6 +158,21 @@ function seed(database, options = {}) {
     affectedTaskIds: [],
     createdAt: "2026-08-27T09:00:02.000Z",
   });
+  database.repositories.decisions.create({
+    id: "decision.other-task",
+    projectId,
+    kind: "decision",
+    statement: "Only the preparation task uses this decision.",
+    title: "Preparation-only decision",
+    rationale: "It must not enter another task packet.",
+    category: "architecture.prepare",
+    source: "system",
+    scope: "task",
+    status: "active",
+    affectedPhaseIds: ["phase.core"],
+    affectedTaskIds: ["task.prepare"],
+    createdAt: "2026-08-27T09:00:02.500Z",
+  });
   database.repositories.events.append({
     id: "event-master-history",
     projectId,
@@ -270,6 +285,21 @@ test("builds deterministic focused context and omits irrelevant decisions and hi
     assert.equal(prompt.includes("undefined"), false);
     assert.equal(prompt.includes("IRRELEVANT_DECISION_SENTINEL"), false);
     assert.equal(prompt.includes("fixture-security-value"), false);
+  });
+});
+
+test("rejects a caller-selected decision scoped to another task", () => {
+  withDatabase((database) => {
+    const result = new TaskPacketBuilder(database.repositories).build(
+      request({
+        selection: { globalConstraints: [], architecturalDecisionIds: ["decision.other-task"] },
+      }),
+    );
+    assert.deepEqual(result, {
+      status: "rejected",
+      code: "INVALID_CONTEXT_SELECTION",
+      message: "Architectural decision decision.other-task does not apply to the requested task",
+    });
   });
 });
 

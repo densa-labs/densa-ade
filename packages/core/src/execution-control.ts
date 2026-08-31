@@ -1,5 +1,7 @@
 import { createHash } from "node:crypto";
 import { isAbsolute } from "node:path";
+import { isDeepStrictEqual } from "node:util";
+import { redactSensitiveText } from "./secret-redaction.js";
 
 import {
   eventIdSchema,
@@ -36,6 +38,7 @@ interface StoredControl {
   readonly updatedAt: string;
   readonly snapshot?: Readonly<WorkspaceSnapshot>;
   readonly intervention?: RecontextualizationContext;
+  readonly interventionFingerprint?: string;
   readonly snapshotError?: string;
 }
 
@@ -217,6 +220,9 @@ function parseStoredControl(value: unknown): StoredControl | undefined {
     updatedAt: value["updatedAt"],
     ...(snapshot === undefined ? {} : { snapshot }),
     ...(intervention === undefined ? {} : { intervention }),
+    ...(typeof value["interventionFingerprint"] === "string"
+      ? { interventionFingerprint: value["interventionFingerprint"] }
+      : {}),
     ...(typeof value["snapshotError"] === "string"
       ? { snapshotError: value["snapshotError"] }
       : {}),
@@ -250,6 +256,9 @@ function jsonControl(control: StoredControl): JsonObject {
           },
         }),
     ...(control.snapshotError === undefined ? {} : { snapshotError: control.snapshotError }),
+    ...(control.interventionFingerprint === undefined
+      ? {}
+      : { interventionFingerprint: control.interventionFingerprint }),
   };
 }
 
@@ -297,6 +306,7 @@ export class ProjectExecutionControlService {
   async execute(
     request: ExecuteProjectLifecycleRequest,
   ): Promise<ControlledProjectLifecycleResult> {
+    request = { ...request, actor: redactSensitiveText(request.actor) };
     const existing = this.#control(request.projectId);
     if (existing?.status === "stopped") {
       return Object.freeze({
@@ -345,6 +355,9 @@ export class ProjectExecutionControlService {
     try {
       const result = await this.#runner.execute({
         ...request,
+        ...(existing?.status === "running" && existing.intervention !== undefined
+          ? { recontextualization: existing.intervention }
+          : {}),
         signal,
         cancellationDisposition: "interrupt",
         controlBoundary: () => {
@@ -386,7 +399,9 @@ export class ProjectExecutionControlService {
 
   async resume(request: ResumeProjectRequest): Promise<ResumeProjectResult> {
     if (!validRequest(request)) return this.#resumeRejected(request, "Invalid resume request");
-    const project = this.database.repositories.projects.findById(request.projectId);
+    request = { ...request, actor: redactSensitiveText(request.actor) };
+    const initialControl = this.#control(request.projectId);
+    let project = this.database.repositories.projects.findById(request.projectId);
     if (project === undefined) {
       return Object.freeze({
         status: "NOT_FOUND" as const,
@@ -405,6 +420,9 @@ export class ProjectExecutionControlService {
       this.#workspaceProbe.inspect(request.workspacePath),
     ]);
     const control = this.#control(request.projectId);
+    project = this.database.repositories.projects.findById(request.projectId);
+    if (project === undefined)
+      return this.#resumeBlocked(request, "Project disappeared during resume checks");
     if (control?.status === "stopped") {
       return Object.freeze({
         status: "STOPPED" as const,
@@ -412,6 +430,11 @@ export class ProjectExecutionControlService {
         reason: "A stopped project cannot be resumed without an explicit new start decision",
       });
     }
+    if (!isDeepStrictEqual(initialControl, control))
+      return this.#resumeBlocked(
+        request,
+        "Execution control changed during resume checks; revalidate the new boundary",
+      );
     if (project.state === "RUNNING" && (control === undefined || control.status === "running")) {
       return Object.freeze({
         status: "UNCHANGED" as const,
@@ -465,7 +488,12 @@ export class ProjectExecutionControlService {
     const recoverySafe =
       recovery.classification === "CLEANLY_IDLE" ||
       recovery.classification === "WORKSPACE_DIVERGED" ||
-      (recovery.classification === "UNKNOWN" && (!hasAttempts || confirmedInterruptedRecovery));
+      (recovery.classification === "UNKNOWN" &&
+        ((!hasAttempts &&
+          recovery.reason === "The latest persisted checkpoint has no complete Git snapshot") ||
+          (confirmedInterruptedRecovery &&
+            recovery.reason ===
+              "An INTERRUPTED task still requires an explicit recovery decision")));
     if (!recoverySafe) return this.#resumeBlocked(request, recovery.reason);
 
     const intervened = observation.snapshot.fingerprint !== control.snapshot.fingerprint;
@@ -480,6 +508,7 @@ export class ProjectExecutionControlService {
     if (intervened) {
       const recordedIntervention = control.intervention;
       recontextualization =
+        control.interventionFingerprint === observation.snapshot.fingerprint &&
         recordedIntervention?.previousGitHead === control.snapshot.gitHead &&
         recordedIntervention.currentGitHead === observation.snapshot.gitHead
           ? recordedIntervention
@@ -499,6 +528,7 @@ export class ProjectExecutionControlService {
               status: "intervention_required",
               updatedAt: recontextualization.detectedAt,
               intervention: recontextualization,
+              interventionFingerprint: observation.snapshot.fingerprint,
             },
             request.actor,
             "HUMAN_INTERVENTION_DETECTED",
@@ -595,6 +625,7 @@ export class ProjectExecutionControlService {
     forceRequested = false,
   ): Promise<ProjectControlCommandResult> {
     if (!validRequest(request)) return this.#commandRejected(request, "Invalid control request");
+    request = { ...request, actor: redactSensitiveText(request.actor) };
     const project = this.database.repositories.projects.findById(request.projectId);
     if (project === undefined) {
       return Object.freeze({
@@ -620,7 +651,12 @@ export class ProjectExecutionControlService {
         reason: "Requested control boundary is already durable",
       });
     }
-    if (project.state !== "RUNNING" && project.state !== "PAUSED") {
+    const controllable =
+      project.state === "PAUSED" ||
+      project.state === "RUNNING" ||
+      (status === "stop_requested" &&
+        stateTransitionService.canTransitionProject(project.state, "PAUSED"));
+    if (!controllable) {
       return this.#commandRejected(request, `Project state ${project.state} cannot be controlled`);
     }
     const occurredAt = this.#now();
@@ -662,7 +698,7 @@ export class ProjectExecutionControlService {
     requested: StoredControl,
     actor: string,
   ): Promise<Readonly<{ status: "PAUSED" | "STOPPED"; projectId: ProjectId; reason: string }>> {
-    const project = this.database.repositories.projects.findById(projectId);
+    let project = this.database.repositories.projects.findById(projectId);
     if (project === undefined) {
       return Object.freeze({
         status: "STOPPED" as const,
@@ -671,6 +707,39 @@ export class ProjectExecutionControlService {
       });
     }
     const observation = await this.#workspaceProbe.inspect(requested.workspacePath);
+    project = this.database.repositories.projects.findById(projectId);
+    const current = this.#control(projectId);
+    if (project === undefined || current === undefined)
+      return {
+        status: "STOPPED",
+        projectId,
+        reason: "Control boundary disappeared during workspace inspection",
+      };
+    if (
+      current.status === "stopped" ||
+      current.status === "paused" ||
+      current.status === "intervention_required"
+    ) {
+      return {
+        status: current.status === "stopped" ? "STOPPED" : "PAUSED",
+        projectId,
+        reason: "Control boundary was already finalized",
+      };
+    }
+    if (current.workspacePath !== requested.workspacePath || current.status === "running") {
+      return {
+        status: "STOPPED",
+        projectId,
+        reason: "Control intent changed during workspace inspection",
+      };
+    }
+    requested = current;
+    if (this.#hasPersistedActiveTask(projectId))
+      return {
+        status: "STOPPED",
+        projectId,
+        reason: "Unfinished worker evidence requires recovery before a safe pause can be finalized",
+      };
     const occurredAt = this.#now();
     const stopped = requested.status === "stop_requested";
     const finalized: StoredControl = {
@@ -695,7 +764,7 @@ export class ProjectExecutionControlService {
         type: stopped ? "PROJECT_STOPPED" : "PROJECT_PAUSED",
         eventVersion: 1,
         occurredAt,
-        actor,
+        actor: redactSensitiveText(actor),
         payload: {
           workspaceSnapshotAvailable: observation.status === "available",
           workDeleted: false,
@@ -741,7 +810,7 @@ export class ProjectExecutionControlService {
         type: eventType,
         eventVersion: 1,
         occurredAt: control.updatedAt,
-        actor,
+        actor: redactSensitiveText(actor),
         payload,
       });
     });
@@ -752,7 +821,11 @@ export class ProjectExecutionControlService {
       .listByProjectId(projectId)
       .some(
         (task) =>
-          task.state === "RUNNING" || task.state === "RETRYING" || task.state === "VALIDATING",
+          task.state === "RUNNING" ||
+          task.state === "VALIDATING" ||
+          this.database.repositories.attempts
+            .listByTaskId(task.id)
+            .some((attempt) => attempt.completedAt === undefined),
       );
   }
 

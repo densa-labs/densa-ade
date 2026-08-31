@@ -8,9 +8,43 @@ import { test } from "node:test";
 import {
   IndependentReviewService,
   PhaseLifecycleOrchestrator,
+  SingleTaskPhaseExecutor,
   StateTransitionService,
   RoadmapMutationService,
 } from "@densa-ade/core";
+
+test("manual intervention must be applied before a phase executor starts the worker", async () => {
+  let workerStarted = false;
+  const executor = new SingleTaskPhaseExecutor(
+    {
+      async execute() {
+        workerStarted = true;
+        throw new Error("must not execute");
+      },
+    },
+    {
+      async build() {
+        return {};
+      },
+    },
+  );
+  const result = await executor.execute({
+    projectId: "project-phase",
+    phaseId: "phase.build",
+    taskId: "task.alpha",
+    workspacePath: "/tmp/project",
+    actor: "phase:test",
+    recontextualization: {
+      changedPaths: ["src/manual.ts"],
+      previousGitHead: "a".repeat(40),
+      currentGitHead: "b".repeat(40),
+      detectedAt: "2026-08-31T00:00:00.000Z",
+    },
+  });
+  assert.equal(result.status, "STOPPED");
+  assert.equal(result.code, "INVALID_REQUEST");
+  assert.equal(workerStarted, false);
+});
 import { DensaAdeDatabase } from "@densa-ade/core/persistence";
 import { masterRoadmapSchema } from "@densa-ade/protocol";
 import { FakeAgentAdapter } from "@densa-ade/testing";

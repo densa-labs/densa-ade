@@ -1,3 +1,4 @@
+import { claimExecutionSlot } from "./execution-slot.js";
 import { createHash } from "node:crypto";
 import { isAbsolute } from "node:path";
 
@@ -19,6 +20,7 @@ import {
 
 import { type DensaAdeDatabase } from "./persistence/database.js";
 import {
+  type ExecutePhaseTaskRequest,
   type PhaseLifecycleValidator,
   PhaseLifecycleOrchestrator,
   type PhaseTaskExecutor,
@@ -26,6 +28,7 @@ import {
 } from "./phase-orchestrator.js";
 import { type SchedulerGateSnapshot } from "./scheduler.js";
 import { stateTransitionService } from "./state-transitions.js";
+import { redactSensitiveText } from "./secret-redaction.js";
 
 export interface ExecutionModeOptions {
   readonly now?: () => string;
@@ -76,6 +79,7 @@ export class ExecutionModeService {
     requestedMode: ExecutionMode,
     actor: string,
   ): ChangeExecutionModeResult {
+    actor = redactSensitiveText(actor);
     const mode = executionModeSchema.parse(requestedMode);
     if (actor.trim().length === 0) throw new Error("Execution mode changes require an actor");
     const project = this.database.repositories.projects.findById(projectId);
@@ -110,6 +114,7 @@ export interface ExecuteProjectLifecycleRequest {
   readonly signal?: AbortSignal;
   readonly cancellationDisposition?: "cancel" | "interrupt";
   readonly controlBoundary?: () => "pause" | "stop" | undefined;
+  readonly recontextualization?: ExecutePhaseTaskRequest["recontextualization"];
 }
 
 export type ProjectLifecycleResult =
@@ -144,7 +149,6 @@ export type ProjectLifecycleResult =
 export class ProjectExecutionOrchestrator {
   readonly #now: () => string;
   readonly #phaseOrchestrator: PhaseLifecycleOrchestrator;
-  #active = false;
 
   constructor(
     private readonly database: DensaAdeDatabase,
@@ -156,22 +160,23 @@ export class ProjectExecutionOrchestrator {
   }
 
   async execute(request: ExecuteProjectLifecycleRequest): Promise<ProjectLifecycleResult> {
-    if (this.#active) {
+    const release = claimExecutionSlot(this.database, "project");
+    if (release === undefined) {
       return Object.freeze({
         status: "STOPPED" as const,
         projectId: request.projectId,
         reason: "This orchestrator already owns the serial project execution slot",
       });
     }
-    this.#active = true;
     try {
       return await this.#execute(request);
     } finally {
-      this.#active = false;
+      release();
     }
   }
 
   async #execute(request: ExecuteProjectLifecycleRequest): Promise<ProjectLifecycleResult> {
+    request = { ...request, actor: redactSensitiveText(request.actor) };
     if (
       request.actor.trim().length === 0 ||
       !isAbsolute(request.workspacePath) ||
@@ -304,6 +309,9 @@ export class ProjectExecutionOrchestrator {
         ...(request.controlBoundary === undefined
           ? {}
           : { controlBoundary: request.controlBoundary }),
+        ...(request.recontextualization === undefined
+          ? {}
+          : { recontextualization: request.recontextualization }),
       });
       if (phaseResult.status === "COMPLETED") continue;
       if (phaseResult.status === "AWAITING_TASK_APPROVAL") {

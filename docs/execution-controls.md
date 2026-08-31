@@ -5,6 +5,10 @@ existing serial project orchestrator and exposes the same operations to a future
 that the headless CLI names as `project.pause`, `project.cancel`, `project.resume`, and
 `project.stop`. No renderer or CLI process owns authoritative control state.
 
+The authenticated daemon accepts the frozen Core v1 `projects.pause`, `projects.resume`, and
+`projects.stop` methods plus the singular CLI aliases, including `project.cancel`. CLI callers must
+identify the project and absolute workspace explicitly with `--project` and `--workspace`.
+
 ## Control boundaries
 
 - Graceful pause records `PROJECT_PAUSE_REQUESTED`, lets an active task reach its next safe serial
@@ -37,3 +41,6 @@ files and schedules no worker. An explicit acknowledgement can resume the projec
 same `RecontextualizationContext`; the caller must use that context when rebuilding the next focused
 task packet. Any interrupted task becomes `RETRYING` only in the atomic, checked resume transaction.
 This prevents post-pause edits from being silently overwritten or treated as agent output.
+Core carries that durable context into the next phase-task request. The Task Packet details provider
+must acknowledge the exact `detectedAt` revision before Core starts a worker, so accepting an
+intervention cannot silently fall back to stale worker context.

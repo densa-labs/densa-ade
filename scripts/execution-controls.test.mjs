@@ -100,6 +100,117 @@ function request(project) {
   };
 }
 
+test("a delayed pause finalization cannot overwrite a newer stop", async () => {
+  const database = DensaAdeDatabase.openInMemory();
+  const now = clock();
+  const project = seed(database, now);
+  let releasePause;
+  let calls = 0;
+  const service = new ProjectExecutionControlService(database, {
+    now,
+    workspaceProbe: {
+      async inspect() {
+        if (calls++ === 0)
+          await new Promise((resolve) => {
+            releasePause = resolve;
+          });
+        return { status: "available", snapshot: snapshot("same") };
+      },
+    },
+  });
+  const pause = service.pause(request(project));
+  assert.equal((await service.stop(request(project))).status, "STOPPED");
+  releasePause();
+  await pause;
+  assert.equal(
+    database.repositories.projectSettings.findByProjectId(project.id).values.executionControl
+      .status,
+    "stopped",
+  );
+  database.close();
+});
+
+test("intervention context refreshes when dirty files change without a HEAD change", async () => {
+  const database = DensaAdeDatabase.openInMemory();
+  const now = clock();
+  const project = seed(database, now);
+  let current = "baseline";
+  let path = "src/manual.ts";
+  const service = new ProjectExecutionControlService(database, {
+    now,
+    workspaceProbe: {
+      async inspect() {
+        return { status: "available", snapshot: snapshot(current) };
+      },
+    },
+    recoveryInspector: {
+      async inspect() {
+        return recovery("WORKSPACE_DIVERGED");
+      },
+    },
+    preflight: {
+      async inspect() {
+        const result = preflight({ dirty: true });
+        result.changes.unstaged = [{ path, status: "M", kind: "modified" }];
+        return result;
+      },
+    },
+  });
+  await service.pause(request(project));
+  current = "first-edit";
+  await service.resume(request(project));
+  current = "second-edit";
+  path = "src/second.ts";
+  const result = await service.resume(request(project));
+  assert.equal(result.status, "INTERVENTION_REQUIRED");
+  assert.deepEqual(result.recontextualization.changedPaths, ["src/second.ts"]);
+  database.close();
+});
+
+test("resumed execution propagates the persisted intervention context", async () => {
+  const database = DensaAdeDatabase.openInMemory();
+  const now = clock();
+  const project = seed(database, now);
+  let current = snapshot("before");
+  let received;
+  const service = new ProjectExecutionControlService(database, {
+    now,
+    runner: {
+      async execute(runRequest) {
+        received = runRequest.recontextualization;
+        return { status: "STOPPED", projectId: project.id, reason: "observed" };
+      },
+    },
+    workspaceProbe: {
+      async inspect() {
+        return { status: "available", snapshot: current };
+      },
+    },
+    preflight: {
+      async inspect() {
+        return preflight({ dirty: true });
+      },
+    },
+    recoveryInspector: {
+      async inspect() {
+        return recovery("WORKSPACE_DIVERGED");
+      },
+    },
+  });
+  await service.pause(request(project));
+  current = snapshot("after");
+  await service.resume({ ...request(project), acknowledgeIntervention: true });
+  await service.execute({
+    ...request(project),
+    gates: { outstandingUserDecisionIds: [], permissionBlockers: [] },
+    taskExecutor: {},
+    validator: {},
+  });
+  assert.equal(received.detectedAt.length > 0, true);
+  assert.deepEqual(received.changedPaths, ["src/manual.ts"]);
+  database.close();
+});
+
 test("graceful pause during a worker finishes the safe unit and stops before scheduling more", async () => {
   const database = DensaAdeDatabase.openInMemory();
   const now = clock();
@@ -239,6 +350,34 @@ test("pause between tasks and stop are immediate, durable, idempotent, and prese
   assert.equal(events.filter((event) => event.type === "PROJECT_STOPPED").length, 1);
   assert.equal(events.find((event) => event.type === "PROJECT_STOPPED").payload.workDeleted, false);
   assert.deepEqual(keepAwakeReleases, [{ projectId: project.id, actor: "execution-control:test" }]);
+  database.close();
+});
+
+test("stop remains available at the later usage-wait boundary", async () => {
+  const database = DensaAdeDatabase.openInMemory();
+  const now = clock();
+  const project = seed(database, now);
+  const current = database.repositories.projects.findById(project.id);
+  database.persistStateTransition(
+    new StateTransitionService().transitionProject(current, "WAITING_FOR_USAGE", {
+      actor: "execution-control:test",
+      occurredAt: now(),
+      reason: "fixture usage wait",
+    }),
+    "event-project-usage-wait",
+  );
+  const service = new ProjectExecutionControlService(database, {
+    now,
+    workspaceProbe: {
+      async inspect() {
+        return { status: "available", snapshot: snapshot("usage-stop") };
+      },
+    },
+  });
+  const stopped = await service.stop(request(project));
+  assert.equal(stopped.status, "STOPPED", JSON.stringify(stopped));
+  assert.equal(database.repositories.projects.findById(project.id).state, "PAUSED");
+  assert.equal((await service.resume(request(project))).status, "STOPPED");
   database.close();
 });
 

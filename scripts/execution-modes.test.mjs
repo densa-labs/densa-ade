@@ -240,6 +240,50 @@ async function withFixture(executionMode, work) {
   }
 }
 
+test("Guided boundaries remain enforced after more than one event replay page", async () => {
+  await withFixture("guided", async ({ database, workspace }) => {
+    for (let index = 0; index < 1_001; index += 1) {
+      database.repositories.events.append({
+        id: `old-task-event-${index}`,
+        projectId: "project-modes",
+        phaseId: "phase.build",
+        type: "TASK_STATE_CHANGED",
+        eventVersion: 1,
+        occurredAt: now(),
+        actor: "fixture",
+        payload: { state: "READY" },
+      });
+    }
+    const order = [];
+    const executor = completingExecutor(database, order);
+    const result = await new ProjectExecutionOrchestrator(database, { now }).execute(
+      request(database, workspace, executor),
+    );
+    assert.equal(result.status, "AWAITING_TASK_APPROVAL");
+    assert.equal(result.taskId, "task.alpha");
+    assert.deepEqual(order, ["task.alpha"]);
+    const restarted = await new ProjectExecutionOrchestrator(database, { now }).execute(
+      request(database, workspace, executor),
+    );
+    assert.equal(restarted.status, "AWAITING_TASK_APPROVAL");
+    assert.deepEqual(order, ["task.alpha"]);
+  });
+});
+
+test("phase loop resumes a reconciled RETRYING task before selecting new work", async () => {
+  await withFixture("guided", async ({ database, workspace }) => {
+    transition(database, "task", "task.alpha", "READY");
+    transition(database, "task", "task.alpha", "RUNNING");
+    transition(database, "task", "task.alpha", "RETRYING");
+    const order = [];
+    const result = await new ProjectExecutionOrchestrator(database, { now }).execute(
+      request(database, workspace, completingExecutor(database, order)),
+    );
+    assert.equal(result.status, "AWAITING_TASK_APPROVAL");
+    assert.deepEqual(order, ["task.alpha"]);
+  });
+});
+
 test("Guided mode stops durably after every validated task and resumes only with matching approval", async () => {
   await withFixture("guided", async ({ database, workspace }) => {
     const order = [];

@@ -1,3 +1,4 @@
+import { claimExecutionSlot } from "./execution-slot.js";
 import { createHash } from "node:crypto";
 import { lstat, mkdir, readFile } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
@@ -28,6 +29,7 @@ import {
 import { atomicReplaceFile, redactPortableText } from "./persistence/portable-project.js";
 import { DependencyScheduler, type SchedulerGateSnapshot } from "./scheduler.js";
 import { stateTransitionService } from "./state-transitions.js";
+import { redactSensitiveText } from "./secret-redaction.js";
 import {
   type ExecuteTaskLifecycleRequest,
   SingleTaskOrchestrator,
@@ -42,6 +44,12 @@ export interface ExecutePhaseTaskRequest {
   readonly actor: string;
   readonly signal?: AbortSignal;
   readonly cancellationDisposition?: "cancel" | "interrupt";
+  readonly recontextualization?: Readonly<{
+    changedPaths: readonly string[];
+    previousGitHead: string;
+    currentGitHead: string;
+    detectedAt: string;
+  }>;
 }
 
 export interface PhaseTaskExecutor {
@@ -57,7 +65,8 @@ export type PhaseTaskExecutionDetails = Pick<
   | "adapter"
   | "validator"
   | "onAgentEvent"
->;
+> &
+  Readonly<{ recontextualizationAppliedAt?: string }>;
 
 export interface PhaseTaskExecutionDetailsProvider {
   build(request: ExecutePhaseTaskRequest): Promise<PhaseTaskExecutionDetails>;
@@ -72,6 +81,18 @@ export class SingleTaskPhaseExecutor implements PhaseTaskExecutor {
 
   async execute(request: ExecutePhaseTaskRequest): Promise<TaskLifecycleResult> {
     const details = await this.details.build(request);
+    if (
+      request.recontextualization !== undefined &&
+      details.recontextualizationAppliedAt !== request.recontextualization.detectedAt
+    ) {
+      return Object.freeze({
+        status: "STOPPED" as const,
+        code: "INVALID_REQUEST" as const,
+        taskId: request.taskId,
+        attemptCount: 0,
+        reason: "Manual intervention context was not applied to the rebuilt Task Packet",
+      });
+    }
     return this.orchestrator.execute({
       projectId: request.projectId,
       taskId: request.taskId,
@@ -129,6 +150,7 @@ export interface ExecutePhaseLifecycleRequest {
   readonly cancellationDisposition?: "cancel" | "interrupt";
   /** Read at serial safe boundaries; it must not mutate authoritative state. */
   readonly controlBoundary?: () => "pause" | "stop" | undefined;
+  readonly recontextualization?: ExecutePhaseTaskRequest["recontextualization"];
 }
 
 export type PhaseLifecycleStopCode =
@@ -436,7 +458,6 @@ function committedPaths(
 /** P5M3/P5M4 editor-independent serial phase lifecycle with durable mode boundaries. */
 export class PhaseLifecycleOrchestrator {
   readonly #now: () => string;
-  #active = false;
 
   constructor(
     private readonly database: DensaAdeDatabase,
@@ -447,22 +468,23 @@ export class PhaseLifecycleOrchestrator {
   }
 
   async execute(request: ExecutePhaseLifecycleRequest): Promise<PhaseLifecycleResult> {
-    if (this.#active) {
+    const release = claimExecutionSlot(this.database, "phase");
+    if (release === undefined) {
       return stopped(
         "ACTIVE_PHASE_LIFECYCLE_EXISTS",
         request,
         "This orchestrator already owns the serial phase lifecycle slot",
       );
     }
-    this.#active = true;
     try {
       return await this.#execute(request);
     } finally {
-      this.#active = false;
+      release();
     }
   }
 
   async #execute(request: ExecutePhaseLifecycleRequest): Promise<PhaseLifecycleResult> {
+    request = { ...request, actor: redactSensitiveText(request.actor) };
     if (
       request.actor.trim().length === 0 ||
       !isAbsolute(request.workspacePath) ||
@@ -753,10 +775,13 @@ export class PhaseLifecycleOrchestrator {
       }
       this.#promoteReadyTasks(request, tasks, key);
 
-      const selection = new DependencyScheduler(this.database.repositories).selectNext({
-        projectId: request.projectId,
-        gates: request.gates,
-      });
+      const scheduler = new DependencyScheduler(this.database.repositories);
+      const schedulerRequest = { projectId: request.projectId, gates: request.gates };
+      const retry = tasks.find((task) => task.state === "RETRYING");
+      const selection =
+        retry === undefined
+          ? scheduler.selectNext(schedulerRequest)
+          : scheduler.selectRetry(schedulerRequest, retry.id);
       if (selection.status === "selected") {
         if (selection.phase.id !== request.phaseId || !executableIds.has(selection.task.id)) {
           return {
@@ -775,6 +800,9 @@ export class PhaseLifecycleOrchestrator {
           ...(request.cancellationDisposition === undefined
             ? {}
             : { cancellationDisposition: request.cancellationDisposition }),
+          ...(request.recontextualization === undefined
+            ? {}
+            : { recontextualization: request.recontextualization }),
         });
         const persisted = this.database.repositories.tasks.findById(selection.task.id);
         if (result.status === "COMPLETED") {
@@ -856,7 +884,17 @@ export class PhaseLifecycleOrchestrator {
   ): { readonly status: "awaiting_task_approval"; readonly taskId: TaskId } | undefined {
     const project = this.database.repositories.projects.findById(request.projectId);
     if (project === undefined) return undefined;
-    const events = this.database.eventJournal.replay({
+    let guidedSince = 0;
+    for (const event of this.database.eventJournal.scan({
+      projectId: request.projectId,
+      types: ["EXECUTION_MODE_CHANGED"],
+    })) {
+      if (event.payload["mode"] === "guided") guidedSince = event.sequenceNumber;
+    }
+    const terminalTaskIds = new Set<string>();
+    const pendingRequired = new Map<string, number>();
+    let lastCompletion: { readonly taskId: TaskId; readonly sequenceNumber: number } | undefined;
+    for (const event of this.database.eventJournal.scan({
       projectId: request.projectId,
       phaseId: request.phaseId,
       types: [
@@ -865,56 +903,37 @@ export class PhaseLifecycleOrchestrator {
         "GUIDED_TASK_APPROVED",
         "GUIDED_TASK_APPROVAL_SUPERSEDED",
       ],
-      limit: 1_000,
-    });
-    const modeEvents = this.database.eventJournal.replay({
-      projectId: request.projectId,
-      types: ["EXECUTION_MODE_CHANGED"],
-      limit: 1_000,
-    });
-    const terminalTaskIds = new Set(
-      events
-        .filter(
-          (event) =>
-            event.type === "GUIDED_TASK_APPROVED" ||
-            event.type === "GUIDED_TASK_APPROVAL_SUPERSEDED",
-        )
-        .flatMap((event) =>
-          typeof event.payload["taskId"] === "string" ? [event.payload["taskId"]] : [],
-        ),
-    );
-    const pendingRequired = [...events]
-      .reverse()
-      .find(
-        (event) =>
-          event.type === "GUIDED_TASK_APPROVAL_REQUIRED" &&
-          typeof event.payload["taskId"] === "string" &&
-          !terminalTaskIds.has(event.payload["taskId"]),
-      );
-    let pendingTaskId =
-      typeof pendingRequired?.payload["taskId"] === "string"
-        ? (pendingRequired.payload["taskId"] as TaskId)
-        : undefined;
+    })) {
+      const eventTaskId =
+        event.taskId ??
+        (typeof event.payload["taskId"] === "string"
+          ? (event.payload["taskId"] as TaskId)
+          : undefined);
+      if (eventTaskId === undefined) continue;
+      if (
+        event.type === "GUIDED_TASK_APPROVED" ||
+        event.type === "GUIDED_TASK_APPROVAL_SUPERSEDED"
+      ) {
+        terminalTaskIds.add(eventTaskId);
+        pendingRequired.delete(eventTaskId);
+      } else if (event.type === "GUIDED_TASK_APPROVAL_REQUIRED") {
+        if (!terminalTaskIds.has(eventTaskId))
+          pendingRequired.set(eventTaskId, event.sequenceNumber);
+      } else if (
+        event.type === "TASK_STATE_CHANGED" &&
+        event.payload["state"] === "COMPLETED" &&
+        event.sequenceNumber > guidedSince
+      ) {
+        lastCompletion = { taskId: eventTaskId, sequenceNumber: event.sequenceNumber };
+      }
+    }
+    let pendingTaskId = [...pendingRequired]
+      .sort((left, right) => right[1] - left[1])
+      .at(0)?.[0] as TaskId | undefined;
 
     if (pendingTaskId === undefined && project.executionMode === "guided") {
-      const lastGuidedModeChange = [...modeEvents]
-        .reverse()
-        .find(
-          (event) => event.type === "EXECUTION_MODE_CHANGED" && event.payload["mode"] === "guided",
-        );
-      const guidedSince = lastGuidedModeChange?.sequenceNumber ?? 0;
-      const unacknowledgedCompletion = [...events]
-        .reverse()
-        .find(
-          (event) =>
-            event.sequenceNumber > guidedSince &&
-            event.type === "TASK_STATE_CHANGED" &&
-            event.payload["state"] === "COMPLETED" &&
-            event.taskId !== undefined &&
-            !terminalTaskIds.has(event.taskId),
-        );
-      if (unacknowledgedCompletion?.taskId !== undefined) {
-        pendingTaskId = unacknowledgedCompletion.taskId;
+      if (lastCompletion !== undefined && !terminalTaskIds.has(lastCompletion.taskId)) {
+        pendingTaskId = lastCompletion.taskId;
         const occurredAt = this.#now();
         this.database.repositories.events.append({
           id: taskBoundaryEventId(key, pendingTaskId, "required"),
