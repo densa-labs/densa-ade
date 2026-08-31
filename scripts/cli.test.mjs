@@ -1,15 +1,21 @@
 import assert from "node:assert/strict";
+import { execFile } from "node:child_process";
 import { test } from "node:test";
+import { URL } from "node:url";
+import { promisify } from "node:util";
 
 import {
   CLI_OUTPUT_SCHEMA_VERSION,
   CliCommandError,
+  EXIT_FAILURE,
   EXIT_SUCCESS,
   EXIT_UNAVAILABLE,
   EXIT_USAGE,
+  LocalCoreClient,
   cliHelpText,
   runCli,
 } from "../packages/cli/dist/index.js";
+import { CoreIpcError } from "../packages/core/dist/index.js";
 import { PROTOCOL_VERSION } from "../packages/protocol/dist/index.js";
 
 function captureIo() {
@@ -174,6 +180,19 @@ test("JSON mode has a stable versioned shape", async () => {
   });
 });
 
+test("help and version do not eagerly load Core or emit runtime warnings", async () => {
+  const execute = promisify(execFile);
+  const cliPath = new URL("../packages/cli/dist/bin.js", import.meta.url);
+
+  const help = await execute(process.execPath, [cliPath.pathname, "--help"]);
+  assert.equal(help.stderr, "");
+  assert.match(help.stdout, /Headless client shell for Densa ADE Core/u);
+
+  const version = await execute(process.execPath, [cliPath.pathname, "version", "--json"]);
+  assert.equal(version.stderr, "");
+  assert.equal(JSON.parse(version.stdout).data.protocolVersion, PROTOCOL_VERSION);
+});
+
 test("every Core command uses a versioned shared-protocol request", async () => {
   const commands = [
     { arguments: ["project", "init"], command: "project init", method: "project.init" },
@@ -240,6 +259,65 @@ test("an unavailable Core client fails clearly without starting an agent", async
   assert.equal(json.ok, false);
   assert.equal(json.error.code, "PROCESS_FAILURE");
   assert.match(json.error.message, /Core is unavailable/u);
+});
+
+test("a responsive Core error is not misclassified as Core unavailability", async () => {
+  let disconnects = 0;
+  const coreClient = new LocalCoreClient({
+    async request() {
+      throw new CoreIpcError({
+        code: "USER_CONFIGURATION_ERROR",
+        message: "Unsupported Core method: project.init",
+        details: { method: "project.init" },
+      });
+    },
+    disconnect() {
+      disconnects += 1;
+    },
+  });
+
+  await assert.rejects(
+    () =>
+      coreClient.request({
+        protocolVersion: PROTOCOL_VERSION,
+        kind: "request",
+        requestId: "request-responsive-error",
+        method: "project.init",
+        payload: {},
+      }),
+    (error) => {
+      assert.ok(error instanceof CliCommandError);
+      assert.equal(error.code, "USER_CONFIGURATION_ERROR");
+      assert.equal(error.exitCode, EXIT_USAGE);
+      return true;
+    },
+  );
+  assert.equal(disconnects, 1);
+
+  const failingClient = new LocalCoreClient({
+    async request() {
+      throw new CoreIpcError({
+        code: "PERSISTENCE_FAILURE",
+        message: "Core persistence failed",
+      });
+    },
+    disconnect() {},
+  });
+  await assert.rejects(
+    () =>
+      failingClient.request({
+        protocolVersion: PROTOCOL_VERSION,
+        kind: "request",
+        requestId: "request-responsive-failure",
+        method: "project.status",
+        payload: {},
+      }),
+    (error) => {
+      assert.ok(error instanceof CliCommandError);
+      assert.equal(error.exitCode, EXIT_FAILURE);
+      return true;
+    },
+  );
 });
 
 test("invalid commands use a stable usage error and nonzero exit", async () => {
