@@ -28,6 +28,11 @@ Exact user wording belongs in the corresponding specification value. Interpretat
 recorded separately as a decision or unresolved question; callers must not silently replace a
 constraint with a weaker paraphrase.
 
+Interview-generated decisions also retain an optional `questionId`. This additive version 1 field
+prevents answered IDs from being reused after later batches or restart. Older records remain
+readable; IDs discarded by old versions cannot be reconstructed from free-form decision topics.
+Answered IDs must be unique and cannot also appear among unresolved questions.
+
 ## `SPEC.md` round-trip
 
 `renderProjectSpecificationMarkdown()` creates readable sections for every contract field,
@@ -35,6 +40,9 @@ followed by a marked canonical JSON block. `parseProjectSpecificationMarkdown()`
 canonical block only after validating its version and strict schema. This design makes the file
 inspectable by a person while preserving whitespace, multiline values, Markdown characters, and
 all structured question metadata during a lossless round-trip.
+
+Literal HTML comment delimiters in the readable prose are escaped so a user's example of the
+canonical syntax cannot masquerade as a second canonical block. The JSON retains the exact text.
 
 The portable synchronizer still treats manual edits as conflicts. A caller must route an intended
 edit through a future audited specification workflow before regenerating `SPEC.md`; parsing a file

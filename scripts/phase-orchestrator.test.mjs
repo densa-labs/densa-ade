@@ -9,6 +9,7 @@ import {
   IndependentReviewService,
   PhaseLifecycleOrchestrator,
   StateTransitionService,
+  RoadmapMutationService,
 } from "@densa-ade/core";
 import { DensaAdeDatabase } from "@densa-ade/core/persistence";
 import { masterRoadmapSchema } from "@densa-ade/protocol";
@@ -274,6 +275,85 @@ function passingValidator(calls, database, verdict = "pass") {
 function emptyGates() {
   return { outstandingUserDecisionIds: [], permissionBlockers: [] };
 }
+
+test("phase execution reloads accepted roadmap additions at serial task boundaries", async () => {
+  await withFixture("continuous", async ({ database, workspace }) => {
+    const order = [];
+    const validationCalls = [];
+    const original = completingExecutor(database, order);
+    const mutations = new RoadmapMutationService(database, { workspacePath: workspace, now });
+    const result = await new PhaseLifecycleOrchestrator(database, { now }).execute({
+      projectId: "project-phase",
+      phaseId: "phase.build",
+      workspacePath: workspace,
+      gates: emptyGates(),
+      actor: "phase:test",
+      taskExecutor: {
+        async execute(request) {
+          const outcome = await original.execute(request);
+          if (request.taskId === "task.beta")
+            await mutations.apply("project-phase", {
+              operation: {
+                kind: "add_task",
+                phaseId: "phase.build",
+                position: 2,
+                task: roadmapTask("task.added", ["task.beta"]),
+              },
+              actor: "master:test",
+              sessionId: "session",
+              rationale: "Add missing verification at the idle task boundary",
+              applicationMode: "automatic",
+            });
+          return outcome;
+        },
+      },
+      validator: passingValidator(validationCalls, database),
+    });
+    assert.equal(result.status, "COMPLETED");
+    assert.deepEqual(order, ["task.alpha", "task.beta", "task.added"]);
+    assert.deepEqual(validationCalls, [order]);
+    assert.equal(result.report.tasksCompleted.length, 3);
+  });
+});
+
+test("roadmap insertion cannot strand new work before an active or completed phase", async () => {
+  await withFixture("continuous", async ({ database, workspace }) => {
+    transition(database, "phase", "phase.build", "RUNNING");
+    database.repositories.projectSettings.set({
+      projectId: "project-phase",
+      values: { allowSignificantRoadmapMutationAutoApply: true },
+      updatedAt: now(),
+    });
+    const mutations = new RoadmapMutationService(database, { workspacePath: workspace, now });
+    await assert.rejects(
+      mutations.apply("project-phase", {
+        operation: {
+          kind: "add_phase",
+          position: 0,
+          phase: {
+            id: "inserted",
+            title: "Inserted",
+            goal: "Never strand this work",
+            required: true,
+            completionCriteria: ["Inserted done"],
+            tasks: [roadmapTask("task.inserted")],
+          },
+        },
+        actor: "master:test",
+        sessionId: "session",
+        rationale: "Insert before active phase",
+        applicationMode: "automatic",
+      }),
+      /active or completed|safe boundary/u,
+    );
+    assert.equal(
+      database.repositories.masterRoadmaps.findByProjectId("project-phase").revisionNumber,
+      0,
+    );
+    assert.equal(database.repositories.phases.findById("phase.build").position, 0);
+    assert.equal(database.repositories.phases.findById("inserted"), undefined);
+  });
+});
 
 async function withFixture(executionMode, work) {
   const workspace = mkdtempSync(join(tmpdir(), "densa-p5m3-"));

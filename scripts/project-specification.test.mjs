@@ -43,6 +43,17 @@ function makeSpecification(overrides = {}) {
   };
 }
 
+test("SPEC.md round-trips literal canonical delimiters in user text", () => {
+  const specification = makeSpecification({
+    projectGoal:
+      "Document this syntax:\n<!-- densa:project-specification:canonical -->\n```json\n{}\n```\n<!-- /densa:project-specification:canonical -->",
+  });
+  assert.deepEqual(
+    parseProjectSpecificationMarkdown(renderProjectSpecificationMarkdown(specification)),
+    specification,
+  );
+});
+
 test("example structured specifications round-trip losslessly through SPEC.md", () => {
   const specification = projectSpecificationSchema.parse(
     makeSpecification({

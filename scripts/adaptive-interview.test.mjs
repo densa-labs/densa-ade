@@ -255,6 +255,7 @@ test("each answer batch records exact decisions and returns an updated round-tri
     {
       topic: "Which primary database must the service use?",
       decision: "Use PostgreSQL, self-hosted.",
+      questionId: "data.primary-store",
     },
   ]);
   assert.deepEqual(updated.specification.unresolvedQuestions, []);
@@ -266,6 +267,45 @@ test("each answer batch records exact decisions and returns an updated round-tri
   assert.match(updated.specificationMarkdown, /Use PostgreSQL, self-hosted\./u);
   assert.match(updated.specificationMarkdown, /## Unresolved questions\n\n_None recorded\._/u);
   assert.match(answerRequests[0].prompt, /"stage":"answers"/u);
+});
+
+test("answered question IDs cannot be resurrected after later batches and restart", async () => {
+  const initial = await plannerFor(
+    proposal({
+      questions: [
+        question({ id: "first", question: "First?", impact: "high", batchKey: "first" }),
+        question({ id: "second", question: "Second?", impact: "high", batchKey: "second" }),
+      ],
+    }),
+  ).start("Build an inventory service.");
+  const afterFirst = await plannerFor(proposal()).answerBatch({
+    snapshot: initial,
+    batchId: initial.questionBatches[0].id,
+    answers: [{ questionId: "first", answer: "Retain local data." }],
+  });
+  const malicious = plannerFor(
+    proposal({
+      questions: [
+        question({
+          id: "first",
+          question: "Different question?",
+          impact: "high",
+          batchKey: "first",
+        }),
+      ],
+    }),
+  );
+  const resumed = malicious.resume(
+    parseProjectSpecificationMarkdown(afterFirst.specificationMarkdown),
+  );
+  await assert.rejects(
+    malicious.answerBatch({
+      snapshot: resumed,
+      batchId: resumed.questionBatches[0].id,
+      answers: [{ questionId: "second", answer: "Local only." }],
+    }),
+    /replace or resurrect/u,
+  );
 });
 
 test("answering one batch cannot silently discard another unresolved critical question", async () => {

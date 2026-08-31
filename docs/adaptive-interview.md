@@ -21,6 +21,9 @@ Unanswered questions also remain Core-owned. A new agent proposal may add follow
 it cannot replace, resolve, or silently drop an existing question. Only an exact answer to the
 current highest-priority batch resolves its questions.
 
+Each new answer records its stable question ID with the exact decision text. Core checks both open
+and previously answered IDs before accepting follow-up questions, including after `resume()`.
+
 ## Ranking, batching, and stop condition
 
 Core ranks by impact first and then puts architecture, security/privacy, data/storage, and

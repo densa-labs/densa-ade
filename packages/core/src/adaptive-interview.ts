@@ -488,6 +488,7 @@ export class AdaptiveInterviewPlanner {
       specification.explicitUserDecisions.push({
         topic: question.question,
         decision: answer.answer,
+        questionId: question.id,
       });
     }
 
@@ -512,7 +513,12 @@ export class AdaptiveInterviewPlanner {
     const survivingQuestions = currentSnapshot.questions.filter(
       (question) => !answeredIds.has(question.id),
     );
-    const knownIds = new Set(currentSnapshot.questions.map(({ id }) => id));
+    const knownIds = new Set([
+      ...currentSnapshot.questions.map(({ id }) => id),
+      ...currentSnapshot.specification.explicitUserDecisions.flatMap(({ questionId }) =>
+        questionId === undefined ? [] : [questionId],
+      ),
+    ]);
     for (const question of proposal.questions) {
       if (knownIds.has(question.id)) {
         throw new AdaptiveInterviewError(

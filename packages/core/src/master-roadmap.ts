@@ -151,6 +151,8 @@ function buildMasterRoadmapPrompt(specification: ProjectSpecification): string {
     "Create ordered phases with stable unique IDs, clear goals, explicit completion criteria, and tasks.",
     "Every task needs a stable unique ID, dependencies by task ID, risk level, and expected validator categories.",
     "Every executable task needs concrete, testable acceptance criteria. Dependencies must exist and be acyclic.",
+    "Dependencies may refer to this phase or earlier phases, never later phases or non-executable tasks. Every phase with executable work needs completion criteria.",
+    "Initial tasks have no supersession: return supersededByTaskIds as an empty array for each task.",
     "Mark a phase required when it is necessary to deliver the specified project; every required phase must contain tasks.",
     "Use dependencies, not array order alone, to express scheduling constraints across the full project.",
     "Return exactly one JSON object and no Markdown or commentary.",
@@ -163,7 +165,7 @@ function buildMasterRoadmapPrompt(specification: ProjectSpecification): string {
   ].join("\n");
 }
 
-function assertSpecificationReady(input: ProjectSpecification): ProjectSpecification {
+export function assertSpecificationReady(input: ProjectSpecification): ProjectSpecification {
   const specification = projectSpecificationSchema.parse(input);
   const blockingQuestionIds = specification.unresolvedQuestions
     .filter(
@@ -311,10 +313,9 @@ export function renderMasterRoadmapMarkdown(input: MasterRoadmap): string {
     "",
     "This machine-readable block is part of the portable document and must remain synchronized with the human-readable sections above.",
     "",
-    `${CANONICAL_BLOCK_START}${JSON.stringify(roadmap, undefined, 2)}${CANONICAL_BLOCK_END}`,
-    "",
   );
-  return lines.join("\n");
+  const prose = lines.join("\n").replaceAll("<!--", "&lt;!--");
+  return `${prose}\n${CANONICAL_BLOCK_START}${JSON.stringify(roadmap, undefined, 2)}${CANONICAL_BLOCK_END}\n`;
 }
 
 /** Parse only renderer-produced ROADMAP.md files and re-run all graph validation. */

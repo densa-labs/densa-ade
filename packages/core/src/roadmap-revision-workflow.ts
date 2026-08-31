@@ -402,7 +402,15 @@ export class MasterRoadmapRevisionWorkflow {
     const affected = new Set(affectedTaskIds);
     return this.database.repositories.tasks
       .listByProjectId(projectId)
-      .filter((task) => affected.has(task.id) && ACTIVE_TASK_STATES.has(task.state))
+      .filter(
+        (task) =>
+          affected.has(task.id) &&
+          (ACTIVE_TASK_STATES.has(task.state) ||
+            task.state === "WAITING_FOR_USAGE" ||
+            this.database.repositories.attempts
+              .listByTaskId(task.id)
+              .some((attempt) => attempt.completedAt === undefined)),
+      )
       .map(({ id }) => id)
       .sort((left, right) => left.localeCompare(right));
   }

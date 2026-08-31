@@ -495,7 +495,7 @@ export class PhaseLifecycleOrchestrator {
     }
 
     const roadmapRecord = this.database.repositories.masterRoadmaps.findByProjectId(project.id);
-    const roadmapPhase = roadmapRecord?.roadmap.phases.find((entry) => entry.id === phase.id);
+    let roadmapPhase = roadmapRecord?.roadmap.phases.find((entry) => entry.id === phase.id);
     if (roadmapRecord === undefined || roadmapPhase === undefined) {
       return stopped(
         "PERSISTED_STATE_INCONSISTENT",
@@ -534,37 +534,52 @@ export class PhaseLifecycleOrchestrator {
     }
 
     if (phase.state !== "VALIDATING") {
-      const taskResult = await this.#executeTasks(request, roadmapPhase, key);
-      if (taskResult !== undefined) {
-        if (taskResult.status === "awaiting_task_approval") {
-          return Object.freeze({
-            status: "AWAITING_TASK_APPROVAL" as const,
-            phaseId: request.phaseId,
-            taskId: taskResult.taskId,
-          });
-        }
-        if (taskResult.status === "waiting_for_usage") {
-          return Object.freeze({
-            status: "WAITING_FOR_USAGE" as const,
-            phaseId: request.phaseId,
-            taskId: taskResult.taskId,
-            usageState: taskResult.usageState,
-          });
-        }
-        if (taskResult.status === "blocked") {
-          return await this.#finish(
+      for (;;) {
+        const taskResult = await this.#executeTasks(request, roadmapPhase, key);
+        const latestRoadmapPhase = this.database.repositories.masterRoadmaps
+          .findByProjectId(project.id)
+          ?.roadmap.phases.find((entry) => entry.id === phase.id);
+        if (latestRoadmapPhase === undefined)
+          return stopped(
+            "PERSISTED_STATE_INCONSISTENT",
             request,
-            roadmapPhase,
-            phaseStartedAt,
-            {
-              status: "not_run",
-              summary: "Phase validation did not run because required work is unresolved.",
-            },
-            [],
-            taskResult.issues,
+            "Active roadmap phase disappeared",
           );
+        roadmapPhase = latestRoadmapPhase;
+        if (taskResult !== undefined) {
+          if (taskResult.status === "awaiting_task_approval") {
+            return Object.freeze({
+              status: "AWAITING_TASK_APPROVAL" as const,
+              phaseId: request.phaseId,
+              taskId: taskResult.taskId,
+            });
+          }
+          if (taskResult.status === "waiting_for_usage") {
+            return Object.freeze({
+              status: "WAITING_FOR_USAGE" as const,
+              phaseId: request.phaseId,
+              taskId: taskResult.taskId,
+              usageState: taskResult.usageState,
+            });
+          }
+          if (taskResult.status === "blocked") {
+            return await this.#finish(
+              request,
+              roadmapPhase,
+              phaseStartedAt,
+              {
+                status: "not_run",
+                summary: "Phase validation did not run because required work is unresolved.",
+              },
+              [],
+              taskResult.issues,
+            );
+          }
+          return stopped(taskResult.code, request, taskResult.reason);
         }
-        return stopped(taskResult.code, request, taskResult.reason);
+        // No await may separate this fresh completion check from entering VALIDATING below.
+        if (this.#phaseTasks(project.id, roadmapPhase).every((task) => task.state === "COMPLETED"))
+          break;
       }
     }
 
@@ -699,10 +714,20 @@ export class PhaseLifecycleOrchestrator {
     | { readonly status: "stopped"; readonly code: PhaseLifecycleStopCode; readonly reason: string }
     | undefined
   > {
-    const executableIds = new Set(
-      roadmapPhase.tasks.filter((task) => task.executable).map((task) => task.id),
-    );
     for (;;) {
+      const latest = this.database.repositories.masterRoadmaps
+        .findByProjectId(request.projectId)
+        ?.roadmap.phases.find((phase) => phase.id === request.phaseId);
+      if (latest === undefined)
+        return {
+          status: "stopped",
+          code: "PERSISTED_STATE_INCONSISTENT",
+          reason: "Active roadmap phase disappeared",
+        };
+      roadmapPhase = latest;
+      const executableIds = new Set(
+        roadmapPhase.tasks.filter((task) => task.executable).map((task) => task.id),
+      );
       const control = request.controlBoundary?.();
       if (control !== undefined) {
         return {

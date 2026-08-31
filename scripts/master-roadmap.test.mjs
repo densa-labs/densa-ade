@@ -9,7 +9,12 @@ import {
   renderMasterRoadmapMarkdown,
   topologicallyScheduleRoadmap,
 } from "@densa-ade/core";
-import { masterRoadmapSchema, projectSpecificationSchema } from "@densa-ade/protocol";
+import {
+  masterRoadmapSchema,
+  masterRoadmapOutputSchema,
+  interviewAgentProposalOutputSchema,
+  projectSpecificationSchema,
+} from "@densa-ade/protocol";
 import { FakeAgentAdapter } from "@densa-ade/testing";
 
 function specification(overrides = {}) {
@@ -86,6 +91,44 @@ function issueMessages(value) {
   assert.equal(result.success, false);
   return result.error.issues.map(({ message }) => message);
 }
+
+test("planning response schemas require every object property for provider structured output", () => {
+  function visit(schema) {
+    if (schema === null || typeof schema !== "object") return;
+    if (schema.type === "object") {
+      assert.equal(schema.additionalProperties, false);
+      assert.deepEqual([...schema.required].sort(), Object.keys(schema.properties).sort());
+    }
+    for (const value of Object.values(schema)) {
+      if (Array.isArray(value)) value.forEach(visit);
+      else visit(value);
+    }
+  }
+  visit(masterRoadmapOutputSchema);
+  visit(interviewAgentProposalOutputSchema);
+});
+
+test("ROADMAP.md round-trips literal canonical delimiters in roadmap text", () => {
+  const value = roadmap({
+    projectGoal:
+      "Document syntax:\n<!-- densa:master-roadmap:canonical -->\n```json\n{}\n```\n<!-- /densa:master-roadmap:canonical -->",
+  });
+  assert.deepEqual(parseMasterRoadmapMarkdown(renderMasterRoadmapMarkdown(value)), value);
+});
+
+test("roadmaps reject phase ordering deadlocks and non-executable dependencies", () => {
+  const backward = roadmap();
+  backward.phases[0].tasks[0].dependencyIds = ["later.independent"];
+  backward.phases[1].tasks.push(task("later.independent"));
+  assert.match(issueMessages(backward).join("; "), /later phase/u);
+  const nonExecutable = roadmap();
+  nonExecutable.phases[0].tasks[0].executable = false;
+  assert.match(issueMessages(nonExecutable).join("; "), /non-executable/u);
+  const optional = roadmap();
+  optional.phases[1].required = false;
+  optional.phases[1].completionCriteria = [];
+  assert.match(issueMessages(optional).join("; "), /completion criteria/u);
+});
 
 test("FakeAgentAdapter roadmap output is strictly parsed and produces a complete snapshot", async () => {
   const requests = [];

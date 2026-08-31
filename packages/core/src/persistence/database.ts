@@ -30,6 +30,7 @@ import { EventPublisher, type PersistedEvent } from "../event-publisher.js";
 import { EventJournal } from "./event-journal.js";
 import { latestSchemaVersion } from "./migrations.js";
 import { createRepositories, type DensaAdeRepositories } from "./repositories.js";
+import { synchronizeRoadmapRuntime } from "./roadmap-runtime.js";
 import {
   PersistenceError,
   SqliteConnection,
@@ -171,8 +172,16 @@ export class DensaAdeDatabase {
     return this.#connection.transaction(() => work(this.repositories));
   }
 
-  persistInitialMasterRoadmap(record: MasterRoadmapRecord): MasterRoadmapRecord {
-    return this.#connection.transaction(() => this.repositories.masterRoadmaps.create(record));
+  persistInitialMasterRoadmap(
+    record: MasterRoadmapRecord,
+    materializeRuntime = false,
+  ): MasterRoadmapRecord {
+    return this.#connection.transaction(() => {
+      const stored = this.repositories.masterRoadmaps.create(record);
+      if (materializeRuntime)
+        synchronizeRoadmapRuntime(this.#connection, this.repositories, stored);
+      return stored;
+    });
   }
 
   /** Atomically records an inspectable roadmap proposal and its append-only audit fact. */
@@ -218,6 +227,32 @@ export class DensaAdeDatabase {
       throw new PersistenceError("Roadmap mutation persistence request is inconsistent");
     }
     return this.#connection.transaction(() => {
+      const current = this.repositories.masterRoadmaps.findByProjectId(request.roadmap.projectId);
+      if (
+        current === undefined ||
+        current.revisionNumber !== request.expectedRevisionNumber ||
+        !isDeepStrictEqual(current.roadmap, request.revision.oldValue) ||
+        !isDeepStrictEqual(request.roadmap.roadmap, request.revision.newValue)
+      ) {
+        throw new PersistenceError(
+          "Roadmap mutation does not match authoritative before and after snapshots",
+        );
+      }
+      synchronizeRoadmapRuntime(
+        this.#connection,
+        this.repositories,
+        request.roadmap,
+        current.roadmap,
+        (task) =>
+          this.persistStateTransition(
+            stateTransitionService.transitionTask(task, "CANCELLED", {
+              actor: request.event.actor,
+              occurredAt: request.event.occurredAt,
+              reason: `Task superseded by roadmap revision ${request.revision.id}`,
+            }),
+            eventIdSchema.parse(`${request.event.id}:superseded:${task.id}`),
+          ),
+      );
       this.repositories.masterRoadmaps.replace(request.roadmap, request.expectedRevisionNumber);
       this.repositories.roadmapRevisions.create(request.revision);
       if (request.proposalResolution !== undefined) {

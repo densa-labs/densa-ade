@@ -1,4 +1,5 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
+import { isDeepStrictEqual } from "node:util";
 
 import {
   eventIdSchema,
@@ -27,6 +28,8 @@ import {
 } from "@densa-ade/protocol";
 
 import type { PersistedEvent } from "./event-publisher.js";
+import { assertSpecificationReady } from "./master-roadmap.js";
+import { redactSensitiveText } from "./secret-redaction.js";
 import type { DensaAdeDatabase } from "./persistence/database.js";
 import type { PortableSyncResult } from "./persistence/portable-project.js";
 import {
@@ -230,7 +233,14 @@ export function applyRoadmapMutation(
       if (sourcePhase === undefined) throw invalid(`Source task phase is unavailable`);
       const replacementIds = operation.replacementTasks.map((task) => task.id);
       const sourceTasks = [...sourcePhase.tasks];
-      sourceTasks.splice(source.taskIndex, 1, ...operation.replacementTasks);
+      sourceTasks.splice(
+        source.taskIndex,
+        1,
+        ...operation.replacementTasks.map((task) => ({
+          ...task,
+          dependencyIds: unique([...source.task.dependencyIds, ...task.dependencyIds]),
+        })),
+      );
       roadmap = replacePhase(roadmap, source.phaseIndex, { ...sourcePhase, tasks: sourceTasks });
       const dependents: string[] = [];
       const dependentPhaseIds: string[] = [];
@@ -397,8 +407,23 @@ export function applyRoadmapMutation(
 
   return Object.freeze({
     roadmap: validateMutationResult(roadmap),
-    affectedPhaseIds: unique(affectedPhaseIds),
-    affectedTaskIds: unique(affectedTaskIds),
+    affectedPhaseIds: unique([
+      ...affectedPhaseIds,
+      ...roadmap.phases
+        .filter((phase, index) => !isDeepStrictEqual(input.phases[index], phase))
+        .map((phase) => phase.id),
+    ]),
+    affectedTaskIds: unique([
+      ...affectedTaskIds,
+      ...roadmap.phases.flatMap((phase) =>
+        phase.tasks
+          .filter((task, index) => {
+            const oldPhase = input.phases.find((candidate) => candidate.id === phase.id);
+            return !isDeepStrictEqual(oldPhase?.tasks[index], task);
+          })
+          .map((task) => task.id),
+      ),
+    ]),
   });
 }
 
@@ -466,6 +491,29 @@ function classifyAgainstCurrentRoadmap(
       semanticMinimum = "scope";
     }
   }
+  if (operation.kind === "split_task") {
+    const existing = findTask(roadmap, operation.taskId).task;
+    const criteria = operation.replacementTasks.flatMap((task) =>
+      task.executable ? task.acceptanceCriteria : [],
+    );
+    const validators = operation.replacementTasks.flatMap((task) =>
+      task.executable ? task.expectedValidators : [],
+    );
+    if (
+      existing.acceptanceCriteria.some((criterion) => !criteria.includes(criterion)) ||
+      existing.expectedValidators.some((validator) => !validators.includes(validator))
+    )
+      semanticMinimum = "scope";
+  }
+  if (
+    operation.kind === "change_architecture_task_details" &&
+    operation.expectedValidators !== undefined &&
+    findTask(roadmap, operation.taskId).task.expectedValidators.some(
+      (validator) => !operation.expectedValidators?.includes(validator),
+    )
+  ) {
+    semanticMinimum = "scope";
+  }
   if (
     proposed !== undefined &&
     CLASSIFICATION_RANK[proposed] < CLASSIFICATION_RANK[semanticMinimum]
@@ -525,6 +573,11 @@ export class RoadmapMutationService {
     const project = this.database.repositories.projects.findById(parsedProjectId);
     if (project === undefined)
       throw invalid(`Cannot store a roadmap for missing project ${projectId}`);
+    if (project.state !== "DRAFT" && project.state !== "PLANNING") {
+      throw invalid(
+        "Initial roadmap must be stored during project planning, before execution becomes eligible",
+      );
+    }
     const roadmap = masterRoadmapSchema.parse(input);
     const specification = this.database.repositories.specifications.findByProjectId(project.id);
     if (specification === undefined) {
@@ -535,6 +588,7 @@ export class RoadmapMutationService {
     if (roadmap.projectGoal !== specification.specification.projectGoal) {
       throw invalid("Authoritative master roadmap changed the exact project specification goal");
     }
+    assertSpecificationReady(specification.specification);
     const now = isoTimestampSchema.parse(this.#now());
     const permission = new PermissionPolicyService(this.database).authorize({
       projectId: project.id,
@@ -548,13 +602,16 @@ export class RoadmapMutationService {
         `Initial roadmap persistence requires user authorization: ${permission.decision.disposition}`,
       );
     }
-    this.database.persistInitialMasterRoadmap({
-      projectId: project.id,
-      roadmap,
-      revisionNumber: 0,
-      createdAt: now,
-      updatedAt: now,
-    });
+    this.database.persistInitialMasterRoadmap(
+      {
+        projectId: project.id,
+        roadmap,
+        revisionNumber: 0,
+        createdAt: now,
+        updatedAt: now,
+      },
+      true,
+    );
     const portableSync = await this.#synchronize(project.id, permission.authorization);
     return Object.freeze({ roadmap, portableSync });
   }
@@ -585,7 +642,8 @@ export class RoadmapMutationService {
     projectId: string,
     operations: readonly RoadmapMutationOperation[],
     classification?: RoadmapMutationClassification,
-  ): Readonly<{ baseRevisionNumber: number; before: MasterRoadmap }> & RoadmapMutationBatchPreview {
+  ): Readonly<{ baseRevisionNumber: number; before: MasterRoadmap; approvalCategory: string }> &
+    RoadmapMutationBatchPreview {
     const parsedProjectId = projectIdSchema.parse(projectId);
     const project = this.database.repositories.projects.findById(parsedProjectId);
     if (project === undefined)
@@ -596,6 +654,12 @@ export class RoadmapMutationService {
     return Object.freeze({
       baseRevisionNumber: current.revisionNumber,
       before: current.roadmap,
+      approvalCategory: mutationApprovalCategory(
+        project.id,
+        current.revisionNumber,
+        current.roadmap,
+        operations,
+      ),
       ...previewRoadmapMutations(current.roadmap, operations, classification),
     });
   }
@@ -605,7 +669,22 @@ export class RoadmapMutationService {
     input: RoadmapMutationBatchRequest,
     proposalResolution?: RoadmapMutationProposalResolution,
   ): Promise<RoadmapMutationBatchResult> {
-    const request = roadmapMutationBatchRequestSchema.parse(input);
+    const parsed = roadmapMutationBatchRequestSchema.parse(input);
+    const request = roadmapMutationBatchRequestSchema.parse({
+      ...parsed,
+      actor: redactSensitiveText(parsed.actor),
+      rationale: redactSensitiveText(parsed.rationale),
+      sessionId: redactSensitiveText(parsed.sessionId),
+      ...(parsed.approval === undefined
+        ? {}
+        : {
+            approval: {
+              ...parsed.approval,
+              approvedBy: redactSensitiveText(parsed.approval.approvedBy),
+              sessionId: redactSensitiveText(parsed.approval.sessionId),
+            },
+          }),
+    });
     const parsedProjectId = projectIdSchema.parse(projectId);
     const project = this.database.repositories.projects.findById(parsedProjectId);
     if (project === undefined)
@@ -621,7 +700,11 @@ export class RoadmapMutationService {
     const classification = impact.classification;
     if (proposalResolution !== undefined) {
       const proposal = proposalResolution.proposal;
+      const storedProposal = this.database.repositories.roadmapRevisionProposals.findByEventId(
+        proposal.proposalEventId,
+      );
       if (
+        !isDeepStrictEqual(storedProposal, proposal) ||
         proposal.projectId !== project.id ||
         proposal.baseRevisionNumber !== current.revisionNumber ||
         request.proposalEventId !== proposal.proposalEventId ||
@@ -641,6 +724,26 @@ export class RoadmapMutationService {
       if (approvalDecision?.projectId !== project.id) {
         throw invalid(
           `Roadmap mutation approval decision ${request.approval.decisionId} is not recorded for project ${project.id}`,
+        );
+      }
+      const expectedCategory =
+        proposalResolution === undefined
+          ? mutationApprovalCategory(
+              project.id,
+              current.revisionNumber,
+              current.roadmap,
+              request.operations,
+            )
+          : `roadmap.revision.approval.${proposalResolution.proposal.id}`;
+      if (
+        approvalDecision.source !== "user" ||
+        approvalDecision.status !== "active" ||
+        approvalDecision.kind !== "decision" ||
+        approvalDecision.category !== expectedCategory ||
+        approvalDecision.createdAt !== request.approval.approvedAt
+      ) {
+        throw invalid(
+          "Roadmap mutation approval is not bound to this specific revision and operation",
         );
       }
     }
@@ -818,4 +921,23 @@ export class RoadmapMutationService {
       return Object.freeze({ status: "failed", code, message });
     }
   }
+}
+
+function mutationApprovalCategory(
+  projectId: string,
+  revision: number,
+  before: MasterRoadmap,
+  operations: readonly RoadmapMutationOperation[],
+): string {
+  const digest = createHash("sha256")
+    .update(
+      JSON.stringify({
+        projectId,
+        revision,
+        before,
+        operations: operations.map((operation) => roadmapMutationOperationSchema.parse(operation)),
+      }),
+    )
+    .digest("hex");
+  return `roadmap.mutation.approval.${digest}`;
 }

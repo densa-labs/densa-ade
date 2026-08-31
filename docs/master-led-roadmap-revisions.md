@@ -27,6 +27,12 @@ Proposal states are:
 
 If another roadmap revision wins before a proposal is applied, the proposal becomes `stale`; Core never rebases or silently rewrites the user's inspected change.
 
+Phase 4's current mutation boundary also checks the exact stored proposal, reconciles runtime rows
+transactionally, includes indirectly shifted tasks in affected IDs, and treats unfinished attempts
+as active. The phase executor refreshes accepted changes between tasks; phase validation and
+completed work retain their original promises. See [audited-roadmap-mutations.md](./audited-roadmap-mutations.md)
+for approval binding, supersession, historical-work protection, and rollback guarantees.
+
 Examples map to existing validated operations and commands:
 
 - “Add mobile support before QA” can be an atomic `add_task` plus `change_dependency` batch.

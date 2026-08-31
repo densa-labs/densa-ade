@@ -199,10 +199,10 @@ export function renderProjectSpecificationMarkdown(input: ProjectSpecification):
     "",
     "This machine-readable block is part of the portable document and must remain synchronized with the human-readable sections above.",
     "",
-    `${CANONICAL_BLOCK_START}${JSON.stringify(specification, undefined, 2)}${CANONICAL_BLOCK_END}`,
-    "",
   );
-  return lines.join("\n");
+  // Literal delimiter examples in user prose must not become additional canonical blocks.
+  const prose = lines.join("\n").replaceAll("<!--", "&lt;!--");
+  return `${prose}\n${CANONICAL_BLOCK_START}${JSON.stringify(specification, undefined, 2)}${CANONICAL_BLOCK_END}\n`;
 }
 
 /** Parse only renderer-produced SPEC.md files, validating the embedded schema version and shape. */

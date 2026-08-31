@@ -11,6 +11,10 @@ import {
   assertRoadmapMutationPolicy,
   classifyRoadmapMutation,
   parseMasterRoadmapMarkdown,
+  StateTransitionService,
+  previewRoadmapMutations,
+  DependencyScheduler,
+  TaskPacketBuilder,
 } from "@densa-ade/core";
 import { DensaAdeDatabase } from "@densa-ade/core/persistence";
 import { masterRoadmapSchema } from "@densa-ade/protocol";
@@ -108,6 +112,128 @@ function assertValid(impact) {
   assert.deepEqual(masterRoadmapSchema.parse(impact.roadmap), impact.roadmap);
   return impact.roadmap;
 }
+
+test("splits preserve incoming dependencies and cannot silently drop acceptance or validators", () => {
+  const operation = {
+    kind: "split_task",
+    taskId: "inventory.crud",
+    replacementTasks: [task("inventory.read"), task("inventory.write")],
+  };
+  const preview = previewRoadmapMutations(roadmap(), [operation]);
+  assert.equal(preview.classification, "scope");
+  for (const candidate of preview.roadmap.phases[1].tasks.slice(0, 2)) {
+    assert.ok(candidate.dependencyIds.includes("storage.schema"));
+  }
+  const preserved = JSON.parse(JSON.stringify(operation));
+  preserved.replacementTasks[0].acceptanceCriteria.push(
+    ...roadmap().phases[1].tasks[0].acceptanceCriteria,
+  );
+  assert.equal(previewRoadmapMutations(roadmap(), [preserved]).classification, "minor");
+  assert.equal(
+    previewRoadmapMutations(roadmap(), [
+      {
+        kind: "change_architecture_task_details",
+        taskId: "inventory.crud",
+        expectedValidators: ["manual_review"],
+      },
+    ]).classification,
+    "scope",
+  );
+});
+
+test("initial persistence enforces readiness and direct mutations protect active work and scoped approvals", async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "densa-p4-audit-"));
+  const database = DensaAdeDatabase.openInMemory();
+  try {
+    database.repositories.projects.create({
+      id: projectId,
+      name: "Audit",
+      state: "DRAFT",
+      executionMode: "continuous",
+      createdAt,
+      updatedAt: createdAt,
+    });
+    seedSpecification(database);
+    const service = new RoadmapMutationService(database, {
+      workspacePath: workspace,
+      now: () => changedAt,
+    });
+    database.repositories.specifications.set({
+      projectId,
+      specification: {
+        ...specification(),
+        unresolvedQuestions: [
+          {
+            id: "critical",
+            question: "Which security boundary?",
+            impact: "high",
+            category: "security_privacy",
+          },
+        ],
+      },
+      createdAt,
+      updatedAt: createdAt,
+    });
+    await assert.rejects(service.storeInitialRoadmap(projectId, roadmap()), /not ready/u);
+    assert.equal(database.repositories.masterRoadmaps.findByProjectId(projectId), undefined);
+    seedSpecification(database);
+    await service.storeInitialRoadmap(projectId, roadmap());
+    assert.ok(database.repositories.tasks.findById("inventory.crud"));
+    for (const state of ["READY", "RUNNING"]) {
+      database.persistStateTransition(
+        new StateTransitionService().transitionTask(
+          database.repositories.tasks.findById("inventory.crud"),
+          state,
+          { actor: "fixture", occurredAt: changedAt, reason: "test active worker" },
+        ),
+        `event-active-${state}`,
+      );
+    }
+    await assert.rejects(
+      service.apply(
+        projectId,
+        automatic({
+          kind: "modify_acceptance_criteria",
+          taskId: "inventory.crud",
+          acceptanceCriteria: [...roadmap().phases[1].tasks[0].acceptanceCriteria, "Another check"],
+        }),
+      ),
+      /active|safe boundary/u,
+    );
+    database.repositories.decisions.create({
+      id: "unrelated-approval",
+      projectId,
+      kind: "decision",
+      statement: "Use blue buttons",
+      title: "Theme",
+      rationale: "User preference",
+      category: "ux",
+      source: "user",
+      scope: "project",
+      status: "active",
+      affectedPhaseIds: [],
+      affectedTaskIds: [],
+      createdAt: changedAt,
+    });
+    await assert.rejects(
+      service.apply(projectId, {
+        ...automatic({ kind: "remove_phase", phaseId: "phase.product" }),
+        applicationMode: "approved",
+        approval: {
+          decisionId: "unrelated-approval",
+          approvedBy: "user",
+          approvedAt: changedAt,
+          sessionId: "session",
+        },
+      }),
+      /approval.*(match|bound|specific)/u,
+    );
+    assert.equal(database.repositories.masterRoadmaps.findByProjectId(projectId).revisionNumber, 0);
+  } finally {
+    database.close();
+    await rm(workspace, { recursive: true, force: true });
+  }
+});
 
 test("every supported roadmap operation produces a graph-valid accepted roadmap", () => {
   const addedTask = assertValid(
@@ -471,6 +597,10 @@ test("accepted mutations atomically persist history and event, then regenerate R
         .roadmap.phases[1].tasks.some((candidate) => candidate.id === "inventory.rollback-proof"),
       false,
     );
+    assert.equal(database.repositories.tasks.findById("inventory.rollback-proof"), undefined);
+    assert.deepEqual(database.repositories.tasks.findById("product.e2e").dependencyIds, [
+      "inventory.crud",
+    ]);
 
     await assert.rejects(
       service.apply(
@@ -508,7 +638,8 @@ test("accepted mutations atomically persist history and event, then regenerate R
       statement: "Remove the optional phase.",
       title: "Remove optional phase",
       rationale: "The user explicitly approved removal after reviewing the scope impact.",
-      category: "approval.roadmap-scope-change",
+      category: service.preview(projectId, [{ kind: "remove_phase", phaseId: "phase.optional" }])
+        .approvalCategory,
       source: "user",
       scope: "phase",
       status: "active",
@@ -537,5 +668,434 @@ test("accepted mutations atomically persist history and event, then regenerate R
   } finally {
     database.close();
     await rm(workspace, { force: true, recursive: true });
+  }
+});
+
+test("roadmap mutations remain schedulable and build current task packets after database restart", async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "densa-p4-restart-"));
+  const databasePath = join(workspace, "core.sqlite");
+  let database = DensaAdeDatabase.open(databasePath);
+  try {
+    database.repositories.projects.create({
+      id: projectId,
+      name: "Restart audit",
+      state: "DRAFT",
+      executionMode: "continuous",
+      createdAt,
+      updatedAt: createdAt,
+    });
+    seedSpecification(database);
+    database.repositories.projectSettings.set({
+      projectId,
+      values: { allowSignificantRoadmapMutationAutoApply: true },
+      updatedAt: createdAt,
+    });
+    const service = new RoadmapMutationService(database, {
+      workspacePath: workspace,
+      now: () => changedAt,
+    });
+    await service.storeInitialRoadmap(projectId, roadmap());
+    const split = {
+      kind: "split_task",
+      taskId: "inventory.crud",
+      replacementTasks: [
+        task("inventory.read", {
+          acceptanceCriteria: roadmap().phases[1].tasks[0].acceptanceCriteria,
+        }),
+        task("inventory.write"),
+      ],
+    };
+    await service.apply(projectId, automatic(split));
+    await service.apply(
+      projectId,
+      automatic({
+        kind: "reorder_task",
+        taskId: "inventory.write",
+        phaseId: "phase.product",
+        position: 0,
+      }),
+    );
+    await service.apply(
+      projectId,
+      automatic({
+        kind: "modify_acceptance_criteria",
+        taskId: "inventory.read",
+        acceptanceCriteria: [
+          ...roadmap().phases[1].tasks[0].acceptanceCriteria,
+          "Reads return all persisted inventory.",
+        ],
+      }),
+    );
+    await service.apply(
+      projectId,
+      automatic({
+        kind: "change_architecture_task_details",
+        taskId: "inventory.read",
+        title: "Read persisted inventory",
+      }),
+    );
+    const before = database.repositories.masterRoadmaps.findByProjectId(projectId);
+    database.close();
+    database = DensaAdeDatabase.open(databasePath);
+    assert.deepEqual(database.repositories.masterRoadmaps.findByProjectId(projectId), before);
+    assert.equal(database.repositories.tasks.findById("inventory.crud"), undefined);
+    assert.deepEqual(database.repositories.tasks.findById("product.e2e").dependencyIds, [
+      "inventory.read",
+      "inventory.write",
+    ]);
+    const packet = new TaskPacketBuilder(database.repositories).build({
+      taskId: "inventory.read",
+      selection: { globalConstraints: [], architecturalDecisionIds: [] },
+      relevantFiles: [],
+      permissionEnvelope: {
+        id: "audit-policy",
+        preset: "standard",
+        grantedActions: ["run tests"],
+        deniedActions: ["push"],
+        writablePaths: ["src"],
+        networkAccess: "denied",
+      },
+    });
+    assert.equal(packet.status, "built");
+    assert.equal(packet.packet.task.title, "Read persisted inventory");
+    const transitions = new StateTransitionService();
+    for (const state of ["PLANNING", "READY"])
+      database.persistStateTransition(
+        transitions.transitionProject(database.repositories.projects.findById(projectId), state, {
+          actor: "fixture",
+          occurredAt: changedAt,
+        }),
+        `restart-project-${state}`,
+      );
+    database.persistStateTransition(
+      transitions.transitionPhase(
+        database.repositories.phases.findById("phase.foundation"),
+        "READY",
+        { actor: "fixture", occurredAt: changedAt },
+      ),
+      "restart-phase-ready",
+    );
+    database.persistStateTransition(
+      transitions.transitionTask(database.repositories.tasks.findById("storage.schema"), "READY", {
+        actor: "fixture",
+        occurredAt: changedAt,
+      }),
+      "restart-task-ready",
+    );
+    const selected = new DependencyScheduler(database.repositories).selectNext({
+      projectId,
+      gates: { outstandingUserDecisionIds: [], permissionBlockers: [] },
+    });
+    assert.equal(selected.status, "selected");
+    assert.equal(selected.task.id, "storage.schema");
+  } finally {
+    database.close();
+    await rm(workspace, { recursive: true, force: true });
+  }
+});
+
+test("approval evidence cannot be replayed against a newer roadmap or another operation", async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "densa-p4-approval-"));
+  const database = DensaAdeDatabase.openInMemory();
+  try {
+    database.repositories.projects.create({
+      id: projectId,
+      name: "Approval audit",
+      state: "DRAFT",
+      executionMode: "continuous",
+      createdAt,
+      updatedAt: createdAt,
+    });
+    seedSpecification(database);
+    const service = new RoadmapMutationService(database, {
+      workspacePath: workspace,
+      now: () => changedAt,
+    });
+    await service.storeInitialRoadmap(projectId, roadmap());
+    const operation = {
+      kind: "modify_acceptance_criteria",
+      taskId: "inventory.crud",
+      acceptanceCriteria: ["A user-approved replacement criterion."],
+    };
+    database.repositories.decisions.create({
+      id: "bound-approval",
+      projectId,
+      kind: "decision",
+      statement: "Approve inspected acceptance revision",
+      title: "Approval",
+      rationale: "Inspected the exact diff",
+      category: service.preview(projectId, [operation]).approvalCategory,
+      source: "user",
+      scope: "project",
+      status: "active",
+      affectedPhaseIds: [],
+      affectedTaskIds: [],
+      createdAt: changedAt,
+    });
+    const approval = {
+      decisionId: "bound-approval",
+      approvedBy: "user",
+      approvedAt: changedAt,
+      sessionId: "session",
+    };
+    await assert.rejects(
+      service.apply(projectId, {
+        ...automatic({ ...operation, acceptanceCriteria: ["Different replacement"] }),
+        applicationMode: "approved",
+        approval,
+      }),
+      /approval.*bound/u,
+    );
+    await service.apply(
+      projectId,
+      automatic({
+        kind: "add_task",
+        phaseId: "phase.product",
+        position: 2,
+        task: task("additional.check"),
+      }),
+    );
+    await assert.rejects(
+      service.apply(projectId, { ...automatic(operation), applicationMode: "approved", approval }),
+      /approval.*bound/u,
+    );
+    assert.equal(database.repositories.masterRoadmaps.findByProjectId(projectId).revisionNumber, 1);
+  } finally {
+    database.close();
+    await rm(workspace, { recursive: true, force: true });
+  }
+});
+
+test("removing historical tasks fails atomically without losing lifecycle events or attempts", async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "densa-p4-history-"));
+  const database = DensaAdeDatabase.openInMemory();
+  try {
+    database.repositories.projects.create({
+      id: projectId,
+      name: "History audit",
+      state: "DRAFT",
+      executionMode: "continuous",
+      createdAt,
+      updatedAt: createdAt,
+    });
+    seedSpecification(database);
+    const service = new RoadmapMutationService(database, {
+      workspacePath: workspace,
+      now: () => changedAt,
+    });
+    await service.storeInitialRoadmap(projectId, roadmap());
+    database.persistStateTransition(
+      new StateTransitionService().transitionTask(
+        database.repositories.tasks.findById("inventory.crud"),
+        "READY",
+        { actor: "fixture", occurredAt: changedAt },
+      ),
+      "historical-ready",
+    );
+    const before = database.repositories.tasks.listByProjectId(projectId);
+    const operation = {
+      kind: "split_task",
+      taskId: "inventory.crud",
+      replacementTasks: [
+        task("replacement.one", {
+          acceptanceCriteria: roadmap().phases[1].tasks[0].acceptanceCriteria,
+        }),
+        task("replacement.two"),
+      ],
+    };
+    await assert.rejects(service.apply(projectId, automatic(operation)), /lifecycle history/u);
+    assert.deepEqual(database.repositories.tasks.listByProjectId(projectId), before);
+    assert.ok(database.eventJournal.findById("historical-ready"));
+    assert.equal(database.repositories.masterRoadmaps.findByProjectId(projectId).revisionNumber, 0);
+    assert.equal(database.repositories.roadmapRevisions.listByProjectId(projectId).length, 0);
+  } finally {
+    database.close();
+    await rm(workspace, { recursive: true, force: true });
+  }
+});
+
+test("supersession cancels an inactive user-wait task atomically and preserves real decision gates", async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "densa-p4-supersession-"));
+  const database = DensaAdeDatabase.openInMemory();
+  try {
+    database.repositories.projects.create({
+      id: projectId,
+      name: "Supersession audit",
+      state: "DRAFT",
+      executionMode: "continuous",
+      createdAt,
+      updatedAt: createdAt,
+    });
+    seedSpecification(database);
+    const service = new RoadmapMutationService(database, {
+      workspacePath: workspace,
+      now: () => changedAt,
+    });
+    await service.storeInitialRoadmap(projectId, roadmap());
+    const transitions = new StateTransitionService();
+    for (const state of ["READY", "WAITING_FOR_USER"])
+      database.persistStateTransition(
+        transitions.transitionTask(database.repositories.tasks.findById("inventory.crud"), state, {
+          actor: "fixture",
+          occurredAt: changedAt,
+        }),
+        `supersession-${state}`,
+      );
+    const operation = {
+      kind: "mark_task_superseded",
+      taskId: "inventory.crud",
+      supersededByTaskIds: ["storage.schema"],
+    };
+    database.repositories.decisions.create({
+      id: "supersession-approval",
+      projectId,
+      kind: "decision",
+      statement: "Approve inspected supersession",
+      title: "Approval",
+      rationale: "Replace work without losing history",
+      category: service.preview(projectId, [operation]).approvalCategory,
+      source: "user",
+      scope: "project",
+      status: "active",
+      affectedPhaseIds: [],
+      affectedTaskIds: [],
+      createdAt: changedAt,
+    });
+    const request = {
+      ...automatic(operation),
+      applicationMode: "approved",
+      approval: {
+        decisionId: "supersession-approval",
+        approvedBy: "user",
+        approvedAt: changedAt,
+        sessionId: "session",
+      },
+    };
+    const failing = new RoadmapMutationService(database, {
+      workspacePath: workspace,
+      now: () => changedAt,
+      eventIdFactory: () => "supersession-READY",
+    });
+    await assert.rejects(failing.apply(projectId, request), /SQLite/u);
+    assert.equal(database.repositories.tasks.findById("inventory.crud").state, "WAITING_FOR_USER");
+    assert.equal(database.repositories.masterRoadmaps.findByProjectId(projectId).revisionNumber, 0);
+    await service.apply(projectId, request);
+    assert.equal(database.repositories.tasks.findById("inventory.crud").state, "CANCELLED");
+    assert.ok(database.eventJournal.findById("supersession-WAITING_FOR_USER"));
+    for (const state of ["PLANNING", "READY"])
+      database.persistStateTransition(
+        transitions.transitionProject(database.repositories.projects.findById(projectId), state, {
+          actor: "fixture",
+          occurredAt: changedAt,
+        }),
+        `supersession-project-${state}`,
+      );
+    database.persistStateTransition(
+      transitions.transitionPhase(
+        database.repositories.phases.findById("phase.foundation"),
+        "READY",
+        { actor: "fixture", occurredAt: changedAt },
+      ),
+      "supersession-phase-ready",
+    );
+    database.persistStateTransition(
+      transitions.transitionTask(database.repositories.tasks.findById("storage.schema"), "READY", {
+        actor: "fixture",
+        occurredAt: changedAt,
+      }),
+      "supersession-replacement-ready",
+    );
+    const scheduler = new DependencyScheduler(database.repositories);
+    assert.equal(
+      scheduler.selectNext({
+        projectId,
+        gates: { outstandingUserDecisionIds: [], permissionBlockers: [] },
+      }).status,
+      "selected",
+    );
+    assert.equal(
+      scheduler.selectNext({
+        projectId,
+        gates: { outstandingUserDecisionIds: ["real-unresolved-decision"], permissionBlockers: [] },
+      }).reasons[0].code,
+      "OUTSTANDING_USER_DECISION",
+    );
+  } finally {
+    database.close();
+    await rm(workspace, { recursive: true, force: true });
+  }
+});
+
+test("direct mutation metadata is redacted before durable revision history", async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "densa-p4-redaction-"));
+  const database = DensaAdeDatabase.openInMemory();
+  try {
+    database.repositories.projects.create({
+      id: projectId,
+      name: "Redaction audit",
+      state: "DRAFT",
+      executionMode: "continuous",
+      createdAt,
+      updatedAt: createdAt,
+    });
+    seedSpecification(database);
+    const service = new RoadmapMutationService(database, { workspacePath: workspace });
+    await service.storeInitialRoadmap(projectId, roadmap());
+    await service.apply(projectId, {
+      ...automatic({
+        kind: "add_task",
+        phaseId: "phase.product",
+        position: 2,
+        task: task("metadata.check"),
+      }),
+      actor: "master [secret:actor-value]",
+      rationale: "Context [secret:rationale-value]",
+      sessionId: "session [secret:session-value]",
+    });
+    const history = JSON.stringify(
+      database.repositories.roadmapRevisions.listByProjectId(projectId),
+    );
+    for (const value of ["actor-value", "rationale-value", "session-value"])
+      assert.equal(history.includes(value), false);
+    assert.match(history, /REDACTED/u);
+  } finally {
+    database.close();
+    await rm(workspace, { recursive: true, force: true });
+  }
+});
+
+test("cross-project roadmap ID collisions fail atomically with actionable guidance", async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "densa-p4-project-ids-"));
+  const database = DensaAdeDatabase.openInMemory();
+  try {
+    for (const id of [projectId, "other-project"]) {
+      database.repositories.projects.create({
+        id,
+        name: id,
+        state: "DRAFT",
+        executionMode: "continuous",
+        createdAt,
+        updatedAt: createdAt,
+      });
+      database.repositories.specifications.set({
+        projectId: id,
+        specification: specification(),
+        createdAt,
+        updatedAt: createdAt,
+      });
+    }
+    const service = new RoadmapMutationService(database, { workspacePath: workspace });
+    await service.storeInitialRoadmap(projectId, roadmap());
+    await assert.rejects(
+      service.storeInitialRoadmap("other-project", roadmap()),
+      /another project; use project-qualified stable IDs/u,
+    );
+    assert.equal(database.repositories.masterRoadmaps.findByProjectId("other-project"), undefined);
+    assert.equal(database.repositories.tasks.listByProjectId("other-project").length, 0);
+    assert.equal(database.repositories.masterRoadmaps.findByProjectId(projectId).revisionNumber, 0);
+    assert.equal(database.repositories.tasks.listByProjectId(projectId).length, 3);
+  } finally {
+    database.close();
+    await rm(workspace, { recursive: true, force: true });
   }
 });

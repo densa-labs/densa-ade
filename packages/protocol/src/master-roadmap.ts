@@ -112,10 +112,13 @@ export const masterRoadmapPhaseSchema = z
         path: ["tasks"],
       });
     }
-    if (phase.required && phase.completionCriteria.length === 0) {
+    if (
+      (phase.required || phase.tasks.some((task) => task.executable)) &&
+      phase.completionCriteria.length === 0
+    ) {
       context.addIssue({
         code: "custom",
-        message: `Required phase ${phase.id} must define explicit completion criteria`,
+        message: `Required or executable phase ${phase.id} must define explicit completion criteria`,
         path: ["completionCriteria"],
       });
     }
@@ -169,6 +172,7 @@ export const masterRoadmapSchema = z
       }
     }
 
+    const tasksById = new Map(tasks.map((entry) => [entry.task.id, entry]));
     for (const { task, path } of tasks) {
       for (const [dependencyIndex, dependencyId] of task.dependencyIds.entries()) {
         if (!taskIds.has(dependencyId)) {
@@ -177,6 +181,23 @@ export const masterRoadmapSchema = z
             message: `Task ${task.id} depends on missing task ${dependencyId}`,
             path: [...path, "dependencyIds", dependencyIndex],
           });
+        }
+        const dependency = tasksById.get(dependencyId);
+        if (task.executable && dependency !== undefined) {
+          if (!dependency.task.executable) {
+            context.addIssue({
+              code: "custom",
+              message: `Executable task ${task.id} depends on non-executable task ${dependencyId}`,
+              path: [...path, "dependencyIds", dependencyIndex],
+            });
+          }
+          if (Number(dependency.path[1]) > Number(path[1])) {
+            context.addIssue({
+              code: "custom",
+              message: `Task ${task.id} depends on later phase task ${dependencyId}; phases execute to completion in order`,
+              path: [...path, "dependencyIds", dependencyIndex],
+            });
+          }
         }
       }
       for (const [supersededIndex, supersedingTaskId] of (
@@ -298,6 +319,7 @@ export const masterRoadmapOutputSchema: JsonObject = {
                 "goal",
                 "executable",
                 "dependencyIds",
+                "supersededByTaskIds",
                 "acceptanceCriteria",
                 "riskLevel",
                 "expectedValidators",

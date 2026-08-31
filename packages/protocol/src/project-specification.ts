@@ -25,6 +25,11 @@ export const explicitUserDecisionSchema = z
   .strictObject({
     topic: preservedTextSchema,
     decision: preservedTextSchema,
+    // Optional for existing version 1 records; preserves answered IDs across interview restart.
+    questionId: z
+      .string()
+      .regex(/^[a-z0-9]+(?:[._-][a-z0-9]+)*$/u)
+      .optional(),
   })
   .readonly();
 export type ExplicitUserDecision = z.infer<typeof explicitUserDecisionSchema>;
@@ -92,6 +97,16 @@ export const projectSpecificationSchema = z
   })
   .superRefine((specification, context) => {
     const seenQuestionIds = new Set<string>();
+    for (const [index, decision] of specification.explicitUserDecisions.entries()) {
+      if (decision.questionId === undefined) continue;
+      if (seenQuestionIds.has(decision.questionId))
+        context.addIssue({
+          code: "custom",
+          message: `Answered question ID ${decision.questionId} is duplicated`,
+          path: ["explicitUserDecisions", index, "questionId"],
+        });
+      seenQuestionIds.add(decision.questionId);
+    }
     for (const [index, question] of specification.unresolvedQuestions.entries()) {
       if (seenQuestionIds.has(question.id)) {
         context.addIssue({

@@ -9,6 +9,7 @@ import {
   RoadmapMutationError,
   RoadmapMutationService,
   StateTransitionService,
+  DependencyScheduler,
 } from "@densa-ade/core";
 import { DensaAdeDatabase } from "@densa-ade/core/persistence";
 
@@ -205,6 +206,18 @@ test("minor multi-operation steering applies as one revision with inspectable be
     );
     const portable = await readFile(join(workspace, ".densa-ade", "ROADMAP.md"), "utf8");
     assert.match(portable, /mobile/u);
+    const runtime = database.repositories.tasks.findById("mobile");
+    assert.ok(runtime, "accepted roadmap additions must be materialized");
+    assert.equal(runtime.state, "PENDING");
+    assert.deepEqual(database.repositories.tasks.findById("qa").dependencyIds, ["mobile"]);
+    const selection = new DependencyScheduler(database.repositories).selectNext({
+      projectId,
+      gates: { outstandingUserDecisionIds: [], permissionBlockers: [] },
+    });
+    assert.equal(
+      selection.reasons.some(({ code }) => code === "PERSISTED_ROADMAP_INCONSISTENT"),
+      false,
+    );
   } finally {
     database.close();
     await rm(workspace, { recursive: true, force: true });
@@ -257,6 +270,47 @@ test("scope replacement waits for explicit approval and applies the exact inspec
       affectedTaskIds: [],
       createdAt: "2026-08-30T01:01:00.000Z",
     });
+
+    const approval = {
+      decisionId: "decision-user-approval",
+      approvedBy: "user",
+      approvedAt: "2026-08-30T01:01:00.000Z",
+      sessionId: "session-2",
+    };
+    const mutations = new RoadmapMutationService(database, { workspacePath: workspace });
+    const substitutedOperations = [
+      {
+        kind: "modify_acceptance_criteria",
+        taskId: "search",
+        acceptanceCriteria: ["A different, unapproved replacement"],
+      },
+    ];
+    const substituted = mutations.preview(projectId, substitutedOperations);
+    await assert.rejects(
+      mutations.applyBatch(
+        projectId,
+        {
+          operations: substitutedOperations,
+          classification: "scope",
+          rationale: proposed.proposal.rationale,
+          actor: proposed.proposal.actor,
+          sessionId: proposed.proposal.sessionId,
+          applicationMode: "approved",
+          approval,
+          proposalEventId: proposed.proposal.proposalEventId,
+        },
+        {
+          proposal: {
+            ...proposed.proposal,
+            operations: substitutedOperations,
+            afterValue: substituted.roadmap,
+          },
+          expectedStatus: proposed.proposal.status,
+        },
+      ),
+      /does not match the inspected base/u,
+    );
+    assert.equal(database.repositories.masterRoadmaps.findByProjectId(projectId).revisionNumber, 0);
 
     const applied = await service.applyProposal({
       proposalEventId: proposed.proposal.proposalEventId,
@@ -344,6 +398,7 @@ test("an affected running task defers a minor change until its safe boundary", a
       database.repositories.masterRoadmaps.findByProjectId(projectId).roadmap.phases[1].tasks[1].id,
       "search",
     );
+    assert.equal(database.repositories.tasks.findById("search").position, 1);
   } finally {
     database.close();
     await rm(workspace, { recursive: true, force: true });
