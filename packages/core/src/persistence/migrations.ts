@@ -757,6 +757,20 @@ CREATE INDEX phase_reports_project_generated
   ON phase_reports (project_id, generated_at, phase_id);
 `;
 
+const isolatedExecutionWorkspaces = `
+ALTER TABLE densa_run_branches ADD COLUMN source_workspace_path TEXT
+  CHECK (source_workspace_path IS NULL OR (length(source_workspace_path) > 0 AND source_workspace_path <> workspace_path));
+CREATE TABLE task_publication_intents (
+  attempt_id TEXT PRIMARY KEY REFERENCES attempts(id) ON DELETE RESTRICT,
+  source_workspace_path TEXT NOT NULL,
+  source_branch TEXT NOT NULL,
+  expected_head TEXT NOT NULL,
+  commit_sha TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  published_at TEXT
+) STRICT;
+`;
+
 export const schemaMigrations: readonly SchemaMigration[] = Object.freeze([
   Object.freeze({ version: 1, name: "authoritative_runtime_schema", sql: initialSchema }),
   Object.freeze({ version: 2, name: "ordered_event_journal", sql: orderedEventJournal }),
@@ -812,6 +826,11 @@ export const schemaMigrations: readonly SchemaMigration[] = Object.freeze([
     version: 15,
     name: "densa_ade_machine_namespaces",
     sql: densaAdeMachineNamespaces,
+  }),
+  Object.freeze({
+    version: 16,
+    name: "isolated_execution_workspaces",
+    sql: isolatedExecutionWorkspaces,
   }),
 ]);
 

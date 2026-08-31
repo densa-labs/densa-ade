@@ -440,6 +440,34 @@ export class DensaAdeDatabase {
     }
 
     return this.#connection.transaction(() => {
+      if (
+        this.repositories.attempts.listByTaskId(transition.entity.id).at(-1)?.id !==
+          request.attemptId ||
+        this.repositories.validationRuns
+          .listByTaskId(transition.entity.id)
+          .filter((candidate) => candidate.attemptId === request.attemptId)
+          .at(-1)?.id !== request.validationRunId
+      )
+        throw new PersistenceError(
+          "Task completion requires the latest attempt and validation at persistence time",
+        );
+      const ownedRun = this.repositories.densaAdeRunBranches.findByProjectId(
+        transition.entity.projectId,
+      );
+      if (ownedRun?.sourceWorkspacePath !== undefined) {
+        const publication = this.repositories.taskPublicationIntents.findByAttemptId(
+          request.attemptId,
+        );
+        if (
+          publication?.publishedAt === undefined ||
+          publication.commitSha !== request.commitSha ||
+          publication.sourceWorkspacePath !== ownedRun.sourceWorkspacePath ||
+          publication.sourceBranch !== ownedRun.sourceBranch
+        )
+          throw new PersistenceError(
+            "Task completion requires verified publication to the owned source workspace",
+          );
+      }
       this.repositories.attempts.recordCompleted(request.attemptId, transition.event.occurredAt);
       this.repositories.events.append({
         id: request.attemptCompletedEventId,

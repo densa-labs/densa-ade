@@ -114,8 +114,8 @@ test("a file database migrates from zero and reopening does not reapply migratio
   const path = join(directory, "runtime.sqlite");
   try {
     const first = DensaAdeDatabase.open(path, { now: fixedMigrationTime });
-    assert.equal(first.schemaVersion, 15);
-    assert.equal(first.expectedSchemaVersion, 15);
+    assert.equal(first.schemaVersion, 16);
+    assert.equal(first.expectedSchemaVersion, 16);
     assert.deepEqual(first.listUserTables(), [
       "acceptance_criteria",
       "agent_runs",
@@ -137,6 +137,7 @@ test("a file database migrates from zero and reopening does not reapply migratio
       "specifications",
       "task_commit_intents",
       "task_dependencies",
+      "task_publication_intents",
       "tasks",
       "validation_results",
       "validation_runs",
@@ -144,7 +145,7 @@ test("a file database migrates from zero and reopening does not reapply migratio
     first.close();
 
     const reopened = DensaAdeDatabase.open(path, { now: fixedMigrationTime });
-    assert.equal(reopened.schemaVersion, 15);
+    assert.equal(reopened.schemaVersion, 16);
     reopened.close();
   } finally {
     rmSync(directory, { force: true, recursive: true });
@@ -217,7 +218,7 @@ test("migration 15 preserves legacy run branches and phase-report paths", () => 
     raw.close();
 
     const database = DensaAdeDatabase.open(path, { now: fixedMigrationTime });
-    assert.equal(database.schemaVersion, 15);
+    assert.equal(database.schemaVersion, 16);
     assert.equal(
       database.repositories.densaAdeRunBranches.findByProjectId("project-legacy-namespace")
         ?.branchName,
@@ -399,7 +400,7 @@ test("all remaining P2M1 repositories round-trip their runtime records", () => {
   });
 });
 
-test("migrations 3 through 15 preserve version-2 runtime rows and convert legacy specifications", () => {
+test("migrations 3 through 16 preserve version-2 runtime rows and convert legacy specifications", () => {
   const directory = mkdtempSync(join(tmpdir(), "densa-p2m4-migration-"));
   const path = join(directory, "runtime.sqlite");
   try {
@@ -489,7 +490,7 @@ test("migrations 3 through 15 preserve version-2 runtime rows and convert legacy
     raw.close();
 
     const database = DensaAdeDatabase.open(path, { now: fixedMigrationTime });
-    assert.equal(database.schemaVersion, 15);
+    assert.equal(database.schemaVersion, 16);
     assert.deepEqual(database.repositories.agentRuns.findById("agent-run-v2"), {
       id: "agent-run-v2",
       attemptId: "attempt-v2",
@@ -820,6 +821,74 @@ test("database open and repository constraint failures use the stable persistenc
         (error) => error.code === "PERSISTENCE_FAILURE",
       );
     });
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("migration 16 preserves legacy ownership without granting isolated rollback authority", () => {
+  const directory = mkdtempSync(join(tmpdir(), "densa-isolation-migration-"));
+  const databasePath = join(directory, "runtime.sqlite");
+  try {
+    const raw = new DatabaseSync(databasePath);
+    raw.exec(
+      "CREATE TABLE _densa_migrations (version INTEGER PRIMARY KEY, name TEXT NOT NULL, checksum TEXT NOT NULL, applied_at TEXT NOT NULL) STRICT",
+    );
+    for (const migration of schemaMigrations.slice(0, 15)) {
+      raw.exec(migration.sql);
+      raw
+        .prepare("INSERT INTO _densa_migrations VALUES (?, ?, ?, ?)")
+        .run(
+          migration.version,
+          migration.name,
+          createHash("sha256").update(migration.sql).digest("hex"),
+          createdAt,
+        );
+    }
+    raw
+      .prepare(
+        "INSERT INTO projects (id,name,state,execution_mode,created_at,updated_at) VALUES (?,?,?,?,?,?)",
+      )
+      .run("legacy-project", "Legacy", "DRAFT", "guided", createdAt, createdAt);
+    raw
+      .prepare(
+        "INSERT INTO densa_run_branches (project_id,workspace_path,branch_name,source_branch,starting_commit,status,created_at) VALUES (?,?,?,?,?,?,?)",
+      )
+      .run(
+        "legacy-project",
+        "/legacy/source",
+        "densa-ade/run/legacy",
+        "main",
+        "a".repeat(40),
+        "CREATING",
+        createdAt,
+      );
+    raw.close();
+    const database = DensaAdeDatabase.open(databasePath);
+    assert.equal(database.schemaVersion, 16);
+    const legacy = database.repositories.densaAdeRunBranches.findByProjectId("legacy-project");
+    assert.equal(legacy.workspacePath, "/legacy/source");
+    assert.equal(legacy.sourceWorkspacePath, undefined);
+    assert.equal(legacy.status, "CREATING");
+    database.close();
+    const migrated = new DatabaseSync(databasePath);
+    migrated.exec("PRAGMA foreign_keys=ON");
+    assert.throws(
+      () =>
+        migrated
+          .prepare("UPDATE densa_run_branches SET source_workspace_path = workspace_path")
+          .run(),
+      /CHECK constraint/,
+    );
+    assert.throws(
+      () =>
+        migrated
+          .prepare("INSERT INTO task_publication_intents VALUES (?,?,?,?,?,?,?)")
+          .run("missing", "/source", "main", "a".repeat(40), "b".repeat(40), createdAt, null),
+      /FOREIGN KEY/,
+    );
+    assert.deepEqual(migrated.prepare("PRAGMA foreign_key_check").all(), []);
+    migrated.close();
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }

@@ -268,14 +268,14 @@ async function runContinuousRetryScenario(cycle) {
       {
         outcome: "failed",
         error: { code: "PROCESS_FAILURE", message: "Injected retryable worker failure" },
-        onExecute() {
-          writeFileSync(join(fixture.workspace, "agent.txt"), "partial worker output\n", "utf8");
+        onExecute({ cwd }) {
+          writeFileSync(join(cwd, "agent.txt"), "partial worker output\n", "utf8");
         },
       },
       {
         finalMessage: "Recovered worker run completed.",
-        onExecute() {
-          writeFileSync(join(fixture.workspace, "agent.txt"), "accepted\n", "utf8");
+        onExecute({ cwd }) {
+          writeFileSync(join(cwd, "agent.txt"), "accepted\n", "utf8");
         },
       },
     ],
@@ -286,14 +286,14 @@ async function runContinuousRetryScenario(cycle) {
     scripts: [
       {
         finalMessage: "First output still needs correction.",
-        onExecute() {
-          writeFileSync(join(fixture.workspace, "validation.txt"), "rejected\n", "utf8");
+        onExecute({ cwd }) {
+          writeFileSync(join(cwd, "validation.txt"), "rejected\n", "utf8");
         },
       },
       {
         finalMessage: "Corrected output completed.",
-        onExecute() {
-          writeFileSync(join(fixture.workspace, "validation.txt"), "accepted\n", "utf8");
+        onExecute({ cwd }) {
+          writeFileSync(join(cwd, "validation.txt"), "accepted\n", "utf8");
         },
       },
     ],
@@ -301,8 +301,8 @@ async function runContinuousRetryScenario(cycle) {
   const finishAdapter = new FakeAgentAdapter({
     now,
     finalMessage: "Continuous second phase completed.",
-    onExecute() {
-      writeFileSync(join(fixture.workspace, "finish.txt"), "accepted\n", "utf8");
+    onExecute({ cwd }) {
+      writeFileSync(join(cwd, "finish.txt"), "accepted\n", "utf8");
     },
   });
   const taskInputs = new Map([
@@ -495,9 +495,9 @@ describe("P9M1 deterministic Continuous-mode and recovery stress harness", () =>
     const adapter = new FakeAgentAdapter({
       now: fixture.now,
       finalMessage: "Worker completion is not acceptance evidence.",
-      onExecute() {
+      onExecute({ cwd }) {
         writeFileSync(
-          join(fixture.workspace, "task.txt"),
+          join(cwd, "task.txt"),
           `invalid attempt ${String(adapter.requests.length)}\n`,
           "utf8",
         );
@@ -545,8 +545,8 @@ describe("P9M1 deterministic Continuous-mode and recovery stress harness", () =>
       outcome: "failed",
       error: { code: "USAGE_LIMITED", message: "Injected structured usage limit" },
       usageState: { status: "limited" },
-      onExecute() {
-        writeFileSync(join(fixture.workspace, "task.txt"), "partial limited output\n", "utf8");
+      onExecute({ cwd }) {
+        writeFileSync(join(cwd, "task.txt"), "partial limited output\n", "utf8");
       },
     });
     const waiting = await new SingleTaskOrchestrator(fixture.database, {

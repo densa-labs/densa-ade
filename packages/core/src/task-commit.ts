@@ -1,3 +1,16 @@
+import { publishTaskCommit } from "./task-publication.js";
+import { assertIsolatedRunWorkspace } from "./isolated-run-workspace.js";
+import {
+  inspectCurrentPath,
+  inspectCheckpointPath,
+  inspectChangedPaths,
+  sameWorktree,
+} from "./workspace-path-evidence.js";
+import {
+  readValidationWorkspace,
+  assertValidationWorkspaceUnchanged,
+  type ValidationWorkspaceEvidence,
+} from "./validation-workspace.js";
 import { execFile } from "node:child_process";
 import { realpath } from "node:fs/promises";
 import { isAbsolute, posix } from "node:path";
@@ -47,7 +60,8 @@ export type TaskCommitStopCode =
   | "NO_INTENDED_CHANGES"
   | "GIT_COMMAND_FAILED"
   | "COMMIT_VERIFICATION_FAILED"
-  | "PERSISTENCE_FAILED";
+  | "PERSISTENCE_FAILED"
+  | "PUBLICATION_STOPPED";
 
 export interface CommitPassingTaskRequest {
   readonly projectId: ProjectId;
@@ -234,20 +248,14 @@ async function changedPaths(
   | { readonly status: "AVAILABLE"; readonly paths: readonly string[] }
   | { readonly status: "FAILED"; readonly reason: string }
 > {
-  const [tracked, untracked] = await Promise.all([
-    runGit(cwd, ["diff", "--name-only", "-z", "HEAD", "--"]),
-    runGit(cwd, ["ls-files", "--others", "--exclude-standard", "-z", "--"]),
-  ]);
-  if (tracked.exitCode !== 0) {
-    return { status: "FAILED", reason: gitFailure("git diff", tracked) };
+  try {
+    return { status: "AVAILABLE", paths: await inspectChangedPaths(cwd) };
+  } catch (error) {
+    return {
+      status: "FAILED",
+      reason: error instanceof Error ? error.message : "Git inspection failed",
+    };
   }
-  if (untracked.exitCode !== 0) {
-    return { status: "FAILED", reason: gitFailure("git ls-files", untracked) };
-  }
-  return {
-    status: "AVAILABLE",
-    paths: immutableStrings([...nulSeparated(tracked.stdout), ...nulSeparated(untracked.stdout)]),
-  };
 }
 
 function intentMatches(
@@ -275,13 +283,15 @@ async function verifyCommit(
   workspaceRoot: string,
   commitSha: string,
   intent: TaskCommitIntentRecord,
+  evidence: ValidationWorkspaceEvidence,
 ): Promise<string | undefined> {
-  const [head, parents, message, paths] = await Promise.all([
+  const [head, parents, message, paths, branch] = await Promise.all([
     requiredGit(workspaceRoot, ["rev-parse", "HEAD"], "git rev-parse HEAD"),
     requiredGit(workspaceRoot, ["rev-list", "--parents", "-n", "1", commitSha], "git rev-list"),
     requiredGit(workspaceRoot, ["log", "-1", "--format=%B", commitSha], "git log"),
     runGit(workspaceRoot, [
       "diff-tree",
+      "--no-renames",
       "--no-commit-id",
       "--name-only",
       "-r",
@@ -289,7 +299,10 @@ async function verifyCommit(
       commitSha,
       "--",
     ]),
+    requiredGit(workspaceRoot, ["symbolic-ref", "--quiet", "--short", "HEAD"], "git symbolic-ref"),
   ]);
+  if (branch.failure !== undefined || branch.value !== intent.branchName)
+    return "Workspace is no longer on the owned run branch";
   if (head.failure !== undefined) return head.failure;
   if (parents.failure !== undefined) return parents.failure;
   if (message.failure !== undefined) return message.failure;
@@ -306,6 +319,13 @@ async function verifyCommit(
     return "The task commit message does not match intent";
   if (!sameStrings(nulSeparated(paths.stdout), intent.intendedPaths)) {
     return "The task commit does not contain exactly the intended paths";
+  }
+  for (const path of intent.intendedPaths) {
+    const expected = evidence.paths.find((entry) => entry.path === path);
+    const actual = await inspectCheckpointPath(workspaceRoot, commitSha, path, false);
+    if (expected === undefined || "failure" in actual || !sameWorktree(expected, actual)) {
+      return "Task commit content or mode differs from the validated workspace";
+    }
   }
   return undefined;
 }
@@ -328,6 +348,12 @@ export class TaskCommitService {
     }
 
     const repositories = this.database.repositories;
+    if (intendedPaths.some((path) => path.split("/").at(-1) === ".env")) {
+      return stopped(
+        "POLICY_DENIED",
+        "Automatic task commits cannot include .env secret material; user handling is required",
+      );
+    }
     const project = repositories.projects.findById(request.projectId);
     const task = repositories.tasks.findById(request.taskId);
     const attempt = repositories.attempts.findById(request.attemptId);
@@ -338,6 +364,7 @@ export class TaskCommitService {
       project === undefined ||
       task?.projectId !== request.projectId ||
       attempt?.taskId !== request.taskId ||
+      repositories.attempts.listByTaskId(request.taskId).at(-1)?.id !== request.attemptId ||
       checkpoint?.projectId !== request.projectId ||
       checkpoint.taskId !== request.taskId ||
       checkpoint.attemptId !== request.attemptId ||
@@ -377,6 +404,24 @@ export class TaskCommitService {
         );
       }
     }
+    const evidence = readValidationWorkspace(this.database, validation.id);
+    if (
+      evidence === undefined ||
+      evidence.snapshot.gitHead !== checkpoint.gitHead ||
+      evidence.workspaceRoot !== run.workspacePath ||
+      intendedPaths.some((path) => !evidence.paths.some((entry) => entry.path === path))
+    ) {
+      return stopped(
+        "NOT_VALIDATED",
+        "Validation lacks durable evidence for the exact workspace and intended contents",
+      );
+    }
+    const latestValidation = repositories.validationRuns
+      .listByTaskId(task.id)
+      .filter((candidate) => candidate.attemptId === attempt.id)
+      .at(-1);
+    if (latestValidation?.id !== validation.id)
+      return stopped("NOT_VALIDATED", "A newer validation supersedes the selected outcome");
     if (checkpoint.gitHead === undefined || run.status !== "ACTIVE") {
       return stopped("ATTEMPT_MISMATCH", "The selected attempt has no active Git checkpoint");
     }
@@ -392,7 +437,9 @@ export class TaskCommitService {
     if (rootResult.failure !== undefined || rootResult.value === undefined) {
       return stopped("GIT_COMMAND_FAILED", rootResult.failure ?? "Git root is unavailable");
     }
-    const workspaceRoot = await realpath(rootResult.value);
+    const requestedRoot = await realpath(rootResult.value);
+    const workspaceRoot =
+      requestedRoot === run.sourceWorkspacePath ? run.workspacePath : requestedRoot;
     const [branchResult, headResult] = await Promise.all([
       requiredGit(
         workspaceRoot,
@@ -411,6 +458,14 @@ export class TaskCommitService {
       return stopped("WORKSPACE_MISMATCH", "Workspace is not on the persisted owned run branch");
     }
 
+    try {
+      await assertIsolatedRunWorkspace(run);
+    } catch (error) {
+      return stopped(
+        "WORKSPACE_MISMATCH",
+        error instanceof Error ? error.message : "Execution isolation is unverified",
+      );
+    }
     const commitMessage = taskCommitMessage(task.id, task.title);
     let intent = repositories.taskCommitIntents.findByAttemptId(attempt.id);
     if (intent !== undefined) {
@@ -475,7 +530,12 @@ export class TaskCommitService {
       ) {
         return stopped("WORKSPACE_MISMATCH", "Completed task commit evidence is inconsistent");
       }
-      const verificationFailure = await verifyCommit(workspaceRoot, attempt.commitSha, intent);
+      const verificationFailure = await verifyCommit(
+        workspaceRoot,
+        attempt.commitSha,
+        intent,
+        evidence,
+      );
       if (verificationFailure !== undefined) {
         return stopped("COMMIT_VERIFICATION_FAILED", verificationFailure, [], attempt.commitSha);
       }
@@ -496,7 +556,7 @@ export class TaskCommitService {
         return stopped("GIT_COMMAND_FAILED", "Git HEAD is unavailable");
       }
       commitSha = headResult.value;
-      const recoveryFailure = await verifyCommit(workspaceRoot, commitSha, intent);
+      const recoveryFailure = await verifyCommit(workspaceRoot, commitSha, intent, evidence);
       if (recoveryFailure !== undefined) {
         return stopped("WORKSPACE_MISMATCH", recoveryFailure, [], commitSha);
       }
@@ -523,12 +583,29 @@ export class TaskCommitService {
       preservedChangedPaths = immutableStrings(
         before.paths.filter((path) => !intendedPaths.includes(path)),
       );
-      const stage = await runAuthorizedGitMutation(
-        permission.authorization,
-        request.projectId,
-        workspaceRoot,
-        ["add", "--all", "--", ...intendedPaths],
-      );
+      try {
+        await assertValidationWorkspaceUnchanged(evidence, intendedPaths);
+      } catch (error) {
+        return stopped(
+          "WORKSPACE_MISMATCH",
+          error instanceof Error ? error.message : "Validation workspace changed",
+          preservedChangedPaths,
+        );
+      }
+      const stagePaths: string[] = [];
+      for (const path of intendedPaths) {
+        const current = await inspectCurrentPath(workspaceRoot, path, false);
+        if (current.kind !== "ABSENT" || current.indexHash !== undefined) stagePaths.push(path);
+      }
+      const stage =
+        stagePaths.length === 0
+          ? { exitCode: 0, stdout: "", stderr: "", timedOut: false }
+          : await runAuthorizedGitMutation(
+              permission.authorization,
+              request.projectId,
+              workspaceRoot,
+              ["add", "--all", "--", ...stagePaths.map((path) => `:(literal)${path}`)],
+            );
       if (stage.exitCode !== 0) {
         return stopped("GIT_COMMAND_FAILED", gitFailure("git add", stage), preservedChangedPaths);
       }
@@ -536,7 +613,15 @@ export class TaskCommitService {
         permission.authorization,
         request.projectId,
         workspaceRoot,
-        ["commit", "--quiet", "--only", "--message", intent.commitMessage, "--", ...intendedPaths],
+        [
+          "commit",
+          "--quiet",
+          "--only",
+          "--message",
+          intent.commitMessage,
+          "--",
+          ...intendedPaths.map((path) => `:(literal)${path}`),
+        ],
       );
       if (commit.exitCode !== 0) {
         return stopped(
@@ -558,7 +643,7 @@ export class TaskCommitService {
         );
       }
       commitSha = committedHead.value;
-      const verificationFailure = await verifyCommit(workspaceRoot, commitSha, intent);
+      const verificationFailure = await verifyCommit(workspaceRoot, commitSha, intent, evidence);
       if (verificationFailure !== undefined) {
         return stopped(
           "COMMIT_VERIFICATION_FAILED",
@@ -582,7 +667,7 @@ export class TaskCommitService {
         );
       }
     } else {
-      const verificationFailure = await verifyCommit(workspaceRoot, commitSha, intent);
+      const verificationFailure = await verifyCommit(workspaceRoot, commitSha, intent, evidence);
       if (verificationFailure !== undefined) {
         return stopped(
           "COMMIT_VERIFICATION_FAILED",
@@ -610,8 +695,45 @@ export class TaskCommitService {
       }
     }
 
+    try {
+      const sourcePreserved = await publishTaskCommit(this.database, {
+        run,
+        attemptId: attempt.id,
+        expectedHead: intent.expectedHead,
+        commitSha,
+        intendedPaths,
+        occurredAt: request.committedAt,
+        actor: request.actor,
+      });
+      preservedChangedPaths = immutableStrings(
+        new Set([...preservedChangedPaths, ...sourcePreserved]),
+      );
+    } catch (error) {
+      return stopped(
+        "PUBLICATION_STOPPED",
+        error instanceof Error ? error.message : "Source publication stopped safely",
+        preservedChangedPaths,
+        commitSha,
+      );
+    }
     const latestTask = repositories.tasks.findById(task.id);
-    if (latestTask?.state !== "VALIDATING") {
+    if (
+      repositories.validationRuns
+        .listByTaskId(task.id)
+        .filter((candidate) => candidate.attemptId === attempt.id)
+        .at(-1)?.id !== validation.id
+    ) {
+      return stopped(
+        "NOT_VALIDATED",
+        "Validation was superseded before task completion",
+        preservedChangedPaths,
+        commitSha,
+      );
+    }
+    if (
+      latestTask?.state !== "VALIDATING" ||
+      repositories.attempts.listByTaskId(task.id).at(-1)?.id !== attempt.id
+    ) {
       return stopped(
         "ATTEMPT_MISMATCH",
         "Task state changed before commit completion",

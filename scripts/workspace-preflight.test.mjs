@@ -114,6 +114,18 @@ test("clean real repository produces UI-ready proceed evidence", async () => {
   assert.equal(result.automaticActionsPerformed, false);
 });
 
+test("Git flags that hide tracked human changes fail closed", async () => {
+  for (const flag of ["--assume-unchanged", "--skip-worktree"]) {
+    const repository = createRepository();
+    git(repository, ["update-index", flag, "tracked.txt"]);
+    writeFileSync(join(repository, "tracked.txt"), "hidden human changes\n");
+    const result = await new WorkspacePreflight().inspect(repository);
+    assert.equal(result.decision.outcome, "STOP");
+    assert.equal(result.decision.code, "INSPECTION_FAILED");
+    assert.equal(readFileSync(join(repository, "tracked.txt"), "utf8"), "hidden human changes\n");
+  }
+});
+
 test("dirty user work is classified and remains byte-for-byte untouched", async () => {
   const repository = createRepository();
   writeFileSync(join(repository, "staged.txt"), "staged user work\n", "utf8");

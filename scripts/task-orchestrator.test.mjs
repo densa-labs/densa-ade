@@ -10,6 +10,7 @@ import {
   FreshContextTaskLifecycleValidator,
   IndependentReviewService,
   SingleTaskOrchestrator,
+  TaskCommitService,
   StateTransitionService,
 } from "@densa-ade/core";
 import { DensaAdeDatabase } from "@densa-ade/core/persistence";
@@ -111,6 +112,13 @@ function createFixture(prefix = "densa-task-orchestrator-") {
   return { root, repository, databasePath, database, project, task };
 }
 
+function executionWorkspace(fixture) {
+  return (
+    fixture.database.repositories.densaAdeRunBranches.findByProjectId(fixture.project.id)
+      ?.workspacePath ?? fixture.repository
+  );
+}
+
 function requestFor(fixture, adapter, validator, overrides = {}) {
   return {
     projectId: fixture.project.id,
@@ -192,6 +200,135 @@ test.after(() => {
   for (const root of temporaryRoots) rmSync(root, { recursive: true, force: true });
 });
 
+test("a validator changing task bytes cannot turn its earlier observation into a passing commit", async () => {
+  const fixture = createFixture();
+  const head = git(fixture.repository, ["rev-parse", "HEAD"]).trim();
+  const adapter = new FakeAgentAdapter({
+    onExecute() {
+      writeFileSync(join(executionWorkspace(fixture), "task.txt"), "accepted\n");
+    },
+  });
+  const result = await new SingleTaskOrchestrator(fixture.database, { now: clock() }).execute(
+    requestFor(fixture, adapter, {
+      validatorId: "mutating-validator",
+      async validate() {
+        assert.equal(
+          readFileSync(join(executionWorkspace(fixture), "task.txt"), "utf8"),
+          "accepted\n",
+        );
+        writeFileSync(join(executionWorkspace(fixture), "task.txt"), "unvalidated later bytes\n");
+        return { passed: true, diagnostics: {} };
+      },
+    }),
+  );
+  assert.notEqual(result.status, "COMPLETED");
+  assert.equal(git(fixture.repository, ["rev-parse", "HEAD"]).trim(), head);
+  assert.equal(
+    readFileSync(join(executionWorkspace(fixture), "task.txt"), "utf8"),
+    "unvalidated later bytes\n",
+  );
+  assert.equal(
+    fixture.database.repositories.validationRuns.listByTaskId(fixture.task.id).at(-1).passed,
+    false,
+  );
+  fixture.database.close();
+});
+
+test("a Git commit followed by a persistence failure stays recoverable after reopening Core", async () => {
+  const fixture = createFixture();
+  const persist = fixture.database.persistTaskCommitCompletion.bind(fixture.database);
+  fixture.database.persistTaskCommitCompletion = () => {
+    throw new Error("one-shot completion fault");
+  };
+  const adapter = new FakeAgentAdapter({
+    onExecute() {
+      writeFileSync(join(executionWorkspace(fixture), "task.txt"), "accepted\n");
+    },
+  });
+  const result = await new SingleTaskOrchestrator(fixture.database, { now: clock() }).execute(
+    requestFor(fixture, adapter, passingValidator("accepted\n")),
+  );
+  assert.equal(result.status, "STOPPED");
+  assert.equal(result.code, "COMMIT_PERSISTENCE_FAILED");
+  const [attempt] = fixture.database.repositories.attempts.listByTaskId(fixture.task.id);
+  const [validation] = fixture.database.repositories.validationRuns.listByTaskId(fixture.task.id);
+  assert.equal(attempt.completedAt, undefined);
+  assert.equal(fixture.database.repositories.tasks.findById(fixture.task.id).state, "VALIDATING");
+  const head = git(fixture.repository, ["rev-parse", "HEAD"]).trim();
+  fixture.database.persistTaskCommitCompletion = persist;
+  fixture.database.close();
+  const reopened = DensaAdeDatabase.open(fixture.databasePath);
+  try {
+    const recovered = await new TaskCommitService(reopened).commitPassingTask({
+      projectId: fixture.project.id,
+      taskId: fixture.task.id,
+      attemptId: attempt.id,
+      validationRunId: validation.id,
+      workspacePath: fixture.repository,
+      intendedPaths: ["task.txt"],
+      committedAt: "2026-08-27T01:00:00.000Z",
+      actor: "fixture",
+      commitRecordedEventId: "recovered-commit",
+      completionEventId: "recovered-completion",
+    });
+    assert.equal(recovered.status, "COMMITTED", JSON.stringify(recovered));
+    assert.equal(recovered.commitSha, head);
+    assert.equal(git(fixture.repository, ["rev-list", "--count", "HEAD"]).trim(), "2");
+  } finally {
+    reopened.close();
+  }
+});
+
+test("a broken adapter stream cannot roll back while its real child remains alive", async (t) => {
+  const fixture = createFixture();
+  const child = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: "ignore" });
+  await once(child, "spawn");
+  t.after(async () => {
+    if (child.exitCode === null && child.signalCode === null) {
+      const exit = once(child, "exit");
+      child.kill("SIGKILL");
+      await exit;
+    }
+    fixture.database.close();
+  });
+  let cancelled = false;
+  const adapter = {
+    adapterId: "broken-transport-fixture",
+    async *execute({ runId }) {
+      yield { type: "run.started", runId, occurredAt: createdAt, processId: child.pid };
+      writeFileSync(join(executionWorkspace(fixture), "task.txt"), "live worker output\n");
+      throw new Error("transport failed while worker remains alive");
+    },
+    async cancel() {
+      cancelled = true;
+    },
+    async getUsageState() {
+      return { status: "available" };
+    },
+  };
+  const result = await new SingleTaskOrchestrator(fixture.database, { now: clock() }).execute(
+    requestFor(fixture, adapter, passingValidator("live worker output\n")),
+  );
+  assert.equal(result.status, "STOPPED");
+  assert.equal(result.code, "RECOVERY_REQUIRED");
+  assert.equal(cancelled, true);
+  process.kill(child.pid, 0);
+  const [attempt] = fixture.database.repositories.attempts.listByTaskId(fixture.task.id);
+  assert.equal(attempt.completedAt, undefined);
+  assert.equal(
+    fixture.database.repositories.agentRuns.findByAttemptId(attempt.id).completedAt,
+    undefined,
+  );
+  assert.equal(
+    fixture.database.repositories.attemptRollbackPlans.findByAttemptId(attempt.id),
+    undefined,
+  );
+  assert.equal(
+    readFileSync(join(executionWorkspace(fixture), "task.txt"), "utf8"),
+    "live worker output\n",
+  );
+});
+
 test("passes first try only after independent validation and commits the exact task output", async () => {
   const fixture = createFixture("densa-orchestrator-pass-");
   const streamed = [];
@@ -202,7 +339,7 @@ test("passes first try only after independent validation and commits the exact t
       assert.equal(attempt.number, 1);
       assert.ok(fixture.database.repositories.agentRuns.findByAttemptId(attempt.id));
       assert.equal(fixture.database.repositories.tasks.findById(fixture.task.id).state, "RUNNING");
-      writeFileSync(join(fixture.repository, "task.txt"), "accepted\n", "utf8");
+      writeFileSync(join(executionWorkspace(fixture), "task.txt"), "accepted\n", "utf8");
     },
   });
   const result = await new SingleTaskOrchestrator(fixture.database, { now: clock() }).execute(
@@ -213,7 +350,7 @@ test("passes first try only after independent validation and commits the exact t
     }),
   );
 
-  assert.equal(result.status, "COMPLETED");
+  assert.equal(result.status, "COMPLETED", JSON.stringify(result));
   assert.equal(result.attemptCount, 1);
   assert.deepEqual(streamed, ["run.started", "run.terminal"]);
   assert.equal(fixture.database.repositories.tasks.findById(fixture.task.id).state, "COMPLETED");
@@ -221,7 +358,7 @@ test("passes first try only after independent validation and commits the exact t
   assert.ok(attempt.completedAt);
   assert.equal(attempt.commitSha, result.commitSha);
   assert.equal(git(fixture.repository, ["rev-parse", "HEAD"]).trim(), result.commitSha);
-  assert.equal(readFileSync(join(fixture.repository, "task.txt"), "utf8"), "accepted\n");
+  assert.equal(readFileSync(join(executionWorkspace(fixture), "task.txt"), "utf8"), "accepted\n");
   assert.equal(
     fixture.database.repositories.events
       .replay({ projectId: fixture.project.id })
@@ -237,7 +374,7 @@ test("high-risk task stops before worker execution without independent-review in
   const adapter = new FakeAgentAdapter({
     finalMessage: "Done.",
     onExecute() {
-      writeFileSync(join(fixture.repository, "task.txt"), "accepted\n", "utf8");
+      writeFileSync(join(executionWorkspace(fixture), "task.txt"), "accepted\n", "utf8");
     },
   });
 
@@ -262,7 +399,7 @@ test("high-risk task completion accepts the enforced fresh review path", async (
   const worker = new FakeAgentAdapter({
     finalMessage: "Done.",
     onExecute() {
-      writeFileSync(join(fixture.repository, "task.txt"), "accepted\n", "utf8");
+      writeFileSync(join(executionWorkspace(fixture), "task.txt"), "accepted\n", "utf8");
     },
   });
   const reviewer = new FakeAgentAdapter({
@@ -297,7 +434,7 @@ test("high-risk task completion accepts the enforced fresh review path", async (
     now: lifecycleClock,
   }).execute(requestFor(fixture, worker, validator));
 
-  assert.equal(result.status, "COMPLETED");
+  assert.equal(result.status, "COMPLETED", JSON.stringify(result));
   assert.equal(result.attemptCount, 1);
   assert.equal(reviewer.requests[0].accessMode, "read-only");
   assert.equal(
@@ -318,7 +455,7 @@ test("fails validation, rolls back, supplies persisted retry evidence, then pass
         assert.match(request.prompt, /first attempt is intentionally rejected/u);
       }
       writeFileSync(
-        join(fixture.repository, "task.txt"),
+        join(executionWorkspace(fixture), "task.txt"),
         number === 1 ? "rejected\n" : "accepted\n",
         "utf8",
       );
@@ -345,7 +482,7 @@ test("fails validation, rolls back, supplies persisted retry evidence, then pass
     requestFor(fixture, adapter, validator),
   );
 
-  assert.equal(result.status, "COMPLETED");
+  assert.equal(result.status, "COMPLETED", JSON.stringify(result));
   assert.equal(result.attemptCount, 2);
   const attempts = fixture.database.repositories.attempts.listByTaskId(fixture.task.id);
   assert.equal(attempts.length, 2);
@@ -355,7 +492,7 @@ test("fails validation, rolls back, supplies persisted retry evidence, then pass
   );
   assert.equal(firstPlan.diagnostics.failingCriterion, "first attempt is intentionally rejected");
   assert.ok(firstPlan.appliedAt);
-  assert.equal(readFileSync(join(fixture.repository, "task.txt"), "utf8"), "accepted\n");
+  assert.equal(readFileSync(join(executionWorkspace(fixture), "task.txt"), "utf8"), "accepted\n");
   fixture.database.close();
 
   const reopened = DensaAdeDatabase.open(fixture.databasePath);
@@ -375,7 +512,7 @@ test("four validation failures persist diagnostics, restore Git, and block the t
     finalMessage: "Done despite the validator.",
     onExecute() {
       writeFileSync(
-        join(fixture.repository, "task.txt"),
+        join(executionWorkspace(fixture), "task.txt"),
         `invalid attempt ${String(adapter.requests.length)}\n`,
         "utf8",
       );
@@ -410,7 +547,7 @@ test("four validation failures persist diagnostics, restore Git, and block the t
     assert.equal(plan.diagnostics.attemptNumber, attempt.number);
     assert.ok(plan.appliedAt);
   }
-  assert.equal(readFileSync(join(fixture.repository, "task.txt"), "utf8"), "baseline\n");
+  assert.equal(readFileSync(join(executionWorkspace(fixture), "task.txt"), "utf8"), "baseline\n");
   assert.equal(git(fixture.repository, ["rev-parse", "HEAD"]).trim(), startingHead);
   assert.equal(git(fixture.repository, ["status", "--porcelain"]), "");
   fixture.database.close();
@@ -430,7 +567,7 @@ test("a non-retryable adapter contract failure rolls back once and blocks", asyn
       message: "The installed adapter contract is not supported.",
     },
     onExecute() {
-      writeFileSync(join(fixture.repository, "task.txt"), "untrusted output\n", "utf8");
+      writeFileSync(join(executionWorkspace(fixture), "task.txt"), "untrusted output\n", "utf8");
     },
   });
 
@@ -442,7 +579,7 @@ test("a non-retryable adapter contract failure rolls back once and blocks", asyn
   assert.equal(result.attemptCount, 1);
   assert.equal(adapter.requests.length, 1);
   assert.equal(fixture.database.repositories.tasks.findById(fixture.task.id).state, "BLOCKED");
-  assert.equal(readFileSync(join(fixture.repository, "task.txt"), "utf8"), "baseline\n");
+  assert.equal(readFileSync(join(executionWorkspace(fixture), "task.txt"), "utf8"), "baseline\n");
   const [attempt] = fixture.database.repositories.attempts.listByTaskId(fixture.task.id);
   assert.equal(
     fixture.database.repositories.attemptRollbackPlans.findByAttemptId(attempt.id).diagnostics
@@ -458,7 +595,7 @@ test("cancellation is explicit, durable, and rolls back owned output", async () 
   const adapter = new FakeAgentAdapter({
     holdOpen: true,
     onExecute() {
-      writeFileSync(join(fixture.repository, "task.txt"), "cancelled output\n", "utf8");
+      writeFileSync(join(executionWorkspace(fixture), "task.txt"), "cancelled output\n", "utf8");
     },
   });
   const result = await new SingleTaskOrchestrator(fixture.database, { now: clock() }).execute(
@@ -473,7 +610,7 @@ test("cancellation is explicit, durable, and rolls back owned output", async () 
   assert.equal(result.status, "CANCELLED");
   assert.deepEqual(adapter.cancelledRunIds, [adapter.requests[0].runId]);
   assert.equal(fixture.database.repositories.tasks.findById(fixture.task.id).state, "CANCELLED");
-  assert.equal(readFileSync(join(fixture.repository, "task.txt"), "utf8"), "baseline\n");
+  assert.equal(readFileSync(join(executionWorkspace(fixture), "task.txt"), "utf8"), "baseline\n");
   assert.equal(
     fixture.database.repositories.validationRuns.listByTaskId(fixture.task.id).length,
     0,
@@ -487,7 +624,7 @@ test("project pause cancels the adapter run without orphaning or terminally canc
   const adapter = new FakeAgentAdapter({
     holdOpen: true,
     onExecute() {
-      writeFileSync(join(fixture.repository, "task.txt"), "interrupted output\n", "utf8");
+      writeFileSync(join(executionWorkspace(fixture), "task.txt"), "interrupted output\n", "utf8");
     },
   });
   const result = await new SingleTaskOrchestrator(fixture.database, { now: clock() }).execute(
@@ -503,7 +640,7 @@ test("project pause cancels the adapter run without orphaning or terminally canc
   assert.equal(result.status, "INTERRUPTED");
   assert.deepEqual(adapter.cancelledRunIds, [adapter.requests[0].runId]);
   assert.equal(fixture.database.repositories.tasks.findById(fixture.task.id).state, "INTERRUPTED");
-  assert.equal(readFileSync(join(fixture.repository, "task.txt"), "utf8"), "baseline\n");
+  assert.equal(readFileSync(join(executionWorkspace(fixture), "task.txt"), "utf8"), "baseline\n");
   assert.equal(
     fixture.database.repositories.events
       .replay({ projectId: fixture.project.id, types: ["AGENT_FINISHED"] })
@@ -526,7 +663,11 @@ test("a reliable usage limit rolls back output and atomically persists task/proj
     error: { code: "USAGE_LIMITED", message: "Structured usage limit" },
     usageState,
     onExecute() {
-      writeFileSync(join(fixture.repository, "task.txt"), "partial limited output\n", "utf8");
+      writeFileSync(
+        join(executionWorkspace(fixture), "task.txt"),
+        "partial limited output\n",
+        "utf8",
+      );
     },
   });
   const validator = {
@@ -556,7 +697,7 @@ test("a reliable usage limit rolls back output and atomically persists task/proj
     fixture.database.repositories.projects.findById(fixture.project.id).state,
     "WAITING_FOR_USAGE",
   );
-  assert.equal(readFileSync(join(fixture.repository, "task.txt"), "utf8"), "baseline\n");
+  assert.equal(readFileSync(join(executionWorkspace(fixture), "task.txt"), "utf8"), "baseline\n");
   assert.equal(git(fixture.repository, ["status", "--porcelain"]), "");
   const [attempt] = fixture.database.repositories.attempts.listByTaskId(fixture.task.id);
   assert.ok(attempt.completedAt);
@@ -611,12 +752,16 @@ test("USAGE_LIMITED without a matching limited UsageState never enters waiting",
   fixture.database.close();
 });
 
-test("worker process crash persists diagnostics and leaves an interrupted coherent checkpoint", async () => {
+test("an adapter stream crash preserves output and unfinished process evidence for recovery", async () => {
   const fixture = createFixture("densa-orchestrator-crash-");
   const startingHead = git(fixture.repository, ["rev-parse", "HEAD"]).trim();
   const adapter = new FakeAgentAdapter({
     onExecute() {
-      writeFileSync(join(fixture.repository, "task.txt"), "partial crash output\n", "utf8");
+      writeFileSync(
+        join(executionWorkspace(fixture), "task.txt"),
+        "partial crash output\n",
+        "utf8",
+      );
       throw new Error("fixture worker process crashed");
     },
   });
@@ -624,17 +769,28 @@ test("worker process crash persists diagnostics and leaves an interrupted cohere
     requestFor(fixture, adapter, passingValidator("partial crash output\n")),
   );
 
-  assert.equal(result.status, "INTERRUPTED");
+  assert.equal(result.status, "STOPPED");
+  assert.equal(result.code, "RECOVERY_REQUIRED");
   assert.equal(fixture.database.repositories.tasks.findById(fixture.task.id).state, "INTERRUPTED");
   const [attempt] = fixture.database.repositories.attempts.listByTaskId(fixture.task.id);
-  assert.ok(attempt.completedAt);
+  assert.equal(attempt.completedAt, undefined);
   const plan = fixture.database.repositories.attemptRollbackPlans.findByAttemptId(attempt.id);
-  assert.equal(plan.diagnostics.kind, "process_crash");
-  assert.match(plan.diagnostics.message, /fixture worker process crashed/u);
-  assert.ok(plan.appliedAt);
-  assert.equal(readFileSync(join(fixture.repository, "task.txt"), "utf8"), "baseline\n");
+  assert.equal(plan, undefined);
+  const event = fixture.database.repositories.events
+    .replay({ projectId: fixture.project.id, types: ["AGENT_TERMINATION_UNCONFIRMED"] })
+    .at(-1);
+  assert.match(event.payload.reason, /fixture worker process crashed/u);
+  assert.equal(
+    fixture.database.repositories.agentRuns.findByAttemptId(attempt.id).completedAt,
+    undefined,
+  );
+  assert.equal(
+    readFileSync(join(executionWorkspace(fixture), "task.txt"), "utf8"),
+    "partial crash output\n",
+  );
   assert.equal(git(fixture.repository, ["rev-parse", "HEAD"]).trim(), startingHead);
   assert.equal(git(fixture.repository, ["status", "--porcelain"]), "");
+  assert.notEqual(git(executionWorkspace(fixture), ["status", "--porcelain"]), "");
   fixture.database.close();
 });
 
@@ -690,7 +846,7 @@ test("current orchestration persists process metadata and recovery understands i
       } finally {
         reopened.close();
       }
-      writeFileSync(join(fixture.repository, "task.txt"), "recovered output\n");
+      writeFileSync(join(executionWorkspace(fixture), "task.txt"), "recovered output\n");
       yield { type: "run.terminal", runId, occurredAt: createdAt, outcome: "succeeded" };
     },
     async cancel() {},
@@ -718,7 +874,7 @@ test("current orchestration persists process metadata and recovery understands i
   const result = await new SingleTaskOrchestrator(fixture.database, { now: clock() }).execute(
     requestFor(fixture, adapter, validator),
   );
-  assert.equal(result.status, "COMPLETED");
+  assert.equal(result.status, "COMPLETED", JSON.stringify(result));
   assert.equal(recoveredRunning, true);
   assert.equal(recoveredGone, true);
   assert.equal(recoveredValidation, true);

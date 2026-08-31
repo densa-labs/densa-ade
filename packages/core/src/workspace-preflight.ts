@@ -585,6 +585,20 @@ export class WorkspacePreflight {
         ...discoveredRepository,
         root: repositoryRoot,
       });
+      const indexFlags = await successfulGit(
+        repositoryRoot,
+        ["ls-files", "-v", "-z"],
+        "git ls-files flags",
+      );
+      if (
+        indexFlags
+          .split("\0")
+          .some((entry) => entry.length > 0 && (entry[0] === "S" || /^[a-z]/u.test(entry)))
+      ) {
+        throw new Error(
+          "Assume-unchanged or skip-worktree index flags hide workspace changes; resolve them before execution",
+        );
+      }
       const [
         branchResult,
         commitResult,

@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import process from "node:process";
+import { ensureIsolatedRunWorkspace } from "./isolated-run-workspace.js";
 
 import {
   isoTimestampSchema,
@@ -203,8 +204,16 @@ async function switchBranch(
   assertAuthorizedOperation(authorization, projectId, "git_mutation");
   const args =
     startingCommit === undefined
-      ? ["switch", "--quiet", branchName]
-      : ["switch", "--quiet", "--create", branchName, "--no-track", startingCommit];
+      ? ["switch", "--quiet", "--no-overwrite-ignore", branchName]
+      : [
+          "switch",
+          "--quiet",
+          "--no-overwrite-ignore",
+          "--create",
+          branchName,
+          "--no-track",
+          startingCommit,
+        ];
   const result = await runGit(workspacePath, args);
   return result.exitCode === 0 ? undefined : gitFailure("git switch", result);
 }
@@ -312,6 +321,63 @@ export class RunCheckpointService {
   }
 
   async prepareTask(request: PrepareTaskCheckpointRequest): Promise<PrepareTaskCheckpointResult> {
+    validateRequestGraph(this.database.repositories, request);
+    const existing = this.database.repositories.densaAdeRunBranches.findByProjectId(
+      request.projectId,
+    );
+    const preflight = await this.#preflight.inspect(
+      existing?.sourceWorkspacePath ?? request.workspacePath,
+    );
+    if (preflight.decision.outcome === "STOP")
+      return stopped("PREFLIGHT_STOPPED", preflight.decision.reason, preflight, [], existing);
+    if (existing === undefined && preflight.densaAdeRun.currentBranchOwned)
+      return stopped(
+        "RUN_OWNERSHIP_MISMATCH",
+        "A reserved source branch has no persisted ownership",
+        preflight,
+        [],
+      );
+    try {
+      const isolation = await ensureIsolatedRunWorkspace(this.database, {
+        ...request,
+        branchName: densaAdeRunBranchName(request.projectId),
+      });
+      const prepared = await this.#prepareExecutionTask({
+        ...request,
+        workspacePath: isolation.run.workspacePath,
+      });
+      if (prepared.status !== "READY" || !isolation.created) return prepared;
+      return Object.freeze({
+        ...prepared,
+        branchAction: "CREATED",
+        automaticActionsPerformed: immutableActions([
+          "CREATED_RUN_BRANCH",
+          ...prepared.automaticActionsPerformed,
+        ]),
+      });
+    } catch (error) {
+      const reason =
+        error instanceof Error ? error.message : "Isolated workspace preparation failed";
+      const code = reason.includes("collision")
+        ? "BRANCH_COLLISION"
+        : reason.includes("policy ask")
+          ? "POLICY_ASK_USER"
+          : reason.includes("policy deny")
+            ? "POLICY_DENIED"
+            : "RUN_OWNERSHIP_MISMATCH";
+      return stopped(
+        code,
+        reason,
+        preflight,
+        [],
+        this.database.repositories.densaAdeRunBranches.findByProjectId(request.projectId),
+      );
+    }
+  }
+
+  async #prepareExecutionTask(
+    request: PrepareTaskCheckpointRequest,
+  ): Promise<PrepareTaskCheckpointResult> {
     validateRequestGraph(this.database.repositories, request);
     const actions: Array<"CREATED_RUN_BRANCH" | "SWITCHED_RUN_BRANCH"> = [];
     let preflight = await this.#preflight.inspect(request.workspacePath);
@@ -524,6 +590,42 @@ export class RunCheckpointService {
       );
     }
 
+    const observation = await this.#workspaceProbe.inspect(workspaceRoot);
+    if (observation.status !== "available") {
+      return stopped("SNAPSHOT_UNAVAILABLE", observation.reason, preflight, actions, run);
+    }
+    const finalPreflight = await this.#preflight.inspect(workspaceRoot);
+    if (
+      observation.snapshot.gitStatus !== "" ||
+      observation.snapshot.gitHead !== preflight.head.commit ||
+      finalPreflight.decision.outcome !== "PROCEED" ||
+      finalPreflight.head.branch !== run.branchName ||
+      finalPreflight.head.commit !== observation.snapshot.gitHead
+    ) {
+      return stopped(
+        "WORKSPACE_CHANGED",
+        "Workspace changed between preflight and checkpoint capture",
+        finalPreflight,
+        actions,
+        run,
+      );
+    }
+    const sourcePreflight = await this.#preflight.inspect(run.sourceWorkspacePath as string);
+    const sourceObservation = await this.#workspaceProbe.inspect(run.sourceWorkspacePath as string);
+    if (
+      sourcePreflight.decision.outcome !== "PROCEED" ||
+      sourcePreflight.head.branch !== run.sourceBranch ||
+      sourceObservation.status !== "available" ||
+      sourceObservation.snapshot.fingerprint !== observation.snapshot.fingerprint
+    ) {
+      return stopped(
+        "WORKSPACE_CHANGED",
+        "Source workspace changed before the isolated task checkpoint was recorded",
+        sourcePreflight,
+        actions,
+        run,
+      );
+    }
     if (run.status === "CREATING") {
       const task = this.database.repositories.tasks.findById(request.taskId);
       if (task === undefined) throw new RunCheckpointInvariantError("Checkpoint task disappeared");
@@ -549,10 +651,7 @@ export class RunCheckpointService {
       });
     }
 
-    const observation = await this.#workspaceProbe.inspect(workspaceRoot);
-    if (observation.status !== "available") {
-      return stopped("SNAPSHOT_UNAVAILABLE", observation.reason, preflight, actions, run);
-    }
+    validateRequestGraph(this.database.repositories, request);
     const existing = this.database.repositories.checkpoints.findByAttemptId(request.attemptId);
     if (existing !== undefined) {
       if (!checkpointMatches(existing, request, run)) {

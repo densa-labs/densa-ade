@@ -1,5 +1,10 @@
 # Bounded failed-attempt rollback
 
+Workers execute in a persisted, Core-owned isolated worktree. Human source edits are never part of
+its output manifest. The current-state audit replaced the original shared-filesystem assumption;
+a terminal snapshot alone cannot establish authorship. See
+[workspace isolation and publication](./run-branches-and-checkpoints.md).
+
 Phase 3 Milestone 3 adds the only Core boundary allowed to return failed Densa ADE work to its task
 checkpoint. `AttemptRollbackService` is deliberately a two-step protocol: it records evidence
 first, then performs a separately requested, path-scoped rollback. It never invokes `git reset`,
@@ -10,7 +15,7 @@ first, then performs a separately requested, path-scoped rollback. It never invo
 `captureAttemptOutput()` runs at the controlled worker terminal boundary while the latest attempt
 is still `RUNNING` and before any validation record exists. It requires the exact attempt's
 persisted `AgentRun` to be unfinished. The trusted worker boundary provides the explicit normalized
-paths attributed to that run and marks the subset that are temporary artifacts. Core independently
+paths within the isolated execution workspace and marks the subset that are temporary artifacts. Core verifies persisted worktree ownership and independently
 captures each path as absent, a regular file, or a symbolic link, with SHA-256 digests covering
 kind, executable mode, and content for both the worktree and Git index. One SQLite transaction
 marks that `AgentRun` complete, stores its ID and immutable path/hash manifest, and appends
@@ -46,10 +51,10 @@ absolute paths, control characters, and parents resolving outside the workspace 
 glob or broad cleanup target is accepted; Git receives every validated filename through literal
 pathspec magic so metacharacters in a real filename cannot expand to neighboring paths.
 
-Changed paths outside the owned set are classified as preserved human work and never touched. The
+Changed paths outside the owned set, plus all changed source paths, are classified as preserved human work and never touched. The
 owned rollback may still complete, but `workspaceReadyForRetry` remains false until that work is
 resolved through policy. With no preserved changes, a fresh content-sensitive workspace probe
-must exactly match the persisted checkpoint before the result can claim a known retry state.
+must exactly match the persisted checkpoint in both execution and source workspaces, with the original source branch, before the result can claim a known retry state.
 
 ## Crash and audit behavior
 
@@ -64,3 +69,13 @@ retained; rollback never rewrites prior events or deletes the attempt.
 The service does not create the next attempt or mutate task state. The scheduler must request
 canonical lifecycle transitions separately. A subsequent `RunCheckpointService.prepareTask()` can
 establish the next attempt only when the post-rollback workspace is again a verified known state.
+
+Current audit repairs reject all symlink parents, including aliases into another directory inside
+the same workspace, and include index-only changes in preserved-human-path reporting. Failure
+diagnostics also use Core's shared credential/explicit-marker redactor. The isolated worktree prevents source edits made before terminal capture from entering the rollback manifest. Legacy shared-workspace records cannot authorize rollback.
+
+If an adapter event stream fails or ends without a terminal outcome, orchestration requests bounded
+cancellation but does not infer that the worker stopped. It records `AGENT_TERMINATION_UNCONFIRMED`,
+leaves the attempt and AgentRun unfinished, interrupts the task, and returns `RECOVERY_REQUIRED`
+without output capture or rollback. This protects the workspace from rollback while an orphaned
+worker may still be writing. Cancellation acknowledgement alone is not proof of termination.

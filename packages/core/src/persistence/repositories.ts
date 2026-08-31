@@ -198,6 +198,7 @@ export interface RoadmapRevisionProposalRepository {
 export type DensaAdeRunBranchStatus = "CREATING" | "ACTIVE" | "FAILED";
 
 export interface DensaAdeRunBranchRecord {
+  readonly sourceWorkspacePath?: string;
   readonly projectId: Project["id"];
   readonly workspacePath: string;
   readonly branchName: string;
@@ -230,6 +231,21 @@ export type DensaRunBranchRecord = DensaAdeRunBranchRecord;
 export type NewDensaRunBranchRecord = NewDensaAdeRunBranchRecord;
 /** @deprecated Use DensaAdeRunBranchRepository. Retained for package consumer compatibility. */
 export type DensaRunBranchRepository = DensaAdeRunBranchRepository;
+
+export interface TaskPublicationIntentRecord {
+  readonly attemptId: Attempt["id"];
+  readonly sourceWorkspacePath: string;
+  readonly sourceBranch: string;
+  readonly expectedHead: string;
+  readonly commitSha: string;
+  readonly createdAt: string;
+  readonly publishedAt?: string;
+}
+export interface TaskPublicationIntentRepository {
+  create(intent: Omit<TaskPublicationIntentRecord, "publishedAt">): TaskPublicationIntentRecord;
+  findByAttemptId(attemptId: Attempt["id"]): TaskPublicationIntentRecord | undefined;
+  recordPublished(attemptId: Attempt["id"], publishedAt: string): TaskPublicationIntentRecord;
+}
 
 export interface TaskCommitIntentRecord {
   readonly attemptId: Attempt["id"];
@@ -346,6 +362,7 @@ export interface DensaAdeRepositories {
   /** @deprecated Use densaAdeRunBranches. Retained for package consumer compatibility. */
   readonly densaRunBranches: DensaAdeRunBranchRepository;
   readonly taskCommitIntents: TaskCommitIntentRepository;
+  readonly taskPublicationIntents: TaskPublicationIntentRepository;
   readonly attemptRollbackPlans: AttemptRollbackPlanRepository;
   readonly checkpoints: CheckpointRepository;
   readonly events: EventRepository;
@@ -1607,8 +1624,8 @@ class SqliteDensaAdeRunBranchRepository implements DensaAdeRunBranchRepository {
     const run = validateRunBranch({ ...input, status: "CREATING" });
     this.connection.run(
       `INSERT INTO densa_run_branches
-       (project_id, workspace_path, branch_name, source_branch, starting_commit, status, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+       (project_id, workspace_path, branch_name, source_branch, starting_commit, status, created_at, source_workspace_path)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       run.projectId,
       run.workspacePath,
       run.branchName,
@@ -1616,6 +1633,7 @@ class SqliteDensaAdeRunBranchRepository implements DensaAdeRunBranchRepository {
       run.startingCommit,
       run.status,
       run.createdAt,
+      run.sourceWorkspacePath ?? null,
     );
     return run;
   }
@@ -1674,10 +1692,12 @@ class SqliteDensaAdeRunBranchRepository implements DensaAdeRunBranchRepository {
   }
 
   private parse(row: SqliteRow): DensaAdeRunBranchRecord {
+    const sourceWorkspacePath = optionalString(row, "source_workspace_path");
     const activatedAt = optionalString(row, "activated_at");
     const failureReason = optionalString(row, "failure_reason");
     return validateRunBranch(
       {
+        ...(sourceWorkspacePath === undefined ? {} : { sourceWorkspacePath }),
         projectId: requiredString(row, "project_id") as Project["id"],
         workspacePath: requiredString(row, "workspace_path"),
         branchName: requiredString(row, "branch_name"),
@@ -1715,6 +1735,59 @@ function validateTaskCommitIntent(
   if (commitSha !== undefined) requireNonEmpty(commitSha, "Task commit SHA");
   if (committedAt !== undefined) isoTimestampSchema.parse(committedAt);
   return Object.freeze({ ...input, intendedPaths: Object.freeze([...input.intendedPaths]) });
+}
+
+class SqliteTaskPublicationIntentRepository implements TaskPublicationIntentRepository {
+  constructor(private readonly connection: SqliteConnection) {}
+  create(input: Omit<TaskPublicationIntentRecord, "publishedAt">): TaskPublicationIntentRecord {
+    isoTimestampSchema.parse(input.createdAt);
+    for (const value of [
+      input.sourceWorkspacePath,
+      input.sourceBranch,
+      input.expectedHead,
+      input.commitSha,
+    ])
+      requireNonEmpty(value, "Publication intent");
+    this.connection.run(
+      `INSERT INTO task_publication_intents (attempt_id, source_workspace_path, source_branch, expected_head, commit_sha, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+      input.attemptId,
+      input.sourceWorkspacePath,
+      input.sourceBranch,
+      input.expectedHead,
+      input.commitSha,
+      input.createdAt,
+    );
+    return Object.freeze({ ...input });
+  }
+  findByAttemptId(attemptId: Attempt["id"]): TaskPublicationIntentRecord | undefined {
+    const row = this.connection.get(
+      "SELECT * FROM task_publication_intents WHERE attempt_id = ?",
+      attemptId,
+    );
+    if (row === undefined) return undefined;
+    const publishedAt = optionalString(row, "published_at");
+    return Object.freeze({
+      attemptId,
+      sourceWorkspacePath: requiredString(row, "source_workspace_path"),
+      sourceBranch: requiredString(row, "source_branch"),
+      expectedHead: requiredString(row, "expected_head"),
+      commitSha: requiredString(row, "commit_sha"),
+      createdAt: requiredString(row, "created_at"),
+      ...(publishedAt === undefined ? {} : { publishedAt }),
+    });
+  }
+  recordPublished(attemptId: Attempt["id"], publishedAt: string): TaskPublicationIntentRecord {
+    isoTimestampSchema.parse(publishedAt);
+    const existing = this.findByAttemptId(attemptId);
+    if (existing === undefined) throw new PersistenceError("Publication intent is missing");
+    if (existing.publishedAt !== undefined) return existing;
+    this.connection.run(
+      "UPDATE task_publication_intents SET published_at = ? WHERE attempt_id = ? AND published_at IS NULL",
+      publishedAt,
+      attemptId,
+    );
+    return Object.freeze({ ...existing, publishedAt });
+  }
 }
 
 class SqliteTaskCommitIntentRepository implements TaskCommitIntentRepository {
@@ -2206,6 +2279,7 @@ export function createRepositories(
     densaAdeRunBranches,
     densaRunBranches: densaAdeRunBranches,
     taskCommitIntents: new SqliteTaskCommitIntentRepository(connection),
+    taskPublicationIntents: new SqliteTaskPublicationIntentRepository(connection),
     attemptRollbackPlans: new SqliteAttemptRollbackPlanRepository(connection),
     checkpoints: new SqliteCheckpointRepository(connection),
     events: new SqliteEventRepository(connection, publishEvent),

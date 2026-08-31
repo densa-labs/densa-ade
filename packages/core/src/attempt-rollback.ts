@@ -1,7 +1,17 @@
+import {
+  normalizePaths,
+  literalPathspec,
+  inspectCurrentPath,
+  inspectCheckpointPath,
+  sameState,
+  isRecoverablePartialState,
+  inspectChangedPaths,
+} from "./workspace-path-evidence.js";
+import { redactSensitiveText } from "./secret-redaction.js";
+import { assertIsolatedRunWorkspace, workspaceGit } from "./isolated-run-workspace.js";
 import { execFile } from "node:child_process";
-import { createHash } from "node:crypto";
-import { lstat, readFile, readlink, realpath, unlink } from "node:fs/promises";
-import { dirname, isAbsolute, posix, relative, resolve, sep } from "node:path";
+import { realpath, unlink } from "node:fs/promises";
+import { resolve } from "node:path";
 import process from "node:process";
 
 import {
@@ -203,7 +213,7 @@ function immutableStrings(values: Iterable<string>): readonly string[] {
 }
 
 function redactDiagnosticText(value: string): string {
-  return value
+  return redactSensitiveText(value)
     .replace(/(Bearer\s+)[A-Za-z0-9._~-]+/giu, "$1[REDACTED]")
     .replace(/\bsk-[A-Za-z0-9_-]{8,}\b/gu, "[REDACTED]")
     .replace(
@@ -251,198 +261,6 @@ function stopped(
   });
 }
 
-function normalizePaths(paths: readonly string[]): readonly string[] | undefined {
-  if (paths.length === 0) return undefined;
-  const normalized = new Set<string>();
-  for (const path of paths) {
-    if (
-      path.length === 0 ||
-      isAbsolute(path) ||
-      path.includes("\\") ||
-      posix.normalize(path) !== path ||
-      path === "." ||
-      path === ".." ||
-      path.startsWith("../") ||
-      path === ".git" ||
-      path.startsWith(".git/") ||
-      [...path].some((character) => {
-        const codePoint = character.codePointAt(0) ?? 0;
-        return codePoint <= 31 || codePoint === 127;
-      })
-    ) {
-      return undefined;
-    }
-    normalized.add(path);
-  }
-  return immutableStrings(normalized);
-}
-
-function literalPathspec(path: string): string {
-  return `:(literal)${path}`;
-}
-
-function contentHash(kind: "FILE" | "SYMLINK", executable: boolean, content: Buffer): string {
-  return createHash("sha256")
-    .update(kind)
-    .update("\0")
-    .update(executable ? "EXECUTABLE" : "REGULAR")
-    .update("\0")
-    .update(content)
-    .digest("hex");
-}
-
-function sameState(left: RollbackPathSnapshot, right: RollbackPathSnapshot): boolean {
-  return (
-    left.kind === right.kind &&
-    left.contentHash === right.contentHash &&
-    left.indexHash === right.indexHash
-  );
-}
-
-function sameWorktree(left: RollbackPathSnapshot, right: RollbackPathSnapshot): boolean {
-  return left.kind === right.kind && left.contentHash === right.contentHash;
-}
-
-/** A crash may persist the index and worktree halves of one scoped restore independently. */
-function isRecoverablePartialState(
-  current: RollbackPathSnapshot,
-  failed: RollbackPathSnapshot,
-  checkpoint: RollbackPathSnapshot,
-): boolean {
-  return (
-    (sameWorktree(current, failed) || sameWorktree(current, checkpoint)) &&
-    (current.indexHash === failed.indexHash || current.indexHash === checkpoint.indexHash)
-  );
-}
-
-async function inspectIndexHash(workspaceRoot: string, path: string): Promise<string | undefined> {
-  const result = await runGit(workspaceRoot, [
-    "ls-files",
-    "--stage",
-    "-z",
-    "--",
-    literalPathspec(path),
-  ]);
-  if (result.exitCode !== 0) throw new Error(gitFailure("git ls-files --stage", result));
-  const entries = result.stdout
-    .toString("utf8")
-    .split("\0")
-    .filter((entry) => entry.length > 0);
-  if (entries.length === 0) return undefined;
-  if (entries.length !== 1) throw new Error(`Index has unmerged entries for ${path}`);
-  const header = entries[0]?.split("\t", 1)[0] ?? "";
-  const [mode, objectId, stage] = header.split(" ");
-  if (
-    stage !== "0" ||
-    objectId === undefined ||
-    (mode !== "100644" && mode !== "100755" && mode !== "120000")
-  ) {
-    throw new Error(`Index path ${path} is not a supported file or symbolic link`);
-  }
-  const blob = await runGit(workspaceRoot, ["cat-file", "blob", objectId]);
-  if (blob.exitCode !== 0) throw new Error(gitFailure("git cat-file", blob));
-  const kind = mode === "120000" ? "SYMLINK" : "FILE";
-  return contentHash(kind, mode === "100755", blob.stdout);
-}
-
-async function assertSafeParent(workspaceRoot: string, relativePath: string): Promise<void> {
-  let candidate = dirname(resolve(workspaceRoot, relativePath));
-  for (;;) {
-    try {
-      const parent = await realpath(candidate);
-      const escaped = relative(workspaceRoot, parent);
-      if (escaped === ".." || escaped.startsWith(`..${sep}`) || isAbsolute(escaped)) {
-        throw new Error("Path parent resolves outside the workspace");
-      }
-      return;
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-      const next = dirname(candidate);
-      if (next === candidate) throw error;
-      candidate = next;
-    }
-  }
-}
-
-async function inspectCurrentPath(
-  workspaceRoot: string,
-  path: string,
-  temporary: boolean,
-): Promise<RollbackPathSnapshot> {
-  await assertSafeParent(workspaceRoot, path);
-  const absolutePath = resolve(workspaceRoot, path);
-  const indexHash = await inspectIndexHash(workspaceRoot, path);
-  try {
-    const stats = await lstat(absolutePath);
-    if (stats.isSymbolicLink()) {
-      return Object.freeze({
-        path,
-        kind: "SYMLINK" as const,
-        contentHash: contentHash("SYMLINK", false, Buffer.from(await readlink(absolutePath))),
-        ...(indexHash === undefined ? {} : { indexHash }),
-        temporary,
-      });
-    }
-    if (!stats.isFile())
-      throw new Error("Only regular files and symbolic links can be rolled back");
-    return Object.freeze({
-      path,
-      kind: "FILE" as const,
-      contentHash: contentHash("FILE", (stats.mode & 0o111) !== 0, await readFile(absolutePath)),
-      ...(indexHash === undefined ? {} : { indexHash }),
-      temporary,
-    });
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      return Object.freeze({
-        path,
-        kind: "ABSENT" as const,
-        ...(indexHash === undefined ? {} : { indexHash }),
-        temporary,
-      });
-    }
-    throw error;
-  }
-}
-
-async function inspectCheckpointPath(
-  workspaceRoot: string,
-  checkpointHead: string,
-  path: string,
-  temporary: boolean,
-): Promise<RollbackPathSnapshot | { readonly failure: string }> {
-  const tree = await runGit(workspaceRoot, [
-    "ls-tree",
-    "-z",
-    checkpointHead,
-    "--",
-    literalPathspec(path),
-  ]);
-  if (tree.exitCode !== 0) return { failure: gitFailure("git ls-tree", tree) };
-  if (tree.stdout.length === 0) {
-    return Object.freeze({ path, kind: "ABSENT" as const, temporary });
-  }
-  const header = tree.stdout.toString("utf8").split("\t", 1)[0] ?? "";
-  const [mode, type, objectId] = header.split(" ");
-  if (
-    type !== "blob" ||
-    objectId === undefined ||
-    (mode !== "100644" && mode !== "100755" && mode !== "120000")
-  ) {
-    return { failure: `Checkpoint path ${path} is not a supported file or symbolic link` };
-  }
-  const blob = await runGit(workspaceRoot, ["cat-file", "blob", objectId]);
-  if (blob.exitCode !== 0) return { failure: gitFailure("git cat-file", blob) };
-  const kind = mode === "120000" ? "SYMLINK" : "FILE";
-  return Object.freeze({
-    path,
-    kind,
-    contentHash: contentHash(kind, mode === "100755", blob.stdout),
-    indexHash: contentHash(kind, mode === "100755", blob.stdout),
-    temporary,
-  });
-}
-
 async function gitIdentity(workspacePath: string): Promise<{
   readonly root?: string;
   readonly branch?: string;
@@ -474,24 +292,11 @@ async function gitIdentity(workspacePath: string): Promise<{
 async function changedPaths(
   workspaceRoot: string,
 ): Promise<readonly string[] | { readonly failure: string }> {
-  const [tracked, untracked] = await Promise.all([
-    runGit(workspaceRoot, ["diff", "--name-only", "-z", "HEAD", "--"]),
-    runGit(workspaceRoot, ["ls-files", "--others", "--exclude-standard", "-z", "--"]),
-  ]);
-  if (tracked.exitCode !== 0 || untracked.exitCode !== 0) {
-    return {
-      failure: gitFailure(
-        "git changed-path inspection",
-        tracked.exitCode === 0 ? untracked : tracked,
-      ),
-    };
+  try {
+    return await inspectChangedPaths(workspaceRoot);
+  } catch (error) {
+    return { failure: error instanceof Error ? error.message : "Git inspection failed" };
   }
-  return immutableStrings(
-    Buffer.concat([tracked.stdout, untracked.stdout])
-      .toString("utf8")
-      .split("\0")
-      .filter((path) => path.length > 0),
-  );
 }
 
 function planMatches(
@@ -575,6 +380,7 @@ export class AttemptRollbackService {
         );
       }
       const identity = await gitIdentity(request.workspacePath);
+      await assertIsolatedRunWorkspace(run);
       if (identity.failure !== undefined || identity.root === undefined)
         return stopped("GIT_COMMAND_FAILED", identity.failure ?? "Git identity is unavailable");
       if (
@@ -815,6 +621,7 @@ export class AttemptRollbackService {
           "Rollback eligibility changed after failure evidence was recorded",
         );
       }
+      await assertIsolatedRunWorkspace(run);
       const identity = await gitIdentity(request.workspacePath);
       if (identity.failure !== undefined || identity.root === undefined)
         return stopped("GIT_COMMAND_FAILED", identity.failure ?? "Git identity is unavailable");
@@ -831,7 +638,11 @@ export class AttemptRollbackService {
       const changed = await changedPaths(identity.root);
       if ("failure" in changed) return stopped("GIT_COMMAND_FAILED", changed.failure);
       const ownedSet = new Set(plan.ownedPaths.map((entry) => entry.path));
-      const preservedHumanPaths = changed.filter((path) => !ownedSet.has(path));
+      const sourceChanges = await changedPaths(run.sourceWorkspacePath as string);
+      if ("failure" in sourceChanges) return stopped("GIT_COMMAND_FAILED", sourceChanges.failure);
+      const preservedHumanPaths = immutableStrings(
+        new Set([...changed.filter((path) => !ownedSet.has(path)), ...sourceChanges]),
+      );
       const baselines = new Map<string, RollbackPathSnapshot>();
       const conflicts: string[] = [];
       for (const snapshot of plan.ownedPaths) {
@@ -865,7 +676,7 @@ export class AttemptRollbackService {
             payload: {
               attemptId: request.attemptId,
               conflictingPaths: conflicts,
-              preservedHumanPaths,
+              preservedHumanPaths: [...preservedHumanPaths],
             },
           });
         } catch (error) {
@@ -883,10 +694,26 @@ export class AttemptRollbackService {
           preservedHumanPaths,
         );
       }
+      const sourceObservation = await this.#workspaceProbe.inspect(
+        run.sourceWorkspacePath as string,
+      );
+      const sourceReady =
+        sourceObservation.status === "available" &&
+        sourceObservation.snapshot.gitHead === checkpoint.gitHead &&
+        sourceObservation.snapshot.fingerprint === checkpoint.workspaceFingerprint &&
+        (
+          await workspaceGit(run.sourceWorkspacePath as string, [
+            "symbolic-ref",
+            "--quiet",
+            "--short",
+            "HEAD",
+          ])
+        ).trim() === run.sourceBranch;
       if (plan.appliedAt !== undefined) {
         const observation = await this.#workspaceProbe.inspect(identity.root);
         const workspaceReadyForRetry =
           observation.status === "available" &&
+          sourceReady &&
           preservedHumanPaths.length === 0 &&
           observation.snapshot.gitHead === checkpoint.gitHead &&
           observation.snapshot.gitStatus === checkpoint.gitStatus &&
@@ -1039,6 +866,7 @@ export class AttemptRollbackService {
       const observation = await this.#workspaceProbe.inspect(identity.root);
       const workspaceReadyForRetry =
         observation.status === "available" &&
+        sourceReady &&
         preservedHumanPaths.length === 0 &&
         observation.snapshot.gitHead === checkpoint.gitHead &&
         observation.snapshot.gitStatus === checkpoint.gitStatus &&
@@ -1063,7 +891,7 @@ export class AttemptRollbackService {
               checkpointHead: plan.checkpointHead,
               restoredPaths: restored,
               cleanedTemporaryPaths: cleanedTemporary,
-              preservedHumanPaths,
+              preservedHumanPaths: [...preservedHumanPaths],
               workspaceReadyForRetry,
             },
           });

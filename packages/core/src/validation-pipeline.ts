@@ -1,3 +1,5 @@
+import { realpath } from "node:fs/promises";
+import { assertIsolatedRunWorkspace } from "./isolated-run-workspace.js";
 import {
   isoTimestampSchema,
   validationResultIdSchema,
@@ -18,6 +20,11 @@ import {
 
 import { buildAcceptanceReport } from "./acceptance-evidence.js";
 import type { DensaAdeDatabase } from "./persistence/database.js";
+import {
+  captureValidationWorkspace,
+  assertValidationWorkspaceUnchanged,
+  recordValidationWorkspace,
+} from "./validation-workspace.js";
 
 export const MAX_VALIDATION_DIAGNOSTICS_BYTES = 32 * 1_024;
 export const MAX_VALIDATION_METADATA_BYTES = 64 * 1_024;
@@ -226,6 +233,32 @@ export class ValidationPipeline {
     }
     validatePlan(request, task.acceptanceCriteria);
 
+    const checkpoint =
+      request.attemptId === undefined
+        ? undefined
+        : this.database.repositories.checkpoints.findByAttemptId(request.attemptId);
+    if (checkpoint !== undefined) {
+      const ownership = this.database.repositories.densaAdeRunBranches.findByProjectId(
+        request.projectId,
+      );
+      if (ownership === undefined)
+        throw new Error("Checkpointed validation has no workspace ownership");
+      await assertIsolatedRunWorkspace(ownership);
+      const requestedRoot = await realpath(request.workspacePath);
+      if (
+        requestedRoot !== ownership.sourceWorkspacePath &&
+        requestedRoot !== ownership.workspacePath
+      )
+        throw new Error("Validation workspace does not match the checkpointed run");
+      request = { ...request, workspacePath: ownership.workspacePath };
+    }
+
+    const workspaceEvidence =
+      request.attemptId !== undefined &&
+      this.database.repositories.checkpoints.findByAttemptId(request.attemptId) !== undefined
+        ? await captureValidationWorkspace(request.workspacePath)
+        : undefined;
+
     const startedAt = this.#now();
     this.database.repositories.validationRuns.create({
       id: request.runId,
@@ -282,10 +315,42 @@ export class ValidationPipeline {
     }
 
     const results = this.database.repositories.validationResults.listByRunId(request.runId);
-    const passed = results.every(
+    let passed = results.every(
       (result) => result.policy === "advisory" || result.status === "passed",
     );
-    this.database.repositories.validationRuns.recordCompleted(request.runId, this.#now(), passed);
+    if (workspaceEvidence !== undefined) {
+      try {
+        await assertValidationWorkspaceUnchanged(workspaceEvidence);
+      } catch (error) {
+        passed = false;
+        this.database.repositories.validationResults.create({
+          id: validationResultIdSchema.parse(`${request.runId}:workspace-error`),
+          validationRunId: request.runId,
+          position: results.length,
+          validatorId: "densa-ade:workspace-integrity",
+          validatorVersion: "1",
+          evidenceSource: "deterministic_validator",
+          policy: "required",
+          status: "error",
+          startedAt,
+          completedAt: this.#now(),
+          relatedAcceptanceCriteria: [],
+          retryRelevant: true,
+          diagnostics: [
+            {
+              severity: "error",
+              code: "VALIDATION_WORKSPACE_CHANGED",
+              message: errorMessage(error),
+            },
+          ],
+        });
+      }
+    }
+    this.database.transaction((repositories) => {
+      repositories.validationRuns.recordCompleted(request.runId, this.#now(), passed);
+      if (passed && workspaceEvidence !== undefined)
+        recordValidationWorkspace(this.database, request.runId, workspaceEvidence);
+    });
     const replay = this.replay(request.runId);
     if (replay === undefined || replay.run.passed === undefined) {
       throw new Error("Completed validation run could not be replayed");

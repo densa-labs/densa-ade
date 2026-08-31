@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
-import { lstat, readlink } from "node:fs/promises";
+import { lstat, readlink, realpath } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import { promisify } from "node:util";
@@ -17,7 +17,11 @@ import type {
 } from "@densa-ade/protocol";
 
 import type { PersistedEvent } from "./event-publisher.js";
-import type { DensaAdeRepositories } from "./persistence/repositories.js";
+import type {
+  DensaAdeRepositories,
+  TaskPublicationIntentRecord,
+} from "./persistence/repositories.js";
+import { assertIsolatedRunWorkspace, workspaceGit } from "./isolated-run-workspace.js";
 
 const execFileAsync = promisify(execFile);
 const ACTIVE_TASK_STATES = new Set<TaskState>(["RUNNING", "RETRYING", "VALIDATING"]);
@@ -89,6 +93,8 @@ export interface RecoveryEvidence {
   readonly lastEvent?: PersistedEvent | undefined;
   readonly process?: ProcessObservation | undefined;
   readonly workspace: WorkspaceObservation;
+  readonly executionWorkspace?: WorkspaceObservation;
+  readonly publication?: TaskPublicationIntentRecord;
   readonly workspaceDiverged?: boolean;
 }
 
@@ -559,10 +565,12 @@ export class RecoveryInspector {
         attempts: this.repositories.attempts.listByTaskId(task.id).map((attempt) => ({
           attempt,
           run: this.repositories.agentRuns.findByAttemptId(attempt.id),
+          publication: this.repositories.taskPublicationIntents.findByAttemptId(attempt.id),
         })),
         validations: this.repositories.validationRuns.listByTaskId(task.id),
       })),
       checkpoints: this.repositories.checkpoints.listByProjectId(projectId),
+      workspaceOwnership: this.repositories.densaAdeRunBranches.findByProjectId(projectId),
       lastEvent: this.repositories.events.latest(projectId),
     });
   }
@@ -581,8 +589,39 @@ export class RecoveryInspector {
     const activeTasks = tasks.filter((task) => ACTIVE_TASK_STATES.has(task.state));
     const checkpoint = latest(this.repositories.checkpoints.listByProjectId(project.id));
     const lastEvent = this.repositories.events.latest(project.id);
-    const workspace = await this.#workspaceProbe.inspect(request.workspacePath);
-    const common = { project, checkpoint, lastEvent, workspace };
+    const ownership = this.repositories.densaAdeRunBranches.findByProjectId(project.id);
+    let executionWorkspace: WorkspaceObservation | undefined;
+    if (ownership?.sourceWorkspacePath !== undefined) {
+      if (
+        ![ownership.sourceWorkspacePath, ownership.workspacePath].includes(
+          await realpath(request.workspacePath),
+        )
+      )
+        throw new Error("Recovery request does not match persisted workspace ownership");
+      await assertIsolatedRunWorkspace(ownership);
+      if (
+        (
+          await workspaceGit(ownership.sourceWorkspacePath, [
+            "symbolic-ref",
+            "--quiet",
+            "--short",
+            "HEAD",
+          ])
+        ).trim() !== ownership.sourceBranch
+      )
+        throw new Error("Recovery source branch no longer matches persisted ownership");
+      executionWorkspace = await this.#workspaceProbe.inspect(ownership.workspacePath);
+    }
+    const workspace = await this.#workspaceProbe.inspect(
+      ownership?.sourceWorkspacePath ?? request.workspacePath,
+    );
+    const common = {
+      project,
+      checkpoint,
+      lastEvent,
+      workspace,
+      ...(executionWorkspace === undefined ? {} : { executionWorkspace }),
+    };
 
     if (workspace.status === "unknown") {
       return immutablePlan({
@@ -592,6 +631,13 @@ export class RecoveryInspector {
         evidence: common,
       });
     }
+    if (executionWorkspace?.status === "unknown")
+      return immutablePlan({
+        classification: "UNKNOWN",
+        reason: executionWorkspace.reason,
+        actions: ["REQUEST_USER_INSPECTION"],
+        evidence: common,
+      });
     if (
       checkpoint?.gitHead === undefined ||
       checkpoint.gitStatus === undefined ||
@@ -608,7 +654,11 @@ export class RecoveryInspector {
     const workspaceDiverged =
       workspace.snapshot.gitHead !== checkpoint.gitHead ||
       workspace.snapshot.gitStatus !== checkpoint.gitStatus ||
-      workspace.snapshot.fingerprint !== checkpoint.workspaceFingerprint;
+      workspace.snapshot.fingerprint !== checkpoint.workspaceFingerprint ||
+      (executionWorkspace?.status === "available" &&
+        (executionWorkspace.snapshot.gitHead !== checkpoint.gitHead ||
+          executionWorkspace.snapshot.gitStatus !== checkpoint.gitStatus ||
+          executionWorkspace.snapshot.fingerprint !== checkpoint.workspaceFingerprint));
     const eventContradiction = persistedEventContradiction(project, tasks, this.repositories);
     if (eventContradiction !== undefined) {
       return immutablePlan({
@@ -719,11 +769,26 @@ export class RecoveryInspector {
         });
       }
       if (validationRun?.completedAt !== undefined) {
+        const publication =
+          attempt === undefined
+            ? undefined
+            : this.repositories.taskPublicationIntents.findByAttemptId(attempt.id);
         return immutablePlan({
           classification: "UNKNOWN",
-          reason: "Task is VALIDATING but its latest validation run already has an outcome",
+          reason:
+            publication === undefined
+              ? "Task is VALIDATING but its latest validation run already has an outcome"
+              : "A durable task publication intent requires verification of both workspaces and any retained publication locks before completion recovery",
           actions: ["REQUEST_USER_INSPECTION"],
-          evidence: { ...common, task, attempt, agentRun, validationRun, workspaceDiverged },
+          evidence: {
+            ...common,
+            task,
+            attempt,
+            agentRun,
+            validationRun,
+            workspaceDiverged,
+            ...(publication === undefined ? {} : { publication }),
+          },
         });
       }
       const unfinishedAttempt = attemptHistory.unfinished;

@@ -7,6 +7,8 @@ import { test } from "node:test";
 
 import {
   RunCheckpointService,
+  RecoveryInspector,
+  GitWorkspaceProbe,
   WorkspacePreflight,
   densaAdeRunBranchName,
   densaRunBranchName,
@@ -126,6 +128,56 @@ test.after(() => {
   for (const root of temporaryRoots) rmSync(root, { recursive: true, force: true });
 });
 
+test("a dirty snapshot after a clean preflight cannot become a task checkpoint", async () => {
+  const root = createRoot();
+  const repository = createRepository(root);
+  const database = DensaAdeDatabase.open(join(root, "runtime.sqlite"));
+  const graph = seedGraph(database);
+  const result = await new RunCheckpointService(database, {
+    workspaceProbe: {
+      async inspect(workspacePath) {
+        writeFileSync(join(repository, "late-human.txt"), "preserve me\n");
+        return new GitWorkspaceProbe().inspect(workspacePath);
+      },
+    },
+  }).prepareTask(requestFor(graph, repository));
+  assert.equal(result.status, "STOPPED");
+  assert.equal(result.code, "WORKSPACE_CHANGED");
+  assert.equal(database.repositories.checkpoints.listByProjectId(graph.project.id).length, 0);
+  assert.equal(readFileSync(join(repository, "late-human.txt"), "utf8"), "preserve me\n");
+  database.close();
+});
+
+test("switching back to a run branch preserves colliding ignored user files", async () => {
+  const root = createRoot();
+  const repository = createRepository(root);
+  const database = DensaAdeDatabase.open(join(root, "runtime.sqlite"));
+  const graph = seedGraph(database, 2);
+  await new RunCheckpointService(database).prepareTask(requestFor(graph, repository));
+  writeFileSync(join(repository, "user.sqlite"), "run version\n");
+  git(repository, ["add", "--force", "user.sqlite"]);
+  git(repository, [
+    "-c",
+    "user.name=Fixture",
+    "-c",
+    "user.email=fixture@localhost",
+    "commit",
+    "-qm",
+    "run artifact",
+  ]);
+  git(repository, ["switch", "main"]);
+  writeFileSync(join(repository, "user.sqlite"), "irreplaceable ignored user data\n");
+  const result = await new RunCheckpointService(database).prepareTask(
+    requestFor(graph, repository, 1),
+  );
+  assert.equal(result.status, "STOPPED");
+  assert.equal(
+    readFileSync(join(repository, "user.sqlite"), "utf8"),
+    "irreplaceable ignored user data\n",
+  );
+  database.close();
+});
+
 test("creates a predictable Densa ADE run branch and durable task-attempt checkpoint", async () => {
   const root = createRoot();
   const repository = createRepository(root);
@@ -144,17 +196,17 @@ test("creates a predictable Densa ADE run branch and durable task-attempt checkp
   assert.equal(densaRunBranchName(graph.project.id), densaAdeRunBranchName(graph.project.id));
   assert.equal(result.run.status, "ACTIVE");
   assert.equal(result.run.startingCommit, startingCommit);
-  assert.equal(git(repository, ["branch", "--show-current"]).trim(), result.run.branchName);
+  assert.equal(git(repository, ["branch", "--show-current"]).trim(), "main");
+  assert.equal(
+    git(result.run.workspacePath, ["branch", "--show-current"]).trim(),
+    result.run.branchName,
+  );
   assert.equal(git(repository, ["rev-parse", "HEAD"]).trim(), startingCommit);
   assert.equal(result.checkpoint.taskId, graph.tasks[0].id);
   assert.equal(result.checkpoint.attemptId, graph.attempts[0].id);
   assert.equal(result.checkpoint.gitHead, startingCommit);
   assert.equal(result.checkpoint.gitStatus, "");
-  assert.deepEqual(result.automaticActionsPerformed, [
-    "CREATED_RUN_BRANCH",
-    "SWITCHED_RUN_BRANCH",
-    "RECORDED_CHECKPOINT",
-  ]);
+  assert.deepEqual(result.automaticActionsPerformed, ["CREATED_RUN_BRANCH", "RECORDED_CHECKPOINT"]);
   assert.equal(
     database.repositories.checkpoints.findByAttemptId(graph.attempts[0].id).id,
     result.checkpoint.id,
@@ -210,7 +262,8 @@ test("recovers a persisted branch-creation intent after Core restart", async () 
   const branchName = densaAdeRunBranchName(graph.project.id);
   database.repositories.densaAdeRunBranches.createCreating({
     projectId: graph.project.id,
-    workspacePath: realpathSync(repository),
+    workspacePath: join(realpathSync(root), "execution"),
+    sourceWorkspacePath: realpathSync(repository),
     branchName,
     sourceBranch: "main",
     startingCommit,
@@ -227,11 +280,9 @@ test("recovers a persisted branch-creation intent after Core restart", async () 
   assert.equal(result.status, "READY");
   assert.equal(result.run.status, "ACTIVE");
   assert.equal(result.run.branchName, branchName);
-  assert.equal(git(repository, ["branch", "--show-current"]).trim(), branchName);
-  assert.deepEqual(result.automaticActionsPerformed, [
-    "SWITCHED_RUN_BRANCH",
-    "RECORDED_CHECKPOINT",
-  ]);
+  assert.equal(git(repository, ["branch", "--show-current"]).trim(), "main");
+  assert.equal(git(result.run.workspacePath, ["branch", "--show-current"]).trim(), branchName);
+  assert.deepEqual(result.automaticActionsPerformed, ["CREATED_RUN_BRANCH", "RECORDED_CHECKPOINT"]);
   database.close();
 });
 
@@ -378,4 +429,69 @@ test("checkpoint setup never pushes its local run branch to a configured remote"
   );
   assert.throws(() => git(remote, ["show-ref", "--verify", `refs/heads/${result.run.branchName}`]));
   database.close();
+});
+
+test("a clean committed source intervention becomes the next isolated checkpoint", async () => {
+  const root = createRoot();
+  const source = createRepository(root);
+  const database = DensaAdeDatabase.open(join(root, "runtime.sqlite"));
+  try {
+    const graph = seedGraph(database, 2);
+    const first = await new RunCheckpointService(database).prepareTask(requestFor(graph, source));
+    assert.equal(first.status, "READY");
+    writeFileSync(join(source, "tracked.txt"), "human committed intervention\n");
+    git(source, [
+      "-c",
+      "user.name=Fixture",
+      "-c",
+      "user.email=fixture@localhost",
+      "commit",
+      "-am",
+      "human intervention",
+    ]);
+    const expected = git(source, ["rev-parse", "HEAD"]).trim();
+    const second = await new RunCheckpointService(database).prepareTask(
+      requestFor(graph, source, 1),
+    );
+    assert.equal(second.status, "READY", JSON.stringify(second));
+    assert.equal(second.checkpoint.gitHead, expected);
+    assert.equal(git(first.run.workspacePath, ["rev-parse", "HEAD"]).trim(), expected);
+    assert.equal(git(source, ["branch", "--show-current"]).trim(), "main");
+  } finally {
+    database.close();
+  }
+});
+
+test("recovery inspects isolated execution even when the source checkout is clean", async () => {
+  const root = createRoot();
+  const source = createRepository(root);
+  const database = DensaAdeDatabase.open(join(root, "runtime.sqlite"));
+  try {
+    const graph = seedGraph(database);
+    const prepared = await new RunCheckpointService(database).prepareTask(
+      requestFor(graph, source),
+    );
+    assert.equal(prepared.status, "READY");
+    writeFileSync(join(prepared.run.workspacePath, "worker-leftover.txt"), "unfinished output\n");
+    const recovery = await new RecoveryInspector(database.repositories).inspect({
+      projectId: graph.project.id,
+      workspacePath: source,
+    });
+    assert.equal(recovery.classification, "UNKNOWN", JSON.stringify(recovery));
+    assert.equal(recovery.evidence.workspaceDiverged, true);
+    assert.equal(recovery.evidence.workspace.snapshot.gitStatus, "");
+    assert.match(recovery.evidence.executionWorkspace.snapshot.gitStatus, /worker-leftover/);
+    git(source, ["switch", "--quiet", "-c", "human-branch"]);
+    const moved = await new RecoveryInspector(database.repositories).inspect({
+      projectId: graph.project.id,
+      workspacePath: source,
+    });
+    assert.equal(moved.classification, "UNKNOWN");
+    assert.equal(
+      readFileSync(join(prepared.run.workspacePath, "worker-leftover.txt"), "utf8"),
+      "unfinished output\n",
+    );
+  } finally {
+    database.close();
+  }
 });

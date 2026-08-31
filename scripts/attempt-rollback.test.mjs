@@ -1,6 +1,14 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -216,11 +224,94 @@ test.after(() => {
   for (const root of temporaryRoots) rmSync(root, { recursive: true, force: true });
 });
 
-test("output capture atomically completes the matching run with its immutable path manifest", async () => {
+test("output capture rejects aliases through a symlink to another workspace directory", async () => {
   const root = createRoot();
-  const repository = createRepository(root);
+  let repository = createRepository(root);
   const database = DensaAdeDatabase.open(join(root, "runtime.sqlite"));
   const graph = await prepareRunningAttempt(database, repository);
+  repository = graph.checkpoint.run.workspacePath;
+  mkdirSync(join(repository, "human"));
+  writeFileSync(join(repository, "human", "draft.txt"), "user draft\n");
+  symlinkSync("human", join(repository, "alias"));
+  const captured = await new AttemptRollbackService(database).captureAttemptOutput({
+    ...captureRequest(graph, repository),
+    ownedPaths: ["alias/draft.txt"],
+    temporaryPaths: [],
+  });
+  assert.equal(captured.status, "STOPPED");
+  assert.equal(captured.code, "UNSUPPORTED_PATH");
+  assert.equal(readFileSync(join(repository, "human", "draft.txt"), "utf8"), "user draft\n");
+  assert.equal(
+    database.repositories.agentRuns.findByAttemptId(graph.attempt.id).completedAt,
+    undefined,
+  );
+  database.close();
+});
+
+test("rollback reports index-only human edits and preserves their staged bytes", async () => {
+  const root = createRoot();
+  let repository = createRepository(root);
+  const database = DensaAdeDatabase.open(join(root, "runtime.sqlite"));
+  const graph = await prepareRunningAttempt(database, repository);
+  repository = graph.checkpoint.run.workspacePath;
+  writeFileSync(join(repository, "task.txt"), "failed output\n");
+  await new AttemptRollbackService(database).captureAttemptOutput(
+    captureRequest(graph, repository),
+  );
+  await recordFailedValidation(database, graph);
+  writeFileSync(join(repository, "user.txt"), "index-only human draft\n");
+  git(repository, ["add", "user.txt"]);
+  writeFileSync(join(repository, "user.txt"), "user checkpoint\n");
+  const result = await new AttemptRollbackService(database).rollbackFailedAttempt(
+    rollbackRequest(graph, repository),
+  );
+  assert.equal(result.status, "ROLLED_BACK");
+  assert.deepEqual(result.preservedHumanPaths, ["user.txt"]);
+  assert.equal(result.workspaceReadyForRetry, false);
+  assert.equal(git(repository, ["show", ":user.txt"]), "index-only human draft\n");
+  database.close();
+});
+
+test("failure diagnostics redact explicit secret markers before persistence", async () => {
+  const root = createRoot();
+  let repository = createRepository(root);
+  const database = DensaAdeDatabase.open(join(root, "runtime.sqlite"));
+  const graph = await prepareRunningAttempt(database, repository);
+  repository = graph.checkpoint.run.workspacePath;
+  writeFileSync(join(repository, "task.txt"), "failed output\n");
+  await new AttemptRollbackService(database).captureAttemptOutput(
+    captureRequest(graph, repository),
+  );
+  const task = database.repositories.tasks.findById(graph.task.id);
+  database.persistStateTransition(
+    new StateTransitionService().transitionTask(task, "INTERRUPTED", {
+      actor: "fixture",
+      occurredAt: "2026-08-26T09:10:00.000Z",
+    }),
+    "event-interrupted-secret",
+  );
+  const result = await new AttemptRollbackService(database).recordFailedAttempt({
+    ...failureRequest(graph),
+    diagnostics: { message: "<secret>rollback-canary-sensitive</secret>" },
+  });
+  assert.equal(result.status, "RECORDED");
+  assert.doesNotMatch(
+    JSON.stringify(database.repositories.attemptRollbackPlans.findByAttemptId(graph.attempt.id)),
+    /rollback-canary-sensitive/u,
+  );
+  assert.doesNotMatch(
+    JSON.stringify(database.repositories.events.replay({ projectId: graph.project.id })),
+    /rollback-canary-sensitive/u,
+  );
+  database.close();
+});
+
+test("output capture atomically completes the matching run with its immutable path manifest", async () => {
+  const root = createRoot();
+  let repository = createRepository(root);
+  const database = DensaAdeDatabase.open(join(root, "runtime.sqlite"));
+  const graph = await prepareRunningAttempt(database, repository);
+  repository = graph.checkpoint.run.workspacePath;
   writeFileSync(join(repository, "task.txt"), "unattributed output\n", "utf8");
   writeFileSync(join(repository, "attempt.tmp"), "unattributed temporary output\n", "utf8");
   const service = new AttemptRollbackService(database);
@@ -250,9 +341,10 @@ test("output capture atomically completes the matching run with its immutable pa
 
 test("a run completed without an atomic output manifest is never rollback eligible", async () => {
   const root = createRoot();
-  const repository = createRepository(root);
+  let repository = createRepository(root);
   const database = DensaAdeDatabase.open(join(root, "runtime.sqlite"));
   const graph = await prepareRunningAttempt(database, repository);
+  repository = graph.checkpoint.run.workspacePath;
   database.repositories.agentRuns.recordCompleted(graph.agentRun.id, "2026-08-26T09:07:59.000Z");
   writeFileSync(join(repository, "task.txt"), "unattributed output\n", "utf8");
   writeFileSync(join(repository, "attempt.tmp"), "unattributed temporary output\n", "utf8");
@@ -272,9 +364,10 @@ test("a run completed without an atomic output manifest is never rollback eligib
 
 test("a manifest persistence failure rolls back AgentRun completion for a safe retry", async () => {
   const root = createRoot();
-  const repository = createRepository(root);
+  let repository = createRepository(root);
   const database = DensaAdeDatabase.open(join(root, "runtime.sqlite"));
   const graph = await prepareRunningAttempt(database, repository);
+  repository = graph.checkpoint.run.workspacePath;
   writeFileSync(join(repository, "task.txt"), "failed Densa ADE output\n", "utf8");
   writeFileSync(join(repository, "attempt.tmp"), "temporary Densa ADE output\n", "utf8");
   const request = captureRequest(graph, repository);
@@ -313,10 +406,11 @@ test("a manifest persistence failure rolls back AgentRun completion for a safe r
 
 test("clean rollback restores only owned files, retains diagnostics, and enables a known retry checkpoint", async () => {
   const root = createRoot();
-  const repository = createRepository(root);
+  let repository = createRepository(root);
   const databasePath = join(root, "runtime.sqlite");
   let database = DensaAdeDatabase.open(databasePath);
   const graph = await prepareRunningAttempt(database, repository);
+  repository = graph.checkpoint.run.workspacePath;
   writeFileSync(join(repository, "task.txt"), "failed Densa ADE output\n", "utf8");
   writeFileSync(join(repository, "attempt.tmp"), "temporary Densa ADE output\n", "utf8");
   git(repository, ["add", "--", "task.txt", "attempt.tmp"]);
@@ -391,9 +485,10 @@ test("clean rollback restores only owned files, retains diagnostics, and enables
 
 test("overlapping human edit blocks rollback before the edited file is overwritten", async () => {
   const root = createRoot();
-  const repository = createRepository(root);
+  let repository = createRepository(root);
   const database = DensaAdeDatabase.open(join(root, "runtime.sqlite"));
   const graph = await prepareRunningAttempt(database, repository);
+  repository = graph.checkpoint.run.workspacePath;
   writeFileSync(join(repository, "task.txt"), "failed Densa ADE output\n", "utf8");
   writeFileSync(join(repository, "attempt.tmp"), "temporary Densa ADE output\n", "utf8");
   const captured = await new AttemptRollbackService(database).captureAttemptOutput(
@@ -430,11 +525,41 @@ test("overlapping human edit blocks rollback before the edited file is overwritt
   database.close();
 });
 
+test("human edits made before terminal capture must survive failed-attempt rollback", async () => {
+  const root = createRoot();
+  let repository = createRepository(root);
+  const database = DensaAdeDatabase.open(join(root, "runtime.sqlite"));
+  try {
+    const graph = await prepareRunningAttempt(database, repository);
+    repository = graph.checkpoint.run.workspacePath;
+    writeFileSync(join(repository, "task.txt"), "worker output\n");
+    // A real editor save while the worker is running, before Core sees its terminal event.
+    writeFileSync(
+      join(graph.checkpoint.run.sourceWorkspacePath, "task.txt"),
+      "human edit during worker execution\n",
+    );
+    await new AttemptRollbackService(database).captureAttemptOutput(
+      captureRequest(graph, repository),
+    );
+    await recordFailedValidation(database, graph);
+    await new AttemptRollbackService(database).rollbackFailedAttempt(
+      rollbackRequest(graph, repository),
+    );
+    assert.equal(
+      readFileSync(join(graph.checkpoint.run.sourceWorkspacePath, "task.txt"), "utf8"),
+      "human edit during worker execution\n",
+    );
+  } finally {
+    database.close();
+  }
+});
+
 test("an overlapping human index edit is detected even when the worktree still matches Densa ADE output", async () => {
   const root = createRoot();
-  const repository = createRepository(root);
+  let repository = createRepository(root);
   const database = DensaAdeDatabase.open(join(root, "runtime.sqlite"));
   const graph = await prepareRunningAttempt(database, repository);
+  repository = graph.checkpoint.run.workspacePath;
   writeFileSync(join(repository, "task.txt"), "failed Densa ADE output\n", "utf8");
   writeFileSync(join(repository, "attempt.tmp"), "temporary Densa ADE output\n", "utf8");
   const captured = await new AttemptRollbackService(database).captureAttemptOutput(
@@ -461,9 +586,10 @@ test("an overlapping human index edit is detected even when the worktree still m
 
 test("an applied rollback cannot be treated as retry-ready after failed output reappears", async () => {
   const root = createRoot();
-  const repository = createRepository(root);
+  let repository = createRepository(root);
   const database = DensaAdeDatabase.open(join(root, "runtime.sqlite"));
   const graph = await prepareRunningAttempt(database, repository);
+  repository = graph.checkpoint.run.workspacePath;
   writeFileSync(join(repository, "task.txt"), "failed Densa ADE output\n", "utf8");
   writeFileSync(join(repository, "attempt.tmp"), "temporary Densa ADE output\n", "utf8");
   git(repository, ["add", "--", "task.txt", "attempt.tmp"]);
@@ -500,9 +626,10 @@ test("an applied rollback cannot be treated as retry-ready after failed output r
 
 test("rollback resumes from proven half-restored index and worktree states after a crash", async () => {
   const root = createRoot();
-  const repository = createRepository(root);
+  let repository = createRepository(root);
   const database = DensaAdeDatabase.open(join(root, "runtime.sqlite"));
   const graph = await prepareRunningAttempt(database, repository);
+  repository = graph.checkpoint.run.workspacePath;
   writeFileSync(join(repository, "task.txt"), "failed Densa ADE output\n", "utf8");
   writeFileSync(join(repository, "attempt.tmp"), "temporary Densa ADE output\n", "utf8");
   git(repository, ["add", "--", "task.txt", "attempt.tmp"]);
@@ -536,9 +663,10 @@ test("rollback resumes from proven half-restored index and worktree states after
 
 test("non-overlapping human work is preserved and keeps automatic retry from claiming clean state", async () => {
   const root = createRoot();
-  const repository = createRepository(root);
+  let repository = createRepository(root);
   const database = DensaAdeDatabase.open(join(root, "runtime.sqlite"));
   const graph = await prepareRunningAttempt(database, repository);
+  repository = graph.checkpoint.run.workspacePath;
   writeFileSync(join(repository, "task.txt"), "failed Densa ADE output\n", "utf8");
   writeFileSync(join(repository, "attempt.tmp"), "temporary Densa ADE output\n", "utf8");
   const captured = await new AttemptRollbackService(database).captureAttemptOutput(
@@ -566,9 +694,10 @@ test("non-overlapping human work is preserved and keeps automatic retry from cla
 
 test("Git pathspec metacharacters are treated as a literal owned filename", async () => {
   const root = createRoot();
-  const repository = createRepository(root);
+  let repository = createRepository(root);
   const database = DensaAdeDatabase.open(join(root, "runtime.sqlite"));
   const graph = await prepareRunningAttempt(database, repository);
+  repository = graph.checkpoint.run.workspacePath;
   writeFileSync(join(repository, "literal*.txt"), "failed literal Densa ADE output\n", "utf8");
   writeFileSync(join(repository, "literal-human.txt"), "later human edit\n", "utf8");
   const captured = await new AttemptRollbackService(database).captureAttemptOutput({
@@ -595,9 +724,10 @@ test("Git pathspec metacharacters are treated as a literal owned filename", asyn
 
 test("an older failed attempt cannot claim changes after a newer attempt starts", async () => {
   const root = createRoot();
-  const repository = createRepository(root);
+  let repository = createRepository(root);
   const database = DensaAdeDatabase.open(join(root, "runtime.sqlite"));
   const graph = await prepareRunningAttempt(database, repository);
+  repository = graph.checkpoint.run.workspacePath;
   writeFileSync(join(repository, "task.txt"), "failed Densa ADE output\n", "utf8");
   writeFileSync(join(repository, "attempt.tmp"), "temporary Densa ADE output\n", "utf8");
   const captured = await new AttemptRollbackService(database).captureAttemptOutput(
@@ -627,9 +757,10 @@ test("an older failed attempt cannot claim changes after a newer attempt starts"
 
 test("a passing validation added after failure planning cancels rollback eligibility", async () => {
   const root = createRoot();
-  const repository = createRepository(root);
+  let repository = createRepository(root);
   const database = DensaAdeDatabase.open(join(root, "runtime.sqlite"));
   const graph = await prepareRunningAttempt(database, repository);
+  repository = graph.checkpoint.run.workspacePath;
   writeFileSync(join(repository, "task.txt"), "failed Densa ADE output\n", "utf8");
   writeFileSync(join(repository, "attempt.tmp"), "temporary Densa ADE output\n", "utf8");
   const captured = await new AttemptRollbackService(database).captureAttemptOutput(

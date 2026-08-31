@@ -1,3 +1,10 @@
+import {
+  captureValidationWorkspace,
+  assertValidationWorkspaceUnchanged,
+  recordValidationWorkspace,
+  type ValidationWorkspaceEvidence,
+} from "./validation-workspace.js";
+import { redactSensitiveText } from "./secret-redaction.js";
 import { createHash } from "node:crypto";
 import { isAbsolute, posix } from "node:path";
 
@@ -453,6 +460,7 @@ export class SingleTaskOrchestrator {
       );
     }
 
+    request = Object.freeze({ ...request, workspacePath: checkpoint.run.workspacePath });
     let task = this.database.repositories.tasks.findById(request.taskId);
     if (task === undefined || (task.state !== "READY" && task.state !== "RETRYING")) {
       return stopped(
@@ -585,6 +593,61 @@ export class SingleTaskOrchestrator {
       processFailure = "Agent event stream closed without a terminal event";
     }
 
+    if (processFailure !== undefined || terminal === undefined) {
+      // A broken event stream is not proof that the worker or its children have stopped.
+      // Request bounded cancellation, but leave process/outcome evidence unfinished for recovery.
+      let timeout: ReturnType<typeof setTimeout> | undefined;
+      try {
+        await Promise.race([
+          request.adapter.cancel(agentRunId),
+          new Promise<void>((_, reject) => {
+            timeout = setTimeout(() => reject(new Error("Cancellation timed out")), 5_000);
+          }),
+        ]);
+      } catch {
+        /* Recovery must establish termination independently. */
+      } finally {
+        if (timeout !== undefined) clearTimeout(timeout);
+      }
+      const currentTask = this.database.repositories.tasks.findById(request.taskId);
+      const interruptedAt = this.#now();
+      this.database.transaction((repositories) => {
+        repositories.events.append({
+          id: lifecycleId(key, "termination-unconfirmed"),
+          projectId: request.projectId,
+          phaseId: runningTask.phaseId,
+          taskId: runningTask.id,
+          type: "AGENT_TERMINATION_UNCONFIRMED",
+          eventVersion: 1,
+          occurredAt: interruptedAt,
+          actor: request.actor,
+          payload: {
+            attemptId: attempt.id,
+            agentRunId,
+            reason: redactSensitiveText(errorMessage(processFailure ?? "No terminal event")).slice(
+              0,
+              4096,
+            ),
+          },
+        });
+        if (currentTask?.state === "RUNNING")
+          this.database.persistStateTransition(
+            stateTransitionService.transitionTask(currentTask, "INTERRUPTED", {
+              actor: request.actor,
+              occurredAt: interruptedAt,
+              reason: "Worker termination is unconfirmed; preserve the workspace for recovery",
+            }),
+            lifecycleId(key, "task-interrupted-unknown"),
+          );
+      });
+      return stopped(
+        "RECOVERY_REQUIRED",
+        request,
+        attempt.number,
+        "Worker termination is unconfirmed; no output ownership, completion, or rollback was recorded",
+      );
+    }
+
     const agentFinishedAt = this.#now();
     this.database.repositories.events.append({
       id: lifecycleId(key, "agent-finished"),
@@ -697,7 +760,9 @@ export class SingleTaskOrchestrator {
     });
 
     let validation: TaskLifecycleValidationOutcome;
+    let workspaceEvidence: ValidationWorkspaceEvidence | undefined;
     try {
+      workspaceEvidence = await captureValidationWorkspace(request.workspacePath);
       const result = await request.validator.validate({
         projectId: request.projectId,
         task,
@@ -706,6 +771,7 @@ export class SingleTaskOrchestrator {
         workspacePath: request.workspacePath,
         ...(request.signal === undefined ? {} : { signal: request.signal }),
       });
+      await assertValidationWorkspaceUnchanged(workspaceEvidence);
       validation = Object.freeze({
         passed: result.passed,
         diagnostics: Object.freeze(jsonObjectSchema.parse(result.diagnostics)),
@@ -759,6 +825,8 @@ export class SingleTaskOrchestrator {
         validationCompletedAt,
         validation.passed,
       );
+      if (validation.passed && workspaceEvidence !== undefined)
+        recordValidationWorkspace(this.database, validationId, workspaceEvidence);
       repositories.events.append({
         id: lifecycleId(key, "validation-finished"),
         projectId: request.projectId,
@@ -787,11 +855,13 @@ export class SingleTaskOrchestrator {
         attemptCompletedEventId: lifecycleId(key, "attempt-completed"),
       });
       if (committed.status === "STOPPED") {
-        return await this.#finishBlocked(
-          request,
-          attempt,
-          `Passing task commit stopped: ${committed.reason}`,
+        // Git may already have committed. Preserve VALIDATING and the unfinished attempt so
+        // verified intent recovery remains possible after restart; never rollback these bytes.
+        return stopped(
           `COMMIT_${committed.code}`,
+          request,
+          attempt.number,
+          `Passing task commit stopped: ${committed.reason}`,
         );
       }
       return Object.freeze({
