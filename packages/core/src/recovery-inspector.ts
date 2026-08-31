@@ -258,7 +258,7 @@ async function hashUntrackedEntries(workspacePath: string, rawPaths: string): Pr
 
 async function captureWorkspaceSnapshot(workspacePath: string): Promise<WorkspaceSnapshot> {
   const options = gitOptions(workspacePath);
-  const [head, status, diff, untracked] = await Promise.all([
+  const [head, status, diff, untracked, indexDiff] = await Promise.all([
     execFileAsync("git", ["-c", "core.fsmonitor=false", "rev-parse", "--verify", "HEAD"], options),
     execFileAsync(
       "git",
@@ -291,12 +291,33 @@ async function captureWorkspaceSnapshot(workspacePath: string): Promise<Workspac
       ["-c", "core.fsmonitor=false", "ls-files", "--others", "--exclude-standard", "-z"],
       options,
     ),
+    execFileAsync(
+      "git",
+      [
+        "-c",
+        "core.fsmonitor=false",
+        "diff",
+        "--cached",
+        "--no-ext-diff",
+        "--no-textconv",
+        "--binary",
+        "HEAD",
+        "--",
+      ],
+      options,
+    ),
   ]);
   const gitHead = head.stdout.trim();
   const gitStatus = status.stdout;
   const untrackedHash = await hashUntrackedEntries(workspacePath, untracked.stdout);
   const fingerprint = hashText(
-    JSON.stringify({ gitHead, gitStatus, diff: diff.stdout, untrackedHash }),
+    JSON.stringify({
+      gitHead,
+      gitStatus,
+      diff: diff.stdout,
+      untrackedHash,
+      ...(indexDiff.stdout.length === 0 ? {} : { indexDiff: indexDiff.stdout }),
+    }),
   );
   return Object.freeze({ gitHead, gitStatus, fingerprint });
 }
@@ -351,16 +372,35 @@ function immutablePlan(
 function persistedEventContradiction(
   project: Project,
   tasks: readonly Task[],
-  lastEvent: PersistedEvent | undefined,
+  repositories: DensaAdeRepositories,
 ): string | undefined {
-  if (lastEvent === undefined) return undefined;
-  if (lastEvent.type === "PROJECT_STATE_CHANGED" && lastEvent.payload["state"] !== project.state) {
-    return "The latest project state event disagrees with the persisted project snapshot";
-  }
-  if (lastEvent.type !== "TASK_STATE_CHANGED") return undefined;
-  const eventTask = tasks.find((task) => task.id === lastEvent.taskId);
-  if (eventTask === undefined || lastEvent.payload["state"] !== eventTask.state) {
-    return "The latest task state event disagrees with the persisted task snapshot";
+  const facts = [
+    {
+      entity: project,
+      event: repositories.events.latest(project.id, { types: ["PROJECT_STATE_CHANGED"] }),
+    },
+    ...repositories.phases.listByProjectId(project.id).map((phase) => ({
+      entity: phase,
+      event: repositories.events.latest(project.id, {
+        phaseId: phase.id,
+        types: ["PHASE_STATE_CHANGED"],
+      }),
+    })),
+    ...tasks.map((task) => ({
+      entity: task,
+      event: repositories.events.latest(project.id, {
+        taskId: task.id,
+        types: ["TASK_STATE_CHANGED"],
+      }),
+    })),
+  ];
+  for (const { entity, event } of facts) {
+    if (
+      event !== undefined &&
+      (event.eventVersion !== 1 || event.payload["state"] !== entity.state)
+    ) {
+      return "The latest lifecycle state event disagrees with its snapshot or has an unsupported version";
+    }
   }
   return undefined;
 }
@@ -386,7 +426,9 @@ function inspectAttemptHistory(
   }));
   for (const entry of entries) {
     if (
-      (entry.attempt.completedAt === undefined && entry.agentRun?.completedAt !== undefined) ||
+      (entry.attempt.completedAt === undefined &&
+        entry.agentRun?.completedAt !== undefined &&
+        task.state !== "VALIDATING") ||
       (entry.attempt.completedAt !== undefined &&
         entry.agentRun !== undefined &&
         entry.agentRun.completedAt === undefined)
@@ -398,7 +440,9 @@ function inspectAttemptHistory(
     }
   }
   const unfinished = entries.filter(
-    (entry) => entry.attempt.completedAt === undefined || entry.agentRun?.completedAt === undefined,
+    (entry) =>
+      entry.attempt.completedAt === undefined ||
+      (entry.agentRun !== undefined && entry.agentRun.completedAt === undefined),
   );
   if (unfinished.length > 1) {
     return {
@@ -485,6 +529,45 @@ export class RecoveryInspector {
   }
 
   async inspect(request: RecoveryInspectionRequest): Promise<RecoveryPlan> {
+    try {
+      const before = this.#persistedEvidence(request.projectId);
+      const result = await this.#inspect(request);
+      if (before !== this.#persistedEvidence(request.projectId)) {
+        return immutablePlan({
+          classification: "UNKNOWN",
+          reason: "Authoritative recovery evidence changed during inspection",
+          actions: ["REQUEST_USER_INSPECTION"],
+        });
+      }
+      return result;
+    } catch {
+      return immutablePlan({
+        classification: "UNKNOWN",
+        reason: "Recovery evidence could not be safely inspected",
+        actions: ["REQUEST_USER_INSPECTION"],
+      });
+    }
+  }
+
+  #persistedEvidence(projectId: Project["id"]): string {
+    const tasks = this.repositories.tasks.listByProjectId(projectId);
+    return JSON.stringify({
+      project: this.repositories.projects.findById(projectId),
+      phases: this.repositories.phases.listByProjectId(projectId),
+      tasks: tasks.map((task) => ({
+        task,
+        attempts: this.repositories.attempts.listByTaskId(task.id).map((attempt) => ({
+          attempt,
+          run: this.repositories.agentRuns.findByAttemptId(attempt.id),
+        })),
+        validations: this.repositories.validationRuns.listByTaskId(task.id),
+      })),
+      checkpoints: this.repositories.checkpoints.listByProjectId(projectId),
+      lastEvent: this.repositories.events.latest(projectId),
+    });
+  }
+
+  async #inspect(request: RecoveryInspectionRequest): Promise<RecoveryPlan> {
     const project = this.repositories.projects.findById(request.projectId);
     if (project === undefined) {
       return immutablePlan({
@@ -526,7 +609,7 @@ export class RecoveryInspector {
       workspace.snapshot.gitHead !== checkpoint.gitHead ||
       workspace.snapshot.gitStatus !== checkpoint.gitStatus ||
       workspace.snapshot.fingerprint !== checkpoint.workspaceFingerprint;
-    const eventContradiction = persistedEventContradiction(project, tasks, lastEvent);
+    const eventContradiction = persistedEventContradiction(project, tasks, this.repositories);
     if (eventContradiction !== undefined) {
       return immutablePlan({
         classification: "UNKNOWN",
@@ -553,6 +636,26 @@ export class RecoveryInspector {
     }
 
     const task = activeTasks[0];
+    for (const inactiveTask of tasks.filter(
+      (candidate) => !ACTIVE_TASK_STATES.has(candidate.state),
+    )) {
+      const history = inspectAttemptHistory(inactiveTask, this.repositories);
+      if (
+        history.issue !== undefined ||
+        history.unfinished !== undefined ||
+        this.repositories.validationRuns
+          .listByTaskId(inactiveTask.id)
+          .some((run) => run.completedAt === undefined)
+      ) {
+        return immutablePlan({
+          classification: "UNKNOWN",
+          reason:
+            history.issue ?? `Inactive task ${inactiveTask.id} has unfinished lifecycle evidence`,
+          actions: ["REQUEST_USER_INSPECTION"],
+          evidence: { ...common, workspaceDiverged },
+        });
+      }
+    }
     if (task === undefined) {
       const contradiction = inactiveLifecycleContradiction(project, tasks, this.repositories);
       if (contradiction !== undefined) {
@@ -593,6 +696,14 @@ export class RecoveryInspector {
     if (task.state === "VALIDATING") {
       const validationRuns = this.repositories.validationRuns.listByTaskId(task.id);
       const validationRun = latest(validationRuns);
+      if (validationRun?.attemptId !== undefined && validationRun.attemptId !== attempt?.id) {
+        return immutablePlan({
+          classification: "UNKNOWN",
+          reason: "Validation run does not belong to the current attempt",
+          actions: ["REQUEST_USER_INSPECTION"],
+          evidence: { ...common, task, attempt, agentRun, validationRun, workspaceDiverged },
+        });
+      }
       const unfinishedValidationRuns = validationRuns.filter(
         (run) => run.completedAt === undefined,
       );
@@ -616,7 +727,10 @@ export class RecoveryInspector {
         });
       }
       const unfinishedAttempt = attemptHistory.unfinished;
-      if (unfinishedAttempt !== undefined) {
+      if (
+        unfinishedAttempt !== undefined &&
+        unfinishedAttempt.agentRun?.completedAt === undefined
+      ) {
         const unfinishedAgentRun = unfinishedAttempt.agentRun;
         if (unfinishedAgentRun === undefined) {
           return immutablePlan({

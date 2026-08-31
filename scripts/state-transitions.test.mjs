@@ -245,3 +245,13 @@ test("illegal PENDING -> COMPLETED jumps carry stable entity diagnostics", () =>
     },
   );
 });
+
+test("task snapshot criteria and dependencies cannot be mutated after validation", () => {
+  const result = new StateTransitionService().transitionTask(
+    makeTask("RUNNING"),
+    "INTERRUPTED",
+    context,
+  );
+  assert.throws(() => result.entity.acceptanceCriteria.push("unvalidated criterion"), TypeError);
+  assert.throws(() => result.entity.dependencyIds.push("unvalidated dependency"), TypeError);
+});

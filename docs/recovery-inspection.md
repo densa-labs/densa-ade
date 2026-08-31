@@ -49,3 +49,23 @@ history is contradictory or a verified worker is still alive.
 not apply it. A later recovery coordinator must request that edge through `StateTransitionService`,
 persist it transactionally with its event, revalidate the workspace, and only then perform any
 external recovery action. `automaticActionsPerformed` is always `false` in this milestone.
+
+## Current integration and consistency guarantees
+
+A completed worker run with an open attempt is expected while that task is `VALIDATING`: worker
+termination is not task completion. Recovery may classify this interval as interrupted validation
+without pretending the attempt succeeded. A completed attempt that stopped before launching a
+worker does not leave a fictitious unfinished run. Validation records naming an attempt must match
+the inspected attempt. Unfinished histories on inactive tasks also block recovery of another task.
+
+Before returning a plan, the inspector rereads project, phase, task, attempt/run, validation,
+checkpoint, and latest-event evidence. Changes during asynchronous probes return `UNKNOWN`.
+Probe/persistence failures also return unknown without leaking raw diagnostics. The latest state
+fact for each entity is checked independently of subsequent unrelated events; an unsupported state
+payload version is not interpreted as version 1.
+
+Workspace fingerprints also include the staged binary diff. This detects index-only changes that
+leave `HEAD`, porcelain status, and working files identical. Fingerprints with no staged changes
+retain the previous format. Older fingerprints captured with staged changes may conservatively
+report divergence and require reinspection; they are not silently trusted or rewritten. Recovery
+plans remain read-only and must be revalidated at the later mutation boundary.

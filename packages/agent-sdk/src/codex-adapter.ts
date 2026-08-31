@@ -636,7 +636,10 @@ export class CodexAdapter implements AgentAdapter {
 
     child.stdin.on("error", () => undefined);
     child.stdin.end(request.prompt);
-    queue.push(this.startedEvent(request.runId));
+    queue.push({
+      ...this.startedEvent(request.runId),
+      ...(child.pid === undefined ? {} : { processId: child.pid }),
+    });
 
     try {
       for await (const event of queue) yield event;

@@ -744,3 +744,83 @@ test("stale transition snapshots fail closed without appending an event", () => 
     assert.equal(database.repositories.events.findById("event-stale-transition"), undefined);
   });
 });
+
+for (const kind of ["project", "phase", "task"]) {
+  test(`persistence revalidates ${kind} transitions and binds the event to the entity`, () => {
+    withDatabase((database) => {
+      const graph = seedTaskGraph(database.repositories);
+      const service = new StateTransitionService();
+      const entity = graph[kind];
+      const method = `transition${kind[0].toUpperCase()}${kind.slice(1)}`;
+      const valid = service[method](entity, kind === "project" ? "PLANNING" : "READY", {
+        actor: "test",
+        occurredAt: updatedAt,
+      });
+      const forged = {
+        ...valid,
+        state: "COMPLETED",
+        entity: { ...valid.entity, state: "COMPLETED" },
+        event: { ...valid.event, payload: { ...valid.event.payload, state: "COMPLETED" } },
+      };
+      assert.throws(() => database.persistStateTransition(forged, `forged-${kind}`));
+      const other = makeProject("other-project");
+      database.repositories.projects.create(other);
+      assert.throws(() =>
+        database.persistStateTransition(
+          {
+            ...valid,
+            event: {
+              projectId: other.id,
+              type: valid.event.type,
+              eventVersion: 1,
+              occurredAt: valid.event.occurredAt,
+              actor: valid.event.actor,
+              payload: valid.event.payload,
+            },
+          },
+          `misattributed-${kind}`,
+        ),
+      );
+      assert.equal(database.eventJournal.findById(`forged-${kind}`), undefined);
+      assert.equal(database.repositories[`${kind}s`].findById(entity.id).state, entity.state);
+    });
+  });
+}
+
+test("a lifecycle cycle cannot make an old transition snapshot current again", () => {
+  withDatabase((database) => {
+    const { task } = seedTaskGraph(database.repositories);
+    const service = new StateTransitionService();
+    const stale = service.transitionTask(task, "READY", { actor: "test", occurredAt: updatedAt });
+    for (const [index, state] of ["BLOCKED", "PENDING"].entries()) {
+      database.persistStateTransition(
+        service.transitionTask(database.repositories.tasks.findById(task.id), state, {
+          actor: "test",
+          occurredAt: `2026-08-26T06:${20 + index}:00.000Z`,
+        }),
+        `cycle-${index}`,
+      );
+    }
+    assert.throws(() => database.persistStateTransition(stale, "stale-cycle"), PersistenceError);
+    assert.equal(database.eventJournal.findById("stale-cycle"), undefined);
+  });
+});
+
+test("database open and repository constraint failures use the stable persistence error code", () => {
+  const directory = mkdtempSync(join(tmpdir(), "densa-persistence-errors-"));
+  try {
+    assert.throws(
+      () => DensaAdeDatabase.open(join(directory, "missing", "runtime.sqlite")),
+      (error) => error.code === "PERSISTENCE_FAILURE",
+    );
+    withDatabase((database) => {
+      database.repositories.projects.create(makeProject());
+      assert.throws(
+        () => database.repositories.projects.create(makeProject()),
+        (error) => error.code === "PERSISTENCE_FAILURE",
+      );
+    });
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});

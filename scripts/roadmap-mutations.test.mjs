@@ -459,7 +459,9 @@ test("accepted mutations atomically persist history and event, then regenerate R
           task: task("inventory.rollback-proof", { dependencyIds: ["inventory.crud"] }),
         }),
       ),
-      /UNIQUE constraint failed: events\.id/u,
+      (error) =>
+        error.code === "PERSISTENCE_FAILURE" &&
+        /UNIQUE constraint failed: events\.id/u.test(error.cause?.message),
     );
     assert.equal(database.repositories.masterRoadmaps.findByProjectId(projectId).revisionNumber, 1);
     assert.equal(database.repositories.roadmapRevisions.listByProjectId(projectId).length, 1);

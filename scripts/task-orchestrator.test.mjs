@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
+import { once } from "node:events";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -644,4 +645,81 @@ test("orchestrator source stays editor-independent", () => {
   );
   assert.doesNotMatch(source, /(?:from|import\()\s*["']vs\//u);
   assert.doesNotMatch(source, /vscode/u);
+});
+
+test("current orchestration persists process metadata and recovery understands its validation boundary", async (t) => {
+  const fixture = createFixture();
+  t.after(() => {
+    fixture.database.close();
+    rmSync(fixture.root, { recursive: true, force: true });
+  });
+  transitionProjectToRunning(fixture);
+  let recoveredRunning = false;
+  let recoveredGone = false;
+  let recoveredValidation = false;
+  const child = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: "ignore" });
+  t.after(() => {
+    if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
+  });
+  await once(child, "spawn");
+  const { RecoveryInspector } = await import("@densa-ade/core");
+  const adapter = {
+    adapterId: "local-recovery-fixture",
+    async *execute({ runId }) {
+      yield { type: "run.started", runId, occurredAt: createdAt, processId: child.pid };
+      const run = fixture.database.repositories.agentRuns.findById(runId);
+      assert.equal(run.processId, child.pid);
+      assert.match(run.processIdentity, /^[a-f0-9]{64}$/u);
+      const reopened = DensaAdeDatabase.open(fixture.databasePath);
+      try {
+        const plan = await new RecoveryInspector(reopened.repositories).inspect({
+          projectId: fixture.project.id,
+          workspacePath: fixture.repository,
+        });
+        assert.equal(plan.classification, "ACTIVE_PROCESS_ALIVE");
+        recoveredRunning = true;
+        const exited = once(child, "exit");
+        child.kill("SIGKILL");
+        await exited;
+        const gone = await new RecoveryInspector(reopened.repositories).inspect({
+          projectId: fixture.project.id,
+          workspacePath: fixture.repository,
+        });
+        assert.equal(gone.classification, "TASK_PROCESS_GONE");
+        recoveredGone = true;
+      } finally {
+        reopened.close();
+      }
+      writeFileSync(join(fixture.repository, "task.txt"), "recovered output\n");
+      yield { type: "run.terminal", runId, occurredAt: createdAt, outcome: "succeeded" };
+    },
+    async cancel() {},
+    async getUsageState() {
+      return { status: "available" };
+    },
+  };
+  const validator = {
+    validatorId: "recovery-boundary",
+    async validate() {
+      const reopened = DensaAdeDatabase.open(fixture.databasePath);
+      try {
+        const plan = await new RecoveryInspector(reopened.repositories).inspect({
+          projectId: fixture.project.id,
+          workspacePath: fixture.repository,
+        });
+        assert.equal(plan.classification, "VALIDATION_INTERRUPTED");
+        recoveredValidation = true;
+      } finally {
+        reopened.close();
+      }
+      return { passed: true, diagnostics: {} };
+    },
+  };
+  const result = await new SingleTaskOrchestrator(fixture.database, { now: clock() }).execute(
+    requestFor(fixture, adapter, validator),
+  );
+  assert.equal(result.status, "COMPLETED");
+  assert.equal(recoveredRunning, true);
+  assert.equal(recoveredGone, true);
+  assert.equal(recoveredValidation, true);
 });

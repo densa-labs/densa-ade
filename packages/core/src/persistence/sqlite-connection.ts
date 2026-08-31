@@ -39,13 +39,14 @@ export class SqliteConnection {
   #activeAfterCommitQueue: Array<() => void> | undefined;
 
   constructor(path: string, now: () => string) {
-    const database = new DatabaseSync(path, {
-      allowExtension: false,
-      enableDoubleQuotedStringLiterals: false,
-      enableForeignKeyConstraints: true,
-    });
-    this.database = database;
+    let database: DatabaseSync | undefined;
     try {
+      database = new DatabaseSync(path, {
+        allowExtension: false,
+        enableDoubleQuotedStringLiterals: false,
+        enableForeignKeyConstraints: true,
+      });
+      this.database = database;
       database.exec("PRAGMA foreign_keys = ON");
       database.exec("PRAGMA busy_timeout = 5000");
       if (path !== ":memory:") {
@@ -54,7 +55,7 @@ export class SqliteConnection {
       }
       migrate(database, now);
     } catch (error) {
-      database.close();
+      database?.close();
       throw new PersistenceError("Could not open and migrate the Densa ADE SQLite database", {
         cause: error,
       });
@@ -66,16 +67,26 @@ export class SqliteConnection {
   }
 
   run(sql: string, ...parameters: SQLInputValue[]): number {
-    const changes = this.database.prepare(sql).run(...parameters).changes;
-    return typeof changes === "bigint" ? Number(changes) : changes;
+    return this.#sqliteOperation(() => {
+      const changes = this.database.prepare(sql).run(...parameters).changes;
+      return typeof changes === "bigint" ? Number(changes) : changes;
+    });
   }
 
   get(sql: string, ...parameters: SQLInputValue[]): SqliteRow | undefined {
-    return this.database.prepare(sql).get(...parameters);
+    return this.#sqliteOperation(() => this.database.prepare(sql).get(...parameters));
   }
 
   all(sql: string, ...parameters: SQLInputValue[]): SqliteRow[] {
-    return this.database.prepare(sql).all(...parameters);
+    return this.#sqliteOperation(() => this.database.prepare(sql).all(...parameters));
+  }
+
+  #sqliteOperation<Result>(work: () => Result): Result {
+    try {
+      return work();
+    } catch (error) {
+      throw new PersistenceError("SQLite persistence operation failed", { cause: error });
+    }
   }
 
   afterCommit(callback: () => void): void {
@@ -84,17 +95,34 @@ export class SqliteConnection {
       frame.push(callback);
       return;
     }
+    this.#publishAfterCommit([callback]);
+  }
+
+  #publishAfterCommit(callbacks: Array<() => void>): void {
     if (this.#activeAfterCommitQueue !== undefined) {
-      this.#activeAfterCommitQueue.push(callback);
+      this.#activeAfterCommitQueue.push(...callbacks);
       return;
     }
-    callback();
+    this.#activeAfterCommitQueue = callbacks;
+    try {
+      for (let index = 0; index < callbacks.length; index += 1) {
+        try {
+          callbacks[index]?.();
+        } catch {
+          // A committed fact stays durable even if an observer fails.
+        }
+      }
+    } finally {
+      this.#activeAfterCommitQueue = undefined;
+    }
   }
 
   transaction<Result>(work: () => Result): Result {
     const outermost = this.#transactionDepth === 0;
     const savepoint = `densa_savepoint_${this.#savepointCounter++}`;
-    this.database.exec(outermost ? "BEGIN IMMEDIATE" : `SAVEPOINT ${savepoint}`);
+    this.#sqliteOperation(() =>
+      this.database.exec(outermost ? "BEGIN IMMEDIATE" : `SAVEPOINT ${savepoint}`),
+    );
     this.#transactionDepth += 1;
     this.#afterCommitFrames.push([]);
 
@@ -108,19 +136,13 @@ export class SqliteConnection {
       if (callbacks === undefined || (!outermost && parentFrame === undefined)) {
         throw new PersistenceError("SQLite transaction commit hooks became inconsistent");
       }
-      this.database.exec(outermost ? "COMMIT" : `RELEASE SAVEPOINT ${savepoint}`);
+      this.#sqliteOperation(() =>
+        this.database.exec(outermost ? "COMMIT" : `RELEASE SAVEPOINT ${savepoint}`),
+      );
       this.#transactionDepth -= 1;
       this.#afterCommitFrames.pop();
       if (outermost) {
-        this.#activeAfterCommitQueue = callbacks;
-        for (let index = 0; index < callbacks.length; index += 1) {
-          try {
-            callbacks[index]?.();
-          } catch {
-            // The transaction is already durable; observer failures cannot roll it back.
-          }
-        }
-        this.#activeAfterCommitQueue = undefined;
+        this.#publishAfterCommit(callbacks);
       } else if (parentFrame !== undefined) {
         parentFrame.push(...callbacks);
       }

@@ -136,6 +136,7 @@ export interface AgentRunRepository {
   create(run: AgentRun): AgentRun;
   findById(id: AgentRun["id"]): AgentRun | undefined;
   findByAttemptId(attemptId: Attempt["id"]): AgentRun | undefined;
+  recordProcess(id: AgentRun["id"], processId: number, processIdentity?: string): AgentRun;
   recordCompleted(id: AgentRun["id"], completedAt: string): AgentRun;
 }
 
@@ -308,7 +309,7 @@ export interface CheckpointRepository {
 export interface EventRepository {
   append(event: Event): PersistedEvent;
   findById(id: Event["id"]): PersistedEvent | undefined;
-  latest(projectId: Project["id"]): PersistedEvent | undefined;
+  latest(projectId: Project["id"], filter?: EventReplayFilter): PersistedEvent | undefined;
   replay(filter?: EventReplayFilter): readonly PersistedEvent[];
 }
 
@@ -830,6 +831,33 @@ class SqliteAgentRunRepository implements AgentRunRepository {
     return row === undefined ? undefined : this.parse(row);
   }
 
+  recordProcess(id: AgentRun["id"], processId: number, processIdentity?: string): AgentRun {
+    const existing = this.findById(id);
+    if (existing === undefined || existing.completedAt !== undefined) {
+      throw new PersistenceError("Only an active agent run can record process metadata");
+    }
+    if (existing.processId !== undefined) {
+      if (existing.processId !== processId || existing.processIdentity !== processIdentity) {
+        throw new PersistenceError("Agent run already has different process metadata");
+      }
+      return existing;
+    }
+    const run = agentRunSchema.parse({
+      ...existing,
+      processId,
+      ...(processIdentity === undefined ? {} : { processIdentity }),
+    });
+    const changes = this.connection.run(
+      "UPDATE agent_runs SET process_id = ?, process_identity = ? WHERE id = ? AND process_id IS NULL AND completed_at IS NULL",
+      run.processId ?? null,
+      run.processIdentity ?? null,
+      id,
+    );
+    if (changes !== 1)
+      throw new PersistenceError("Agent run changed before process metadata was persisted");
+    return run;
+  }
+
   recordCompleted(id: AgentRun["id"], completedAt: string): AgentRun {
     isoTimestampSchema.parse(completedAt);
     const changes = this.connection.run(
@@ -896,7 +924,10 @@ class SqliteValidationRunRepository implements ValidationRunRepository {
   listByTaskId(taskId: Task["id"]): readonly ValidationRun[] {
     return Object.freeze(
       this.connection
-        .all("SELECT * FROM validation_runs WHERE task_id = ? ORDER BY started_at, id", taskId)
+        .all(
+          "SELECT * FROM validation_runs WHERE task_id = ? ORDER BY julianday(started_at), id",
+          taskId,
+        )
         .map((row) => this.parse(row)),
     );
   }
@@ -1217,7 +1248,10 @@ class SqliteDecisionRepository implements DecisionRepository {
   listByProjectId(projectId: Project["id"]): readonly Decision[] {
     return Object.freeze(
       this.connection
-        .all("SELECT * FROM decisions WHERE project_id = ? ORDER BY created_at, id", projectId)
+        .all(
+          "SELECT * FROM decisions WHERE project_id = ? ORDER BY julianday(created_at), id",
+          projectId,
+        )
         .map((row) => this.parse(row)),
     );
   }
@@ -1304,7 +1338,7 @@ class SqliteRoadmapRevisionRepository implements RoadmapRevisionRepository {
     return Object.freeze(
       this.connection
         .all(
-          "SELECT * FROM roadmap_revisions WHERE project_id = ? ORDER BY created_at, id",
+          "SELECT * FROM roadmap_revisions WHERE project_id = ? ORDER BY julianday(created_at), id",
           projectId,
         )
         .map((row) => this.parse(row)),
@@ -1393,7 +1427,7 @@ class SqliteRoadmapRevisionProposalRepository implements RoadmapRevisionProposal
       this.connection
         .all(
           `SELECT * FROM roadmap_revision_proposals
-           WHERE project_id = ? ORDER BY created_at, id`,
+           WHERE project_id = ? ORDER BY julianday(created_at), id`,
           projectId,
         )
         .map((row) => this.parse(row)),
@@ -1494,7 +1528,10 @@ class SqliteCheckpointRepository implements CheckpointRepository {
   listByProjectId(projectId: Project["id"]): readonly Checkpoint[] {
     return Object.freeze(
       this.connection
-        .all("SELECT * FROM checkpoints WHERE project_id = ? ORDER BY created_at, id", projectId)
+        .all(
+          "SELECT * FROM checkpoints WHERE project_id = ? ORDER BY julianday(created_at), id",
+          projectId,
+        )
         .map((row) => this.parse(row)),
     );
   }
@@ -1502,7 +1539,10 @@ class SqliteCheckpointRepository implements CheckpointRepository {
   listByTaskId(taskId: Task["id"]): readonly Checkpoint[] {
     return Object.freeze(
       this.connection
-        .all("SELECT * FROM checkpoints WHERE task_id = ? ORDER BY created_at, id", taskId)
+        .all(
+          "SELECT * FROM checkpoints WHERE task_id = ? ORDER BY julianday(created_at), id",
+          taskId,
+        )
         .map((row) => this.parse(row)),
     );
   }
@@ -1961,15 +2001,15 @@ class SqliteEventRepository implements EventRepository {
     return row === undefined ? undefined : this.parseRow(row);
   }
 
-  latest(projectId: Project["id"]): PersistedEvent | undefined {
-    const row = this.connection.get(
-      "SELECT * FROM events WHERE project_id = ? ORDER BY sequence_number DESC LIMIT 1",
-      projectId,
-    );
-    return row === undefined ? undefined : this.parseRow(row);
+  latest(projectId: Project["id"], filter: EventReplayFilter = {}): PersistedEvent | undefined {
+    return this.#replay({ ...filter, projectId, limit: 1 }, true)[0];
   }
 
   replay(filter: EventReplayFilter = {}): readonly PersistedEvent[] {
+    return this.#replay(filter, false);
+  }
+
+  #replay(filter: EventReplayFilter, descending: boolean): readonly PersistedEvent[] {
     if (filter.afterSequence !== undefined && filter.projectId === undefined) {
       throw new PersistenceError("Event replay afterSequence requires a projectId");
     }
@@ -2021,7 +2061,7 @@ class SqliteEventRepository implements EventRepository {
     const order =
       filter.projectId === undefined ? "project_id, sequence_number" : "sequence_number";
     const rows = this.connection.all(
-      `SELECT * FROM events ${where} ORDER BY ${order} LIMIT ?`,
+      `SELECT * FROM events ${where} ORDER BY ${order}${descending ? " DESC" : ""} LIMIT ?`,
       ...parameters,
       limit,
     );
@@ -2042,7 +2082,15 @@ class SqliteEventRepository implements EventRepository {
       ...(phaseId === undefined ? {} : { phaseId }),
       ...(taskId === undefined ? {} : { taskId }),
     });
+    freezeEventPayload(event.payload);
     return Object.freeze({ ...event, sequenceNumber: requiredNumber(row, "sequence_number") });
+  }
+}
+
+function freezeEventPayload(value: unknown): void {
+  if (value !== null && typeof value === "object") {
+    for (const child of Object.values(value)) freezeEventPayload(child);
+    Object.freeze(value);
   }
 }
 

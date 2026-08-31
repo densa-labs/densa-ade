@@ -63,8 +63,8 @@ export const taskSchema = z
     title: nonEmptyText,
     state: taskStateSchema,
     position,
-    acceptanceCriteria: z.array(nonEmptyText).min(1),
-    dependencyIds: z.array(taskIdSchema),
+    acceptanceCriteria: z.array(nonEmptyText).min(1).readonly(),
+    dependencyIds: z.array(taskIdSchema).readonly(),
     createdAt: isoTimestampSchema,
     updatedAt: isoTimestampSchema,
   })

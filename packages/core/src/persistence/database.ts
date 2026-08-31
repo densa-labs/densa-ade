@@ -1,3 +1,5 @@
+import { isDeepStrictEqual } from "node:util";
+
 import {
   executionModeSchema,
   eventSchema,
@@ -17,10 +19,11 @@ import {
   type ValidationRunId,
 } from "@densa-ade/protocol";
 
-import type {
-  PhaseStateTransition,
-  ProjectStateTransition,
-  TaskStateTransition,
+import {
+  stateTransitionService,
+  type PhaseStateTransition,
+  type ProjectStateTransition,
+  type TaskStateTransition,
 } from "../state-transitions.js";
 import { buildAcceptanceReport } from "../acceptance-evidence.js";
 import { EventPublisher, type PersistedEvent } from "../event-publisher.js";
@@ -93,14 +96,14 @@ export interface PersistExecutionModeChangeRequest {
   readonly eventId: EventId;
 }
 
-function assertEventMatchesTransition(transition: StateTransition): void {
-  const payload = transition.event.payload;
-  if (
-    payload.previousState !== transition.previousState ||
-    payload.state !== transition.state ||
-    transition.event.occurredAt !== transition.entity.updatedAt
-  ) {
-    throw new PersistenceError("State transition entity and event draft disagree");
+function assertEventMatchesTransition(
+  transition: StateTransition,
+  canonical: StateTransition,
+): void {
+  if (!isDeepStrictEqual(transition, canonical)) {
+    throw new PersistenceError(
+      "State transition does not match authoritative state and audit facts",
+    );
   }
 }
 
@@ -274,13 +277,23 @@ export class DensaAdeDatabase {
   }
 
   persistStateTransition(transition: StateTransition, eventId: EventId): PersistedEvent {
-    assertEventMatchesTransition(transition);
     const event = eventSchema.parse({ id: eventId, ...transition.event });
 
     return this.#connection.transaction(() => {
       let changes: number;
       switch (transition.entityType) {
         case "project": {
+          const current = this.repositories.projects.findById(transition.entity.id);
+          if (current?.state !== transition.previousState) {
+            throw new PersistenceError("Project transition snapshot is stale or missing");
+          }
+          assertEventMatchesTransition(
+            transition,
+            stateTransitionService.transitionProject(current, transition.state, {
+              ...transition.event,
+              ...transition.event.payload,
+            }),
+          );
           const entity = projectSchema.parse(transition.entity);
           changes = this.#connection.run(
             `UPDATE projects SET state = ?, updated_at = ? WHERE id = ? AND state = ?`,
@@ -292,6 +305,17 @@ export class DensaAdeDatabase {
           break;
         }
         case "phase": {
+          const current = this.repositories.phases.findById(transition.entity.id);
+          if (current?.state !== transition.previousState) {
+            throw new PersistenceError("Phase transition snapshot is stale or missing");
+          }
+          assertEventMatchesTransition(
+            transition,
+            stateTransitionService.transitionPhase(current, transition.state, {
+              ...transition.event,
+              ...transition.event.payload,
+            }),
+          );
           const entity = phaseSchema.parse(transition.entity);
           changes = this.#connection.run(
             `UPDATE phases SET state = ?, updated_at = ? WHERE id = ? AND state = ?`,
@@ -303,6 +327,17 @@ export class DensaAdeDatabase {
           break;
         }
         case "task": {
+          const current = this.repositories.tasks.findById(transition.entity.id);
+          if (current?.state !== transition.previousState) {
+            throw new PersistenceError("Task transition snapshot is stale or missing");
+          }
+          assertEventMatchesTransition(
+            transition,
+            stateTransitionService.transitionTask(current, transition.state, {
+              ...transition.event,
+              ...transition.event.payload,
+            }),
+          );
           const entity = taskSchema.parse(transition.entity);
           changes = this.#connection.run(
             `UPDATE tasks SET state = ?, updated_at = ? WHERE id = ? AND state = ?`,

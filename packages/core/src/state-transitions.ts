@@ -140,6 +140,7 @@ export interface TaskStateTransitionEventDraft {
 
 export interface ProjectStateTransition {
   readonly entityType: "project";
+  readonly previousUpdatedAt: string;
   readonly previousState: ProjectState;
   readonly state: ProjectState;
   readonly entity: Project;
@@ -148,6 +149,7 @@ export interface ProjectStateTransition {
 
 export interface PhaseStateTransition {
   readonly entityType: "phase";
+  readonly previousUpdatedAt: string;
   readonly previousState: PhaseState;
   readonly state: PhaseState;
   readonly entity: Phase;
@@ -156,6 +158,7 @@ export interface PhaseStateTransition {
 
 export interface TaskStateTransition {
   readonly entityType: "task";
+  readonly previousUpdatedAt: string;
   readonly previousState: TaskState;
   readonly state: TaskState;
   readonly entity: Task;
@@ -236,6 +239,7 @@ export class StateTransitionService {
 
     return Object.freeze({
       entityType: "project" as const,
+      previousUpdatedAt: project.updatedAt,
       previousState: project.state,
       state: requestedState,
       entity,
@@ -269,6 +273,7 @@ export class StateTransitionService {
 
     return Object.freeze({
       entityType: "phase" as const,
+      previousUpdatedAt: phase.updatedAt,
       previousState: phase.state,
       state: requestedState,
       entity,
@@ -303,6 +308,7 @@ export class StateTransitionService {
 
     return Object.freeze({
       entityType: "task" as const,
+      previousUpdatedAt: task.updatedAt,
       previousState: task.state,
       state: requestedState,
       entity,

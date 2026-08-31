@@ -42,6 +42,8 @@ export type AgentEvent =
       type: "run.started";
       runId: string;
       occurredAt: string;
+      /** Optional local worker PID; Core captures and persists OS identity for recovery. */
+      processId?: number;
     }
   | {
       type: "progress";

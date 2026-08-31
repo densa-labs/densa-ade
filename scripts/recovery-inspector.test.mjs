@@ -513,3 +513,202 @@ test("process identity logic and the default Git probe observe without mutation"
     rmSync(directory, { force: true, recursive: true });
   }
 });
+
+test("completed worker with an open validating attempt is recoverable after restart", async () => {
+  await withDatabase(async (database) => {
+    const seeded = seedRunning(database, "worker-finished-validation-pending");
+    database.repositories.agentRuns.recordCompleted(seeded.agentRun.id, "2026-08-26T12:07:00.000Z");
+    transition(database, seeded.task, ["VALIDATING"], "validation-pending");
+    database.repositories.validationRuns.create({
+      id: "pending-validation",
+      taskId: seeded.task.id,
+      attemptId: seeded.attempt.id,
+      validatorId: "test",
+      startedAt: "2026-08-26T12:08:00.000Z",
+    });
+    const result = await new RecoveryInspector(database.repositories, {
+      workspaceProbe: fakeWorkspace(),
+      processProbe: fakeProcess("unknown"),
+    }).inspect({ projectId: seeded.project.id, workspacePath });
+    assert.equal(result.classification, "VALIDATION_INTERRUPTED");
+    assert.equal(database.repositories.attempts.findById(seeded.attempt.id).completedAt, undefined);
+  });
+});
+
+test("completed attempts that never launched a worker do not remain falsely unfinished", async () => {
+  await withDatabase(async (database) => {
+    const seeded = seedProject(database, "pre-worker-stop");
+    database.repositories.attempts.create({
+      id: "pre-worker-attempt",
+      taskId: seeded.task.id,
+      number: 1,
+      startedAt: createdAt,
+      completedAt: "2026-08-26T12:07:00.000Z",
+    });
+    const result = await new RecoveryInspector(database.repositories, {
+      workspaceProbe: fakeWorkspace(),
+    }).inspect({ projectId: seeded.project.id, workspacePath });
+    assert.equal(result.classification, "CLEANLY_IDLE");
+  });
+});
+
+test("recovery fails closed when authoritative state changes during an async probe", async () => {
+  await withDatabase(async (database) => {
+    const seeded = seedProject(database, "probe-race");
+    const result = await new RecoveryInspector(database.repositories, {
+      workspaceProbe: {
+        inspect: async () => {
+          transition(database, seeded.project, ["PLANNING", "READY", "RUNNING"], "project");
+          return fakeWorkspace().inspect();
+        },
+      },
+    }).inspect({ projectId: seeded.project.id, workspacePath });
+    assert.equal(result.classification, "UNKNOWN");
+    assert.deepEqual(result.actions, ["REQUEST_USER_INSPECTION"]);
+  });
+});
+
+test("recovery notices Git index changes even when HEAD, status, and working files are unchanged", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "densa-recovery-index-"));
+  try {
+    execFileSync("git", ["init", "--quiet"], { cwd: directory });
+    writeFileSync(join(directory, "tracked.txt"), "base\n");
+    execFileSync("git", ["add", "tracked.txt"], { cwd: directory });
+    execFileSync(
+      "git",
+      [
+        "-c",
+        "user.name=Fixture",
+        "-c",
+        "user.email=fixture@localhost",
+        "commit",
+        "--quiet",
+        "-m",
+        "base",
+      ],
+      { cwd: directory },
+    );
+    writeFileSync(join(directory, "tracked.txt"), "first index\n");
+    execFileSync("git", ["add", "tracked.txt"], { cwd: directory });
+    writeFileSync(join(directory, "tracked.txt"), "working file\n");
+    const first = await new GitWorkspaceProbe().inspect(directory);
+    writeFileSync(join(directory, "tracked.txt"), "second index\n");
+    execFileSync("git", ["add", "tracked.txt"], { cwd: directory });
+    writeFileSync(join(directory, "tracked.txt"), "working file\n");
+    const second = await new GitWorkspaceProbe().inspect(directory);
+    assert.equal(first.status, "available");
+    assert.equal(second.status, "available");
+    assert.equal(first.snapshot.gitStatus, second.snapshot.gitStatus);
+    assert.notEqual(first.snapshot.fingerprint, second.snapshot.fingerprint);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("the latest checkpoint is ordered by timestamp instant rather than offset text", async () => {
+  await withDatabase(async (database) => {
+    const seeded = seedProject(database, "offset-order");
+    database.repositories.checkpoints.create({
+      id: "newer-checkpoint",
+      projectId: seeded.project.id,
+      createdAt: "2026-08-26T09:00:00.000-04:00",
+      gitHead: "newer-head",
+      gitStatus: "",
+      workspaceFingerprint: "newer-fingerprint",
+    });
+    const result = await new RecoveryInspector(database.repositories, {
+      workspaceProbe: fakeWorkspace({
+        gitHead: "newer-head",
+        gitStatus: "",
+        workspaceFingerprint: "newer-fingerprint",
+      }),
+    }).inspect({ projectId: seeded.project.id, workspacePath });
+    assert.equal(result.classification, "CLEANLY_IDLE");
+    assert.equal(result.evidence.checkpoint.id, "newer-checkpoint");
+  });
+});
+
+test("an inactive task with an orphaned worker prevents recovery of another active task", async () => {
+  await withDatabase(async (database) => {
+    const seeded = seedRunning(database, "active-with-orphan");
+    const task = { ...seeded.task, id: "inactive-orphan-task", state: "PENDING", position: 1 };
+    database.repositories.tasks.create(task);
+    database.repositories.attempts.create({
+      id: "inactive-orphan-attempt",
+      taskId: task.id,
+      number: 1,
+      startedAt: createdAt,
+    });
+    database.repositories.agentRuns.create({
+      id: "inactive-orphan-run",
+      attemptId: "inactive-orphan-attempt",
+      adapterId: "fake",
+      startedAt: createdAt,
+      processId: 4243,
+      processIdentity: "orphan-identity",
+    });
+    const result = await new RecoveryInspector(database.repositories, {
+      workspaceProbe: fakeWorkspace(),
+      processProbe: fakeProcess("gone"),
+    }).inspect({ projectId: seeded.project.id, workspacePath });
+    assert.equal(result.classification, "UNKNOWN");
+    assert.deepEqual(result.actions, ["REQUEST_USER_INSPECTION"]);
+  });
+});
+
+test("later unrelated events cannot hide a contradictory lifecycle fact", async () => {
+  await withDatabase(async (database) => {
+    const seeded = seedProject(database, "hidden-state-fact");
+    database.eventJournal.append({
+      id: "hidden-state",
+      projectId: seeded.project.id,
+      phaseId: seeded.phase.id,
+      taskId: seeded.task.id,
+      type: "TASK_STATE_CHANGED",
+      eventVersion: 1,
+      occurredAt: createdAt,
+      actor: "test",
+      payload: { previousState: "PENDING", state: "READY" },
+    });
+    database.eventJournal.append({
+      id: "later-note",
+      projectId: seeded.project.id,
+      type: "NOTE_RECORDED",
+      eventVersion: 1,
+      occurredAt: createdAt,
+      actor: "test",
+      payload: {},
+    });
+    const result = await new RecoveryInspector(database.repositories, {
+      workspaceProbe: fakeWorkspace(),
+    }).inspect({ projectId: seeded.project.id, workspacePath });
+    assert.equal(result.classification, "UNKNOWN");
+  });
+});
+
+test("throwing probes and unsupported state-event versions fail closed", async () => {
+  await withDatabase(async (database) => {
+    const seeded = seedProject(database, "unknown-evidence");
+    const failed = await new RecoveryInspector(database.repositories, {
+      workspaceProbe: {
+        inspect() {
+          throw new Error("probe failed");
+        },
+      },
+    }).inspect({ projectId: seeded.project.id, workspacePath });
+    assert.equal(failed.classification, "UNKNOWN");
+    database.eventJournal.append({
+      id: "future-state",
+      projectId: seeded.project.id,
+      type: "PROJECT_STATE_CHANGED",
+      eventVersion: 2,
+      occurredAt: createdAt,
+      actor: "test",
+      payload: { state: "DRAFT" },
+    });
+    const future = await new RecoveryInspector(database.repositories, {
+      workspaceProbe: fakeWorkspace(),
+    }).inspect({ projectId: seeded.project.id, workspacePath });
+    assert.equal(future.classification, "UNKNOWN");
+  });
+});

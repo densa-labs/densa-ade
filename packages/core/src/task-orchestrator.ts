@@ -28,6 +28,7 @@ import {
 } from "./independent-review.js";
 import { type DensaAdeDatabase } from "./persistence/database.js";
 import { RunCheckpointService, type RunCheckpointStopCode } from "./run-checkpoint.js";
+import { NodeProcessProbe } from "./recovery-inspector.js";
 import { stateTransitionService } from "./state-transitions.js";
 import { TaskCommitService, type TaskCommitStopCode } from "./task-commit.js";
 
@@ -544,6 +545,30 @@ export class SingleTaskOrchestrator {
         cwd: request.workspacePath,
         prompt,
       })) {
+        if (event.runId !== agentRunId) throw new Error("Agent event belongs to another run");
+        if (event.type === "run.started" && event.processId !== undefined) {
+          const processId = event.processId;
+          let processIdentity: string | undefined;
+          try {
+            processIdentity = await new NodeProcessProbe().captureIdentity(processId);
+          } catch {
+            // The process may already have exited. Preserve its PID; never invent an identity.
+          }
+          this.database.transaction((repositories) => {
+            repositories.agentRuns.recordProcess(agentRunId, processId, processIdentity);
+            repositories.events.append({
+              id: lifecycleId(key, "agent-process-recorded"),
+              projectId: request.projectId,
+              phaseId: runningTask.phaseId,
+              taskId: runningTask.id,
+              type: "AGENT_PROCESS_RECORDED",
+              eventVersion: 1,
+              occurredAt: this.#now(),
+              actor: request.actor,
+              payload: { agentRunId, processId },
+            });
+          });
+        }
         try {
           await request.onAgentEvent?.(event);
         } catch {

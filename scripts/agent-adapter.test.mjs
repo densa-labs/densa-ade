@@ -797,3 +797,20 @@ test("CodexAdapter leaves prose-like unknown failures unknown and keeps auth dis
   assert.equal((await auth.getUsageState()).status, "unknown");
   assert.equal("resetAt" in (await auth.getUsageState()), false);
 });
+
+test("local adapter exposes its worker PID for Core recovery", async (t) => {
+  const { executable, directory } = await createFakeCodex(
+    t,
+    'process.stdout.write(JSON.stringify({type:"turn.completed"}) + "\\n");',
+  );
+  const events = await collect(
+    new CodexAdapter({ command: executable }).execute({
+      runId: "pid-evidence",
+      cwd: directory,
+      prompt: "fixture",
+    }),
+  );
+  assert.equal(events[0].type, "run.started");
+  assert.equal(Number.isSafeInteger(events[0].processId), true);
+  assert.ok(events[0].processId > 0);
+});

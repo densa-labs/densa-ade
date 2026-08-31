@@ -129,3 +129,22 @@ All timestamps are validated ISO-8601 strings and SQLite receives only parameter
 Detailed prompt transcripts and raw process logs have no columns in this schema, so they are not
 persisted by default. Project settings are for non-secret values or references; credentials and
 secret values belong in the user-managed secret store described by the engineering constitution.
+
+## Current-state audit hardening (2026-08-31)
+
+Persistence now reconstructs each requested transition through `StateTransitionService` from the
+current record while holding the write transaction. The complete entity and event must match that
+result, including scope, state, and the original `previousUpdatedAt`. This rejects caller-constructed
+illegal jumps, misattributed facts, changed entity fields, and old snapshots after a lifecycle cycle.
+Task criteria and dependency arrays are immutable as well as the enclosing snapshot.
+
+SQLite open, query, constraint, and transaction-control failures expose `PERSISTENCE_FAILURE` with
+the original local error retained as a cause; SQL and parameter values are not included in the
+public message. Domain callback errors retain their original classification and rollback semantics.
+Chronological repository listings compare ISO timestamps by instant, including numeric offsets.
+No existing migration or persisted event was rewritten by this hardening.
+
+Local adapters may provide an optional PID on `run.started`. Core records that PID and, when
+observable, an OS process-identity hash with an `AGENT_PROCESS_RECORDED` event in one transaction.
+Existing process metadata cannot be silently replaced. Missing identity remains explicit evidence
+of uncertainty; legacy and nonlocal adapters are not assigned fabricated process identities.

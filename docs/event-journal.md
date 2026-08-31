@@ -36,3 +36,10 @@ that is already durable.
 Event payloads remain JSON objects validated by `@densa-ade/protocol` and are limited to 64 KiB when
 UTF-8 encoded. Raw process transcripts and unbounded logs do not belong in events; bounded local log
 storage will use its own retention policy. Event queries are also bounded as described above.
+
+Autocommit appends and explicit transactions share one notification queue. Writes performed by a
+subscriber join its tail, so every subscriber finishes observing the earlier committed facts before
+receiving new ones, even if the subscriber opens another transaction. Failed savepoints discard
+only their own notifications. Delivered payloads are recursively frozen; one subscriber cannot
+alter the fact observed by another. Repository `latest(projectId, filter)` selects the newest matching
+fact directly, without scanning only the first bounded replay page.

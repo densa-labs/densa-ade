@@ -358,3 +358,97 @@ test("database triggers prevent committed event facts from being updated or dele
     rmSync(directory, { force: true, recursive: true });
   }
 });
+
+for (const transactional of [false, true]) {
+  test(`all subscribers retain commit order through ${transactional ? "transactional" : "autocommit"} reentrant writes`, () => {
+    withDatabase((database) => {
+      const { projectId } = seedProjectGraph(database);
+      const observed = [];
+      database.eventJournal.subscribe({ projectId }, (event) => {
+        if (event.sequenceNumber === 1) {
+          database.transaction(() => {
+            database.eventJournal.append(makeEvent({ id: "reentrant", projectId }));
+          });
+        }
+      });
+      database.eventJournal.subscribe({ projectId }, (event) =>
+        observed.push(event.sequenceNumber),
+      );
+      const append = () => {
+        database.eventJournal.append(makeEvent({ id: "first", projectId }));
+        if (transactional) database.eventJournal.append(makeEvent({ id: "second", projectId }));
+      };
+      if (transactional) database.transaction(append);
+      else append();
+      assert.deepEqual(observed, transactional ? [1, 2, 3] : [1, 2]);
+    });
+  });
+}
+
+test("subscriber mutations cannot change committed facts delivered to other subscribers", () => {
+  withDatabase((database) => {
+    const { projectId } = seedProjectGraph(database);
+    const observed = [];
+    database.eventJournal.subscribe({ projectId }, (event) => {
+      event.payload.nested.value = "altered";
+    });
+    database.eventJournal.subscribe({ projectId }, (event) =>
+      observed.push(event.payload.nested.value),
+    );
+    database.eventJournal.append(
+      makeEvent({ id: "immutable-payload", projectId, payload: { nested: { value: "fact" } } }),
+    );
+    assert.deepEqual(observed, ["fact"]);
+  });
+});
+
+test("savepoint rollback discards only failed nested notifications", () => {
+  withDatabase((database) => {
+    const { projectId } = seedProjectGraph(database);
+    const observed = [];
+    database.eventJournal.subscribe({ projectId }, (event) => observed.push(event.id));
+    database.transaction(() => {
+      database.eventJournal.append(makeEvent({ id: "outer-before", projectId }));
+      assert.throws(() =>
+        database.transaction(() => {
+          database.eventJournal.append(makeEvent({ id: "inner-rollback", projectId }));
+          throw new Error("injected nested rollback");
+        }),
+      );
+      database.transaction(() =>
+        database.eventJournal.append(makeEvent({ id: "inner-commit", projectId })),
+      );
+      assert.deepEqual(observed, []);
+    });
+    assert.deepEqual(observed, ["outer-before", "inner-commit"]);
+    assert.deepEqual(
+      database.eventJournal.replay({ projectId }).map((event) => event.sequenceNumber),
+      [1, 2],
+    );
+  });
+});
+
+test("latest scoped lifecycle lookup is not limited to the first replay page", () => {
+  withDatabase((database) => {
+    const { projectId, phaseId, taskId } = seedProjectGraph(database);
+    database.transaction(() => {
+      for (let index = 0; index < 1001; index++) {
+        database.eventJournal.append(makeEvent({ id: `page-event-${index}`, projectId }));
+      }
+      database.eventJournal.append(
+        makeEvent({
+          id: "latest-task-event",
+          projectId,
+          phaseId,
+          taskId,
+          type: "TASK_STATE_CHANGED",
+          payload: { previousState: "PENDING", state: "READY" },
+        }),
+      );
+    });
+    assert.equal(
+      database.repositories.events.latest(projectId, { taskId, types: ["TASK_STATE_CHANGED"] }).id,
+      "latest-task-event",
+    );
+  });
+});

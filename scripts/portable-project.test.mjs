@@ -314,3 +314,22 @@ test("exporting an unknown project fails with a stable persistence error", async
     );
   });
 });
+
+test("explicit secret markers from later-phase inputs are never exported", async () => {
+  await withWorkspace(async ({ database, workspace }) => {
+    seedPortableProject(database.repositories);
+    database.repositories.projectSettings.set({
+      projectId,
+      values: {
+        note: "<secret>portable-marker-canary</secret>",
+        details: "[secret:portable-bracket-canary]",
+        incomplete: "<secret>portable-incomplete-canary",
+      },
+      updatedAt,
+    });
+    await new PortableProjectSynchronizer(database.repositories).synchronize(workspace, projectId);
+    const content = await readFile(join(workspace, ".densa-ade", "config.json"), "utf8");
+    assert.doesNotMatch(content, /portable-(?:marker|bracket|incomplete)-canary/u);
+    assert.match(content, /REDACTED/u);
+  });
+});

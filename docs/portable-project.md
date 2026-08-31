@@ -75,3 +75,8 @@ bearer credentials, common provider-token formats, JWTs, and explicit secret ass
 file write. This is a defense-in-depth boundary, not permission to store credentials in project
 intent: secrets still belong in Keychain or user-managed secret stores and must be represented only
 by non-secret references in SQLite.
+
+Explicit `<secret>...</secret>` and `[secret:...]` markers from later-phase inputs are redacted
+before export, including an unterminated marker through the end of its field. This closes the gap
+between later secret-marking conventions and the original portable text redactor. Arbitrary
+unmarked credentials still must not be stored as ordinary project text or settings.

@@ -43,6 +43,7 @@ const BEARER_PATTERN = /\bBearer\s+[A-Za-z0-9._~+/=-]{8,}/giu;
 const SECRET_ASSIGNMENT_PATTERN =
   /\b(api[_-]?key|access[_-]?token|auth[_-]?token|authorization|client[_-]?secret|password|passwd|private[_-]?key|refresh[_-]?token|secret|session[_-]?token|token)\s*([:=])\s*(?:"[^"]*"|'[^']*'|[^\s,;]+)/giu;
 const SECRET_LIKE_VALUE_PATTERN = /\b(?:my|super|test)?[-_]?secret[-_][A-Za-z0-9_-]{4,}\b/giu;
+const EXPLICIT_SECRET_PATTERN = /<secret>[\s\S]*?(?:<\/secret>|$)|\[secret:[\s\S]*?(?:\]|$)/giu;
 
 export interface PortableProjectSnapshot {
   readonly project: Project;
@@ -104,6 +105,7 @@ class SecretRedactor {
 
   text(input: string): string {
     let output = input;
+    output = this.replace(output, EXPLICIT_SECRET_PATTERN, "[REDACTED]");
     output = this.replace(output, PRIVATE_KEY_PATTERN, "[REDACTED PRIVATE KEY]");
     output = this.replace(output, KNOWN_TOKEN_PATTERN, "[REDACTED]");
     output = this.replace(output, JWT_PATTERN, "[REDACTED]");
