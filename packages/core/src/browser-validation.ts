@@ -1,10 +1,11 @@
 import { spawn, type ChildProcessByStdio } from "node:child_process";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { lstat, mkdir, readFile, realpath } from "node:fs/promises";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import process from "node:process";
-import type { Readable } from "node:stream";
+import type { Readable, Writable } from "node:stream";
 import { tmpdir } from "node:os";
+import { fileURLToPath } from "node:url";
 
 import type { JsonObject, ValidationDiagnostic, ValidatorOutcome } from "@densa-ade/protocol";
 import { chromium, type Browser, type Page } from "playwright";
@@ -219,7 +220,10 @@ function rejectsShellEvaluation(argv: readonly string[]): boolean {
   );
 }
 
-function normalizeRelativeDirectory(workspaceRoot: string, value: string | undefined): string {
+async function normalizeRelativeDirectory(
+  workspaceRoot: string,
+  value: string | undefined,
+): Promise<string> {
   const cwd = value ?? ".";
   if (!validCommandPart(cwd) || isAbsolute(cwd)) {
     throw new Error("Browser start cwd must be a bounded workspace-relative path");
@@ -227,14 +231,24 @@ function normalizeRelativeDirectory(workspaceRoot: string, value: string | undef
   const absolute = resolve(workspaceRoot, cwd);
   if (!isInside(workspaceRoot, absolute))
     throw new Error("Browser start cwd cannot escape workspace");
+  let realDirectory: string;
+  try {
+    realDirectory = await realpath(absolute);
+    const metadata = await lstat(realDirectory);
+    if (!metadata.isDirectory()) throw new Error("not a directory");
+  } catch {
+    throw new Error("Browser start cwd must be an existing workspace directory");
+  }
+  if (!isInside(workspaceRoot, realDirectory))
+    throw new Error("Browser start cwd cannot escape workspace");
   const normalized = relative(workspaceRoot, absolute);
   return normalized.length === 0 ? "." : normalized;
 }
 
-function normalizeStartCommand(
+async function normalizeStartCommand(
   workspaceRoot: string,
   input: DetectBrowserValidationRequest["configuredStartCommand"],
-): BrowserStartCommand {
+): Promise<BrowserStartCommand> {
   if (
     input === undefined ||
     input.argv.length === 0 ||
@@ -246,7 +260,7 @@ function normalizeStartCommand(
   }
   return Object.freeze({
     argv: Object.freeze([...input.argv]),
-    cwd: normalizeRelativeDirectory(workspaceRoot, input.cwd),
+    cwd: await normalizeRelativeDirectory(workspaceRoot, input.cwd),
   });
 }
 
@@ -421,7 +435,7 @@ export class BrowserValidationDetector {
     const configured =
       request.configuredStartCommand === undefined
         ? undefined
-        : normalizeStartCommand(workspaceRoot, request.configuredStartCommand);
+        : await normalizeStartCommand(workspaceRoot, request.configuredStartCommand);
     const detected =
       configured === undefined
         ? await inspectPackageStartCommand(workspaceRoot)
@@ -630,13 +644,13 @@ export class ChromiumPlaywrightRunner implements PlaywrightRunner {
 }
 
 class ManagedDevServer {
-  readonly #child: ChildProcessByStdio<null, Readable, Readable>;
+  readonly #child: ChildProcessByStdio<Writable, Readable, Readable>;
   readonly #logs = new LogCapture();
   readonly completion: Promise<{ code: number | null; signal: NodeJS.Signals | null }>;
   #completed = false;
   #exit: { code: number | null; signal: NodeJS.Signals | null } | undefined;
 
-  private constructor(child: ChildProcessByStdio<null, Readable, Readable>) {
+  private constructor(child: ChildProcessByStdio<Writable, Readable, Readable>) {
     this.#child = child;
     child.stdout.on("data", (chunk: Buffer) =>
       this.#logs.append("info", `server stdout: ${chunk.toString("utf8")}`),
@@ -659,7 +673,8 @@ class ManagedDevServer {
   ): Promise<ManagedDevServer> {
     const cwd = resolve(workspaceRoot, command.cwd);
     if (!isInside(workspaceRoot, cwd)) throw new Error("Browser start cwd escaped workspace");
-    const child = spawn(command.argv[0]!, command.argv.slice(1), {
+    const processOwner = fileURLToPath(new URL("./browser-process-owner.js", import.meta.url));
+    const child = spawn(process.execPath, [processOwner, JSON.stringify(command.argv)], {
       cwd,
       env: {
         PATH: process.env["PATH"] ?? "/usr/bin:/bin",
@@ -671,7 +686,7 @@ class ManagedDevServer {
       },
       shell: false,
       detached: process.platform !== "win32",
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: ["pipe", "pipe", "pipe"],
     });
     await new Promise<void>((resolveStart, rejectStart) => {
       child.once("spawn", resolveStart);
@@ -794,6 +809,9 @@ async function validateArtifacts(
 ): Promise<readonly BrowserArtifact[]> {
   const accepted: BrowserArtifact[] = [];
   for (const artifact of artifacts) {
+    if (artifact.kind !== "screenshot" && artifact.kind !== "trace") {
+      throw new Error("Playwright runner returned an unsupported artifact kind");
+    }
     const absolute = resolve(artifact.path);
     if (!isInside(artifactDirectory, absolute)) {
       throw new Error("Playwright runner returned an artifact outside its owned directory");
@@ -815,6 +833,27 @@ async function validateArtifacts(
     );
   }
   return Object.freeze(accepted);
+}
+
+async function runWithCancellation(
+  runner: PlaywrightRunner,
+  request: PlaywrightRunRequest,
+): Promise<PlaywrightRunResult> {
+  if (request.signal.aborted) throw request.signal.reason;
+  return await new Promise<PlaywrightRunResult>((resolveRun, rejectRun) => {
+    const onAbort = (): void => rejectRun(request.signal.reason);
+    request.signal.addEventListener("abort", onAbort, { once: true });
+    void runner
+      .run(request)
+      .then(resolveRun, rejectRun)
+      .finally(() => {
+        request.signal.removeEventListener("abort", onAbort);
+      });
+  });
+}
+
+function isPortableProjectPath(workspaceRoot: string, candidate: string): boolean {
+  return [".densa-ade", ".densa"].some((name) => isInside(resolve(workspaceRoot, name), candidate));
 }
 
 function logDiagnostics(
@@ -882,12 +921,15 @@ export class BrowserValidationValidator implements Validator {
     const workspaceRoot = await realpath(context.workspacePath);
     const targetUrl = normalizeAppUrl(this.target.url);
     if (targetUrl === undefined) throw new Error("Browser validation target URL is missing");
-    const command = normalizeStartCommand(workspaceRoot, this.target.startCommand);
+    const command = await normalizeStartCommand(workspaceRoot, this.target.startCommand);
     const artifactRoot = isAbsolute(this.#artifactRoot)
       ? resolve(this.#artifactRoot)
       : resolve(workspaceRoot, this.#artifactRoot);
     if (!isAbsolute(this.#artifactRoot) && !isInside(workspaceRoot, artifactRoot)) {
       throw new Error("A relative browser artifact root cannot escape workspace");
+    }
+    if (isPortableProjectPath(workspaceRoot, artifactRoot)) {
+      throw new Error("Browser artifacts cannot be stored in the portable project tree");
     }
     const artifactId = this.#artifactId();
     if (!/^[A-Za-z0-9._-]{1,128}$/u.test(artifactId))
@@ -897,6 +939,10 @@ export class BrowserValidationValidator implements Validator {
     const rootMetadata = await lstat(artifactRoot);
     if (!rootMetadata.isDirectory() || rootMetadata.isSymbolicLink()) {
       throw new Error("Browser artifact root must be a real directory");
+    }
+    const realArtifactRoot = await realpath(artifactRoot);
+    if (isPortableProjectPath(workspaceRoot, realArtifactRoot)) {
+      throw new Error("Browser artifacts cannot be stored in the portable project tree");
     }
     await mkdir(artifactDirectory, { mode: 0o700 });
 
@@ -916,7 +962,7 @@ export class BrowserValidationValidator implements Validator {
       if (signal.aborted) throw signal.reason;
       server = await ManagedDevServer.start(command, workspaceRoot);
       await waitUntilReady(targetUrl, server, this.#readyTimeoutMs, signal);
-      runResult = await this.#runner.run({
+      runResult = await runWithCancellation(this.#runner, {
         baseUrl: targetUrl,
         checks: this.#checks,
         artifactDirectory,
@@ -936,6 +982,14 @@ export class BrowserValidationValidator implements Validator {
       runResult === undefined
         ? Object.freeze({ entries: Object.freeze([]), truncated: false })
         : Object.freeze({ entries: runResult.logs, truncated: runResult.logsTruncated });
+    let artifacts: readonly BrowserArtifact[] = Object.freeze([]);
+    if (runResult !== undefined) {
+      try {
+        artifacts = await validateArtifacts(artifactDirectory, runResult.artifacts);
+      } catch (error) {
+        failure ??= error;
+      }
+    }
     const diagnostics = [
       ...(failure === undefined
         ? []
@@ -960,13 +1014,14 @@ export class BrowserValidationValidator implements Validator {
       ...logDiagnostics(serverLogs, "server"),
       ...logDiagnostics(browserLogs, "browser"),
     ].slice(0, 32);
-    const artifacts =
-      runResult === undefined
-        ? Object.freeze([])
-        : await validateArtifacts(artifactDirectory, runResult.artifacts);
     const config = Object.freeze({
       baseUrl: targetUrl,
       checkCount: this.#checks.length,
+      startCommand: Object.freeze({
+        source: this.target.source,
+        argumentCount: command.argv.length,
+        argvSha256: createHash("sha256").update(JSON.stringify(command.argv)).digest("hex"),
+      }),
       artifacts: artifacts.map((artifact) => Object.freeze({ ...artifact })),
       serverLogsTruncated: serverLogs.truncated,
       browserLogsTruncated: browserLogs.truncated,
@@ -974,7 +1029,7 @@ export class BrowserValidationValidator implements Validator {
     const status = failure === undefined ? (runResult?.status ?? "error") : "error";
     return Object.freeze({
       status,
-      command: [...command.argv],
+      ...(this.target.source === "detected" ? { command: [...command.argv] } : {}),
       config,
       diagnostics,
       retryRelevant: status !== "passed",

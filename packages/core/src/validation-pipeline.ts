@@ -156,6 +156,24 @@ function providerErrorOutcome(error: unknown): ValidatorOutcome {
   });
 }
 
+function cancelledOutcome(signal: AbortSignal): ValidatorOutcome {
+  return Object.freeze({
+    status: "error" as const,
+    diagnostics: [
+      Object.freeze({
+        severity: "error" as const,
+        code: "VALIDATION_CANCELLED",
+        message: errorMessage(signal.reason ?? "Validation was cancelled"),
+      }),
+    ],
+    retryRelevant: true,
+  });
+}
+
+function isAborted(signal: AbortSignal | undefined): signal is AbortSignal {
+  return signal?.aborted === true;
+}
+
 function validatePlan(
   request: ExecuteValidationPlanRequest,
   acceptanceCriteria: readonly string[],
@@ -275,21 +293,26 @@ export class ValidationPipeline {
       const resultStartedAt = this.#now();
       let outcome: ValidatorOutcome;
       try {
-        const priorResults = this.database.repositories.validationResults.listByRunId(
-          request.runId,
-        );
-        outcome = normalizeOutcome(
-          await entry.validator.validate({
-            projectId: request.projectId,
-            taskId: request.taskId,
-            validationRunId: request.runId,
-            ...(request.attemptId === undefined ? {} : { attemptId: request.attemptId }),
-            workspacePath: request.workspacePath,
-            relatedAcceptanceCriteria: Object.freeze([...entry.relatedAcceptanceCriteria]),
-            priorResults: Object.freeze(priorResults),
-            ...(request.signal === undefined ? {} : { signal: request.signal }),
-          }),
-        );
+        if (isAborted(request.signal)) {
+          outcome = cancelledOutcome(request.signal);
+        } else {
+          const priorResults = this.database.repositories.validationResults.listByRunId(
+            request.runId,
+          );
+          outcome = normalizeOutcome(
+            await entry.validator.validate({
+              projectId: request.projectId,
+              taskId: request.taskId,
+              validationRunId: request.runId,
+              ...(request.attemptId === undefined ? {} : { attemptId: request.attemptId }),
+              workspacePath: request.workspacePath,
+              relatedAcceptanceCriteria: Object.freeze([...entry.relatedAcceptanceCriteria]),
+              priorResults: Object.freeze(priorResults),
+              ...(request.signal === undefined ? {} : { signal: request.signal }),
+            }),
+          );
+          if (isAborted(request.signal)) outcome = cancelledOutcome(request.signal);
+        }
       } catch (error) {
         outcome = providerErrorOutcome(error);
       }

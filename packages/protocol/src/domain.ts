@@ -114,6 +114,12 @@ export const validationRunSchema = z
         message: "Validation plan ID and version must be recorded together",
       });
     }
+    if (run.completedAt !== undefined && Date.parse(run.completedAt) < Date.parse(run.startedAt)) {
+      context.addIssue({
+        code: "custom",
+        message: "Validation run completion cannot precede its start",
+      });
+    }
   });
 export type ValidationRun = z.infer<typeof validationRunSchema>;
 

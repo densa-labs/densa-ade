@@ -771,6 +771,67 @@ CREATE TABLE task_publication_intents (
 ) STRICT;
 `;
 
+const chronologicalValidationResults = `
+CREATE TRIGGER validation_runs_chronology_insert
+BEFORE INSERT ON validation_runs
+WHEN NEW.completed_at IS NOT NULL
+  AND julianday(NEW.completed_at) < julianday(NEW.started_at)
+BEGIN
+  SELECT RAISE(ABORT, 'validation run completion precedes start');
+END;
+
+CREATE TRIGGER validation_runs_chronology_update
+BEFORE UPDATE OF started_at, completed_at ON validation_runs
+WHEN NEW.completed_at IS NOT NULL
+  AND julianday(NEW.completed_at) < julianday(NEW.started_at)
+BEGIN
+  SELECT RAISE(ABORT, 'validation run completion precedes start');
+END;
+
+ALTER TABLE validation_results RENAME TO validation_results_v16;
+
+CREATE TABLE validation_results (
+  id TEXT PRIMARY KEY CHECK (length(id) > 0),
+  validation_run_id TEXT NOT NULL REFERENCES validation_runs(id) ON DELETE CASCADE,
+  position INTEGER NOT NULL CHECK (position >= 0),
+  validator_id TEXT NOT NULL CHECK (length(validator_id) > 0),
+  validator_version TEXT NOT NULL CHECK (length(validator_version) > 0),
+  policy TEXT NOT NULL CHECK (policy IN ('required', 'advisory')),
+  status TEXT NOT NULL CHECK (status IN ('passed', 'failed', 'error', 'skipped')),
+  started_at TEXT NOT NULL CHECK (length(started_at) >= 20),
+  completed_at TEXT NOT NULL CHECK (length(completed_at) >= 20),
+  command_json TEXT CHECK (command_json IS NULL OR json_valid(command_json)),
+  config_json TEXT CHECK (config_json IS NULL OR json_valid(config_json)),
+  exit_code INTEGER,
+  diagnostics_json TEXT NOT NULL CHECK (json_valid(diagnostics_json)),
+  related_acceptance_criteria_json TEXT NOT NULL CHECK (
+    json_valid(related_acceptance_criteria_json)
+  ),
+  retry_relevant INTEGER NOT NULL CHECK (retry_relevant IN (0, 1)),
+  evidence_source TEXT NOT NULL CHECK (evidence_source IN (
+    'legacy_unspecified', 'deterministic_validator', 'targeted_check', 'browser_test',
+    'independent_review'
+  )),
+  UNIQUE (validation_run_id, position),
+  CHECK (julianday(completed_at) >= julianday(started_at))
+) STRICT;
+
+INSERT INTO validation_results (
+  id, validation_run_id, position, validator_id, validator_version, policy, status,
+  started_at, completed_at, command_json, config_json, exit_code, diagnostics_json,
+  related_acceptance_criteria_json, retry_relevant, evidence_source
+)
+SELECT
+  id, validation_run_id, position, validator_id, validator_version, policy, status,
+  started_at, completed_at, command_json, config_json, exit_code, diagnostics_json,
+  related_acceptance_criteria_json, retry_relevant, evidence_source
+FROM validation_results_v16;
+
+DROP TABLE validation_results_v16;
+CREATE INDEX validation_results_run_position
+  ON validation_results (validation_run_id, position);
+`;
+
 export const schemaMigrations: readonly SchemaMigration[] = Object.freeze([
   Object.freeze({ version: 1, name: "authoritative_runtime_schema", sql: initialSchema }),
   Object.freeze({ version: 2, name: "ordered_event_journal", sql: orderedEventJournal }),
@@ -831,6 +892,11 @@ export const schemaMigrations: readonly SchemaMigration[] = Object.freeze([
     version: 16,
     name: "isolated_execution_workspaces",
     sql: isolatedExecutionWorkspaces,
+  }),
+  Object.freeze({
+    version: 17,
+    name: "chronological_validation_results",
+    sql: chronologicalValidationResults,
   }),
 ]);
 

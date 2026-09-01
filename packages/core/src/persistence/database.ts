@@ -460,19 +460,22 @@ export class DensaAdeDatabase {
     ) {
       throw new PersistenceError("Task commit completion requires a passing validation outcome");
     }
-    if (validation.planId !== undefined) {
-      const acceptanceReport = buildAcceptanceReport({
-        task: transition.entity,
-        run: validation,
-        results: this.repositories.validationResults.listByRunId(validation.id),
-        manualReviews: this.repositories.manualAcceptanceReviews.listByRunId(validation.id),
-        generatedAt: transition.event.occurredAt,
-      });
-      if (!acceptanceReport.canComplete) {
-        throw new PersistenceError(
-          "Task commit completion requires every acceptance criterion to be satisfied",
-        );
-      }
+    if (validation.planId === undefined || validation.planVersion === undefined) {
+      throw new PersistenceError(
+        "Task commit completion requires current plan-bound acceptance evidence",
+      );
+    }
+    const acceptanceReport = buildAcceptanceReport({
+      task: transition.entity,
+      run: validation,
+      results: this.repositories.validationResults.listByRunId(validation.id),
+      manualReviews: this.repositories.manualAcceptanceReviews.listByRunId(validation.id),
+      generatedAt: transition.event.occurredAt,
+    });
+    if (!acceptanceReport.canComplete) {
+      throw new PersistenceError(
+        "Task commit completion requires every acceptance criterion to be satisfied",
+      );
     }
     if (intent?.commitSha !== request.commitSha) {
       throw new PersistenceError("Task commit intent does not record the verified commit SHA");

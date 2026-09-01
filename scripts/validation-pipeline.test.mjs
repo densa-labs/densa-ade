@@ -219,6 +219,64 @@ test("a required failure or provider error fails the plan while later evidence s
   }
 });
 
+test("cancellation invalidates a late passing result and prevents later validators from starting", async () => {
+  const database = DensaAdeDatabase.openInMemory();
+  try {
+    const { project, task } = seedTask(database, "late-cancellation");
+    const controller = new globalThis.AbortController();
+    const calls = [];
+    const result = await new ValidationPipeline(database, { now: monotonicClock() }).execute({
+      runId: "validation-late-cancellation",
+      projectId: project.id,
+      taskId: task.id,
+      workspacePath: "/tmp/densa-validation-fixture",
+      signal: controller.signal,
+      plan: {
+        id: "cancel-proof",
+        version: "1",
+        validators: [
+          {
+            validator: {
+              id: "late-pass",
+              version: "1",
+              async validate() {
+                calls.push("late-pass");
+                controller.abort(new Error("fixture cancellation"));
+                return { status: "passed", diagnostics: [], retryRelevant: false };
+              },
+            },
+            evidenceSource: "deterministic_validator",
+            policy: "required",
+            relatedAcceptanceCriteria: [task.acceptanceCriteria[0]],
+          },
+          {
+            validator: fakeValidator(
+              "must-not-start",
+              { status: "passed", diagnostics: [], retryRelevant: false },
+              calls,
+            ),
+            evidenceSource: "targeted_check",
+            policy: "required",
+            relatedAcceptanceCriteria: [task.acceptanceCriteria[1]],
+          },
+        ],
+      },
+    });
+
+    assert.equal(result.passed, false);
+    assert.deepEqual(calls, ["late-pass"]);
+    assert.deepEqual(
+      result.results.map((entry) => [entry.status, entry.diagnostics[0]?.code]),
+      [
+        ["error", "VALIDATION_CANCELLED"],
+        ["error", "VALIDATION_CANCELLED"],
+      ],
+    );
+  } finally {
+    database.close();
+  }
+});
+
 test("diagnostics are bounded before persistence", async () => {
   const database = DensaAdeDatabase.openInMemory();
   try {

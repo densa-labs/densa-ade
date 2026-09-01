@@ -77,7 +77,7 @@ export const validationResultSchema = z
     retryRelevant: z.boolean(),
   })
   .superRefine((result, context) => {
-    if (result.completedAt < result.startedAt) {
+    if (Date.parse(result.completedAt) < Date.parse(result.startedAt)) {
       context.addIssue({
         code: "custom",
         message: "Validation result completion cannot precede its start",

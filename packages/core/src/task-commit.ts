@@ -384,25 +384,29 @@ export class TaskCommitService {
     ) {
       return stopped("NOT_VALIDATED", "The selected attempt has no completed passing validation");
     }
-    if (validation.planId !== undefined) {
-      let acceptanceComplete: boolean;
-      try {
-        acceptanceComplete = buildAcceptanceReport({
-          task,
-          run: validation,
-          results: repositories.validationResults.listByRunId(validation.id),
-          manualReviews: repositories.manualAcceptanceReviews.listByRunId(validation.id),
-          generatedAt: request.committedAt,
-        }).canComplete;
-      } catch {
-        return stopped("NOT_VALIDATED", "Acceptance evidence is internally inconsistent");
-      }
-      if (!acceptanceComplete) {
-        return stopped(
-          "NOT_VALIDATED",
-          "Required acceptance criteria remain failed, unevaluated, or awaiting manual approval",
-        );
-      }
+    if (validation.planId === undefined || validation.planVersion === undefined) {
+      return stopped(
+        "NOT_VALIDATED",
+        "The selected validation has no current plan or criterion evidence and requires revalidation",
+      );
+    }
+    let acceptanceComplete: boolean;
+    try {
+      acceptanceComplete = buildAcceptanceReport({
+        task,
+        run: validation,
+        results: repositories.validationResults.listByRunId(validation.id),
+        manualReviews: repositories.manualAcceptanceReviews.listByRunId(validation.id),
+        generatedAt: request.committedAt,
+      }).canComplete;
+    } catch {
+      return stopped("NOT_VALIDATED", "Acceptance evidence is internally inconsistent");
+    }
+    if (!acceptanceComplete) {
+      return stopped(
+        "NOT_VALIDATED",
+        "Required acceptance criteria remain failed, unevaluated, or awaiting manual approval",
+      );
     }
     const evidence = readValidationWorkspace(this.database, validation.id);
     if (

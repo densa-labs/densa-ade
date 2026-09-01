@@ -953,6 +953,9 @@ class SqliteValidationRunRepository implements ValidationRunRepository {
     isoTimestampSchema.parse(completedAt);
     const existing = this.findById(id);
     if (existing === undefined) throw new PersistenceError("Validation run is missing");
+    if (Date.parse(completedAt) < Date.parse(existing.startedAt)) {
+      throw new PersistenceError("Validation run completion cannot precede its start");
+    }
     if (existing.completedAt !== undefined || existing.passed !== undefined) {
       if (existing.completedAt !== completedAt || existing.passed !== passed) {
         throw new PersistenceError("Validation run already records a different outcome");

@@ -3,7 +3,7 @@ import { spawn } from "node:child_process";
 import { lstat, readFile, readlink } from "node:fs/promises";
 import { resolve, sep } from "node:path";
 
-import { isTerminalAgentEvent, type AgentAdapter } from "@densa-ade/agent-sdk";
+import { isTerminalAgentEvent, type AgentAdapter, type AgentEvent } from "@densa-ade/agent-sdk";
 import {
   independentReviewOutputJsonSchema,
   independentReviewOutputSchema,
@@ -292,6 +292,24 @@ function createIndependentReviewIdentity(): IndependentReviewIdentity {
   };
 }
 
+async function nextReviewerEvent(
+  iterator: AsyncIterator<AgentEvent>,
+  signal: AbortSignal | undefined,
+): Promise<IteratorResult<AgentEvent>> {
+  if (signal === undefined) return await iterator.next();
+  if (signal.aborted) throw signal.reason;
+  return await new Promise<IteratorResult<AgentEvent>>((resolveEvent, rejectEvent) => {
+    const onAbort = (): void => rejectEvent(signal.reason);
+    signal.addEventListener("abort", onAbort, { once: true });
+    void iterator
+      .next()
+      .then(resolveEvent, rejectEvent)
+      .finally(() => {
+        signal.removeEventListener("abort", onAbort);
+      });
+  });
+}
+
 /** Executes a Reviewer through AgentAdapter as a distinct, constrained, fresh logical run. */
 export class IndependentReviewService {
   readonly #now: () => string;
@@ -437,7 +455,7 @@ export class IndependentReviewService {
         request.signal?.addEventListener("abort", cancel, { once: true });
       }
       if (failure !== undefined) throw new Error(failure);
-      for await (const event of request.adapter.execute({
+      const stream = request.adapter.execute({
         runId: request.reviewerRunId,
         cwd: request.workspacePath,
         prompt: [
@@ -448,7 +466,12 @@ export class IndependentReviewService {
         ].join("\n\n"),
         outputSchema: independentReviewOutputJsonSchema,
         accessMode: "read-only",
-      })) {
+      });
+      const events = stream[Symbol.asyncIterator]();
+      while (true) {
+        const next = await nextReviewerEvent(events, request.signal);
+        if (next.done) break;
+        const event = next.value;
         if (!isTerminalAgentEvent(event)) continue;
         terminalCount += 1;
         if (event.runId !== request.reviewerRunId || terminalCount !== 1) {
@@ -483,7 +506,12 @@ export class IndependentReviewService {
       }
     } catch (error) {
       output = undefined;
-      failure = error instanceof Error ? error.message : String(error);
+      failure =
+        wasAborted || request.signal?.aborted === true
+          ? "Independent review was cancelled before its result could be accepted"
+          : error instanceof Error
+            ? error.message
+            : String(error);
     } finally {
       request.signal?.removeEventListener("abort", cancel);
     }

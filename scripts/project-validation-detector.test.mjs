@@ -217,7 +217,10 @@ test("user-configured argv replaces guesses and emits a versioned audit fact", a
         policy: "required",
       },
     ],
-    overrideAudit: { actor: "user:local", reason: "Project has one authoritative check command." },
+    overrideAudit: {
+      actor: "user:local api_key=actor-secret-fixture",
+      reason: "Project has one authoritative check command; password=reason-secret-fixture.",
+    },
   });
 
   assert.deepEqual(
@@ -229,8 +232,8 @@ test("user-configured argv replaces guesses and emits a versioned audit fact", a
     type: "VALIDATION_COMMANDS_OVERRIDDEN",
     eventVersion: 1,
     occurredAt: "2026-08-27T08:00:00.000Z",
-    actor: "user:local",
-    reason: "Project has one authoritative check command.",
+    actor: "user:local api_key=[REDACTED]",
+    reason: "Project has one authoritative check command; password=[REDACTED]",
     replacedCommandIds: ["node-script:build", "node-script:test"],
     configuredCommands: [
       {
@@ -244,10 +247,13 @@ test("user-configured argv replaces guesses and emits a versioned audit fact", a
     ],
   });
   assert.deepEqual(recorded, result.auditFacts);
+  assert.doesNotMatch(JSON.stringify(result.auditFacts), /actor-secret|reason-secret/u);
 });
 
 test("overrides require audit context and reject shell evaluation or workspace escape", async () => {
   const workspace = fixture("invalid-overrides");
+  const externalDirectory = fixture("external-cwd");
+  symlinkSync(externalDirectory, join(workspace, "linked-cwd"));
   const detector = new ProjectValidationDetector({ auditSink: { record: () => undefined } });
   await assert.rejects(
     () =>
@@ -266,6 +272,22 @@ test("overrides require audit context and reject shell evaluation or workspace e
         workspacePath: workspace,
         userConfiguredCommands: [
           { id: "escape", category: "custom", argv: ["node", "check.mjs"], cwd: "../outside" },
+        ],
+        overrideAudit: { actor: "user:local", reason: "fixture" },
+      }),
+    /cannot escape the workspace/u,
+  );
+  await assert.rejects(
+    () =>
+      detector.detect({
+        workspacePath: workspace,
+        userConfiguredCommands: [
+          {
+            id: "symlink-escape",
+            category: "custom",
+            argv: ["node", "check.mjs"],
+            cwd: "linked-cwd",
+          },
         ],
         overrideAudit: { actor: "user:local", reason: "fixture" },
       }),

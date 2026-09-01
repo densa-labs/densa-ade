@@ -23,6 +23,8 @@ import {
   taskStateSchema,
   taskSchema,
   usageStateSchema,
+  validationResultSchema,
+  validationRunSchema,
 } from "../packages/protocol/dist/index.js";
 
 const timestamp = "2026-08-25T10:15:30.000Z";
@@ -80,6 +82,66 @@ test("exports every canonical state and policy value", () => {
     "INTERNAL_INVARIANT_VIOLATION",
   ]);
   assert.equal(densaErrorCodeSchema, densaAdeErrorCodeSchema);
+});
+
+test("validation result chronology compares ISO timestamps by instant rather than text", () => {
+  assert.doesNotThrow(() =>
+    validationResultSchema.parse({
+      id: "validation-result-offset",
+      validationRunId: "validation-run-offset",
+      position: 0,
+      validatorId: "offset-validator",
+      validatorVersion: "1",
+      evidenceSource: "deterministic_validator",
+      policy: "required",
+      status: "passed",
+      startedAt: "2026-08-28T10:00:00+08:00",
+      completedAt: "2026-08-28T03:00:00Z",
+      diagnostics: [],
+      relatedAcceptanceCriteria: [],
+      retryRelevant: false,
+    }),
+  );
+  assert.throws(() =>
+    validationResultSchema.parse({
+      id: "validation-result-reversed",
+      validationRunId: "validation-run-offset",
+      position: 1,
+      validatorId: "offset-validator",
+      validatorVersion: "1",
+      evidenceSource: "deterministic_validator",
+      policy: "required",
+      status: "passed",
+      startedAt: "2026-08-28T03:00:00Z",
+      completedAt: "2026-08-28T10:00:00+08:00",
+      diagnostics: [],
+      relatedAcceptanceCriteria: [],
+      retryRelevant: false,
+    }),
+  );
+});
+
+test("validation run chronology compares ISO timestamps by instant rather than text", () => {
+  assert.doesNotThrow(() =>
+    validationRunSchema.parse({
+      id: "validation-offset-run",
+      taskId: "task-offset-run",
+      validatorId: "fixture",
+      startedAt: "2026-08-28T10:00:00+08:00",
+      completedAt: "2026-08-28T02:30:00Z",
+      passed: true,
+    }),
+  );
+  assert.throws(() =>
+    validationRunSchema.parse({
+      id: "validation-reversed-run",
+      taskId: "task-offset-run",
+      validatorId: "fixture",
+      startedAt: "2026-08-28T10:00:00+08:00",
+      completedAt: "2026-08-28T01:30:00Z",
+      passed: false,
+    }),
+  );
 });
 
 test("every valid envelope kind survives a JSON round-trip without value changes", () => {

@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
-import { createServer } from "node:net";
+import { spawn } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { test } from "node:test";
 
 import {
@@ -87,6 +89,15 @@ function processIsAlive(pid) {
 function assertServerStopped(pidPath) {
   const pid = Number(readFileSync(pidPath, "utf8"));
   assert.equal(processIsAlive(pid), false, `dev server ${String(pid)} is still running`);
+}
+
+async function waitFor(predicate, timeoutMs = 5_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (predicate()) return;
+    await new Promise((resolve) => globalThis.setTimeout(resolve, 25));
+  }
+  throw new Error("Timed out waiting for browser lifecycle fixture");
 }
 
 function seedTask(database, suffix) {
@@ -189,6 +200,42 @@ test("browser target detection is explicit, safe, and disabled for irrelevant ta
       }),
     /no shell evaluation/u,
   );
+  const externalCwd = fixture("external-cwd");
+  symlinkSync(externalCwd, join(relevant, "linked-cwd"));
+  await assert.rejects(
+    () =>
+      detector.detect({
+        workspacePath: relevant,
+        browserRelevant: true,
+        appUrl: "http://127.0.0.1:4310",
+        configuredStartCommand: { argv: [process.execPath, "server.mjs"], cwd: "linked-cwd" },
+      }),
+    /cannot escape workspace/u,
+  );
+});
+
+test("browser artifacts cannot be written into the portable project tree", async () => {
+  const workspace = fixture("portable-artifacts");
+  const validator = new BrowserValidationValidator(
+    {
+      url: "http://127.0.0.1:4310/",
+      source: "user-configured",
+      startCommand: { argv: [process.execPath, "server.mjs"], cwd: "." },
+    },
+    [{ kind: "page_load", path: "/" }],
+    { artifactRoot: join(workspace, ".densa-ade", "browser-artifacts") },
+  );
+
+  await assert.rejects(
+    () =>
+      validator.validate({
+        projectId: "project-portable-artifacts",
+        taskId: "task-portable-artifacts",
+        workspacePath: workspace,
+        relatedAcceptanceCriteria: [],
+      }),
+    /portable project tree/u,
+  );
 });
 
 test("a real Playwright fixture starts, validates, stops, and satisfies acceptance evidence", async () => {
@@ -247,6 +294,9 @@ test("a real Playwright fixture starts, validates, stops, and satisfies acceptan
     assert.equal(outcome.acceptanceReport.criteria[0].evidence[0].source, "browser_test");
     assert.equal(outcome.results[0].validatorId, "browser/playwright");
     assert.equal(outcome.results[0].config.checkCount, 3);
+    assert.equal(outcome.results[0].command, undefined);
+    assert.equal(outcome.results[0].config.startCommand.argumentCount, 5);
+    assert.match(outcome.results[0].config.startCommand.argvSha256, /^[a-f0-9]{64}$/u);
     assertServerStopped(pidPath);
   } finally {
     database.close();
@@ -297,8 +347,8 @@ test("a failing browser check records bounded logs, screenshot, and trace artifa
   assertServerStopped(pidPath);
 });
 
-test("runner crashes and cancellation still clean up the owned dev-server process group", async () => {
-  for (const scenario of ["crash", "cancel"]) {
+test("runner failures, invalid artifacts, and cancellation clean up the dev-server group", async () => {
+  for (const scenario of ["crash", "invalid-artifact", "cancel"]) {
     const workspace = fixture(scenario);
     const port = await reservePort();
     const { launcherPath, pidPath, scriptPath } = createWebFixture(workspace, port);
@@ -306,16 +356,29 @@ test("runner crashes and cancellation still clean up the owned dev-server proces
     const runner =
       scenario === "crash"
         ? { run: async () => Promise.reject(new Error("fixture runner crashed")) }
-        : {
-            run: async ({ signal }) =>
-              new Promise((_resolve, reject) => {
-                signal.addEventListener("abort", () => reject(signal.reason), { once: true });
-                globalThis.setTimeout(
-                  () => controller.abort(new Error("fixture cancellation")),
-                  50,
-                );
-              }),
-          };
+        : scenario === "invalid-artifact"
+          ? {
+              async run({ artifactDirectory }) {
+                const artifactPath = join(artifactDirectory, "unsupported.bin");
+                writeFileSync(artifactPath, "fixture");
+                return {
+                  status: "failed",
+                  logs: [],
+                  logsTruncated: false,
+                  artifacts: [{ kind: "video", path: artifactPath }],
+                };
+              },
+            }
+          : {
+              run: async ({ signal }) =>
+                new Promise((_resolve, reject) => {
+                  signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+                  globalThis.setTimeout(
+                    () => controller.abort(new Error("fixture cancellation")),
+                    50,
+                  );
+                }),
+            };
     const validator = new BrowserValidationValidator(
       {
         url: `http://127.0.0.1:${String(port)}/`,
@@ -345,3 +408,56 @@ test("runner crashes and cancellation still clean up the owned dev-server proces
     assertServerStopped(pidPath);
   }
 });
+
+test(
+  "a Core process crash cannot orphan its owned browser dev server",
+  { timeout: 10_000 },
+  async () => {
+    const workspace = fixture("core-crash");
+    const port = await reservePort();
+    const { launcherPath, pidPath, scriptPath } = createWebFixture(workspace, port);
+    const validationStartedPath = join(workspace, "validation-started");
+    const helperPath = join(workspace, "crashing-core.mjs");
+    const coreUrl = pathToFileURL(join(process.cwd(), "packages/core/dist/index.js")).href;
+    writeFileSync(
+      helperPath,
+      `import { writeFileSync } from "node:fs";
+import { BrowserValidationValidator } from ${JSON.stringify(coreUrl)};
+const [workspace, launcher, server, port, pidPath, startedPath] = process.argv.slice(2);
+const validator = new BrowserValidationValidator({
+  url: \`http://127.0.0.1:\${port}/\`,
+  source: "user-configured",
+  startCommand: { argv: [process.execPath, launcher, server, port, pidPath], cwd: "." },
+}, [{ kind: "page_load", path: "/" }], {
+  runner: { async run() { writeFileSync(startedPath, "started"); await new Promise(() => undefined); } },
+  artifactRoot: workspace + "/artifacts",
+  artifactId: () => "core-crash",
+});
+await validator.validate({
+  projectId: "project-core-crash",
+  taskId: "task-core-crash",
+  workspacePath: workspace,
+  relatedAcceptanceCriteria: [],
+});
+`,
+    );
+    const core = spawn(
+      process.execPath,
+      [
+        helperPath,
+        workspace,
+        launcherPath,
+        scriptPath,
+        String(port),
+        pidPath,
+        validationStartedPath,
+      ],
+      { cwd: process.cwd(), stdio: "ignore" },
+    );
+    await waitFor(() => existsSync(validationStartedPath));
+    core.kill("SIGKILL");
+    await new Promise((resolve) => core.once("exit", resolve));
+    await waitFor(() => !processIsAlive(Number(readFileSync(pidPath, "utf8"))));
+    assertServerStopped(pidPath);
+  },
+);

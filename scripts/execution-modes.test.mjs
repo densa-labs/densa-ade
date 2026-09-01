@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -20,6 +21,29 @@ let sequence = 0;
 function now() {
   sequence += 1;
   return new Date(baseTime + sequence * 1_000).toISOString();
+}
+
+function initializeWorkspace(workspace) {
+  mkdirSync(workspace, { recursive: true });
+  execFileSync("git", ["init", "--quiet", "--initial-branch=main"], { cwd: workspace });
+  writeFileSync(join(workspace, ".gitignore"), ".densa/\n.densa-ade/\n", "utf8");
+  execFileSync("git", ["add", ".gitignore"], { cwd: workspace });
+  execFileSync(
+    "git",
+    [
+      "-c",
+      "user.name=Densa ADE Fixture",
+      "-c",
+      "user.email=densa-fixture@localhost",
+      "-c",
+      "commit.gpgsign=false",
+      "commit",
+      "--quiet",
+      "-m",
+      "fixture",
+    ],
+    { cwd: workspace },
+  );
 }
 
 function roadmapTask(id, dependencyIds = []) {
@@ -232,6 +256,7 @@ async function withFixture(executionMode, work) {
   const workspace = mkdtempSync(join(tmpdir(), "densa-p5m4-"));
   const database = DensaAdeDatabase.openInMemory();
   try {
+    initializeWorkspace(workspace);
     seed(database, executionMode);
     return await work({ database, workspace });
   } finally {
@@ -505,6 +530,7 @@ test("mode changes persist across restart, emit audit facts, and take effect at 
   const databasePath = join(directory, "runtime.sqlite");
   let database = DensaAdeDatabase.open(databasePath);
   try {
+    initializeWorkspace(workspace);
     seed(database, "continuous");
     const order = [];
     let changed = false;

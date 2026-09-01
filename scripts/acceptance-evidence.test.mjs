@@ -171,7 +171,7 @@ test("unsupported criteria require an audited manual approval and replay after r
       validationRunId: pipeline.run.id,
       criterion: task.acceptanceCriteria[1],
       decision: "approved",
-      actor: "user:local",
+      actor: "user:local api_key=actor-secret-fixture",
       reason: "Reviewed the final product copy; api_key=super-secret-fixture.",
     });
     assert.equal(approved.canComplete, true);
@@ -179,10 +179,13 @@ test("unsupported criteria require an audited manual approval and replay after r
     assert.equal(approved.criteria[1].evidence[0].source, "manual_review");
     assert.match(approved.criteria[1].evidence[0].summary, /api_key=\[REDACTED\]/u);
     assert.doesNotMatch(approved.criteria[1].evidence[0].summary, /super-secret-fixture/u);
-    assert.equal(
-      database.repositories.events.replay({ projectId: project.id }).at(-1).type,
-      "MANUAL_ACCEPTANCE_REVIEW_RECORDED",
-    );
+    const storedReview = database.repositories.manualAcceptanceReviews.findById("manual-review-1");
+    assert.match(storedReview.actor, /api_key=\[REDACTED\]/u);
+    assert.doesNotMatch(storedReview.actor, /actor-secret-fixture/u);
+    const reviewEvent = database.repositories.events.replay({ projectId: project.id }).at(-1);
+    assert.match(reviewEvent.actor, /api_key=\[REDACTED\]/u);
+    assert.doesNotMatch(JSON.stringify(reviewEvent), /actor-secret-fixture/u);
+    assert.equal(reviewEvent.type, "MANUAL_ACCEPTANCE_REVIEW_RECORDED");
     database.close();
 
     const reopened = DensaAdeDatabase.open(path);

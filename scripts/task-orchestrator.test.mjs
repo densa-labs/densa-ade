@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import {
+  AcceptanceEvidenceService,
   FreshContextTaskLifecycleValidator,
   IndependentReviewService,
   SingleTaskOrchestrator,
@@ -462,6 +463,17 @@ test("passes first try only after independent validation and commits the exact t
   assert.equal(attempt.commitSha, result.commitSha);
   assert.equal(git(fixture.repository, ["rev-parse", "HEAD"]).trim(), result.commitSha);
   assert.equal(readFileSync(join(executionWorkspace(fixture), "task.txt"), "utf8"), "accepted\n");
+  const [validationRun] = fixture.database.repositories.validationRuns.listByTaskId(
+    fixture.task.id,
+  );
+  assert.equal(validationRun.planId, "task-lifecycle:fixture-validator");
+  assert.equal(validationRun.planVersion, "1");
+  assert.equal(
+    new AcceptanceEvidenceService(fixture.database, { now: () => createdAt }).evaluateTask(
+      validationRun.id,
+    ).canComplete,
+    true,
+  );
   assert.equal(
     fixture.database.repositories.events
       .replay({ projectId: fixture.project.id })
@@ -543,6 +555,15 @@ test("high-risk task completion accepts the enforced fresh review path", async (
   assert.equal(
     fixture.database.repositories.independentReviews.listByTaskId(fixture.task.id).length,
     1,
+  );
+  const [validationRun] = fixture.database.repositories.validationRuns.listByTaskId(
+    fixture.task.id,
+  );
+  assert.deepEqual(
+    fixture.database.repositories.validationResults
+      .listByRunId(validationRun.id)
+      .map((entry) => entry.evidenceSource),
+    ["deterministic_validator", "independent_review"],
   );
   fixture.database.close();
 });

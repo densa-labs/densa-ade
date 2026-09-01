@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -393,6 +394,25 @@ async function withFixture(executionMode, work) {
   const workspace = mkdtempSync(join(tmpdir(), "densa-p5m3-"));
   const database = DensaAdeDatabase.openInMemory();
   try {
+    execFileSync("git", ["init", "--quiet", "--initial-branch=main"], { cwd: workspace });
+    writeFileSync(join(workspace, ".gitignore"), ".densa/\n.densa-ade/\n", "utf8");
+    execFileSync("git", ["add", "--all"], { cwd: workspace });
+    execFileSync(
+      "git",
+      [
+        "-c",
+        "user.name=Densa ADE Fixture",
+        "-c",
+        "user.email=densa-fixture@localhost",
+        "-c",
+        "commit.gpgsign=false",
+        "commit",
+        "--quiet",
+        "-m",
+        "fixture: phase workspace",
+      ],
+      { cwd: workspace },
+    );
     seed(database, executionMode);
     return await work({ database, workspace });
   } finally {
@@ -554,6 +574,43 @@ test("failed phase validation blocks completion and never unlocks the next phase
 
     assert.equal(result.status, "BLOCKED");
     assert.equal(result.report.phaseValidation.status, "failed");
+    assert.equal(database.repositories.phases.findById("phase.release").state, "PENDING");
+  });
+});
+
+test("phase validation cannot certify a workspace it mutates", async () => {
+  await withFixture("continuous", async ({ database, workspace }) => {
+    const result = await new PhaseLifecycleOrchestrator(database, { now }).execute({
+      projectId: "project-phase",
+      phaseId: "phase.build",
+      workspacePath: workspace,
+      gates: emptyGates(),
+      taskExecutor: completingExecutor(database, []),
+      validator: {
+        validatorId: "mutating-phase-validator",
+        providesIndependentReview: true,
+        async validate({ projectId, phase, validationEventId, workspacePath }) {
+          const independentReviewId = await recordPhaseReview(
+            database,
+            projectId,
+            phase.id,
+            validationEventId,
+            workspacePath,
+          );
+          writeFileSync(join(workspacePath, "validation-mutated.txt"), "not validated\n", "utf8");
+          return {
+            passed: true,
+            independentReviewId,
+            summary: "The mutating validator claimed success.",
+            checks: [{ validatorId: "suite", passed: true, summary: "Suite passed." }],
+          };
+        },
+      },
+      actor: "phase:test",
+    });
+
+    assert.equal(result.status, "BLOCKED");
+    assert.match(result.report.phaseValidation.summary, /workspace changed|mutated/iu);
     assert.equal(database.repositories.phases.findById("phase.release").state, "PENDING");
   });
 });

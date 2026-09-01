@@ -20,7 +20,9 @@ bounds diagnostics before persistence.
 Only an explicit `passed` result satisfies a required plan entry. `failed`, `error`, and `skipped`
 required results fail the aggregate run. Advisory entries are still persisted and replayed but never
 change the aggregate verdict. All validators continue in deterministic order after a failure so the
-retry path receives the complete available evidence.
+retry path receives the complete available evidence. Cancellation is different: an abort invalidates
+an in-flight result even if a nonconforming plugin later returns `passed`, and Core records later
+plugins as cancelled errors without invoking them.
 
 ## Safe command detection
 
@@ -41,7 +43,9 @@ User-configured structured argv replaces all guesses. Overrides require an actor
 durable audit sink. Detection fails closed unless that sink records the versioned audit fact before
 the configured plan is returned. Shell-evaluation forms and working directories outside the
 workspace are rejected. Audit facts retain command identity, category, policy, argument count, and
-an argv digest rather than potentially secret argument values.
+an argv digest rather than potentially secret argument values. Configured working directories must
+also exist and their canonical real paths must remain inside the workspace, so a symlink cannot
+escape the boundary. Actor and reason text are redacted before the audit fact is persisted.
 
 ## Browser validation
 
@@ -58,8 +62,10 @@ URLs fail closed to manual configuration.
 waits for HTTP readiness, invokes a provider-neutral `PlaywrightRunner`, and terminates the complete
 process group after pass, failure, runner crash, timeout, or cancellation. Playwright Chromium is a
 pinned Core dependency so browser evidence does not depend on an application installing its own
-test runner. The dev server receives a minimal process environment rather than inheriting unrelated
-credentials from Core.
+test runner. A small process-group owner watches its Core-parent pipe and terminates the group when
+Core itself crashes, preventing detached launchers or grandchildren from becoming orphan servers.
+The dev server receives a minimal process environment rather than inheriting unrelated credentials
+from Core.
 
 The built-in runner supports page-load, visible-text, and visible-selector checks. It bounds and
 redacts server/browser logs, and strips URL query/fragment data from request-failure diagnostics. A
@@ -69,6 +75,9 @@ persists its absolute local path. A required plan entry maps that result to task
 evidence source `browser_test`, so a passing browser check can satisfy acceptance while failed,
 cancelled, or missing evidence continues to block completion. Playwright 1.62.1 is pinned under its
 Apache-2.0 license; `npm run playwright:install` provisions Chromium as a local build/runtime step.
+Configured start argv is never copied into durable validation evidence; Core stores only its
+argument count and SHA-256 digest. Artifact roots are canonicalized and rejected if they resolve
+inside `.densa-ade/` or the transitional `.densa/` portable tree.
 
 ## Fresh-context independent review
 
@@ -84,7 +93,9 @@ reviewer runs request read-only workspace access, and Core compares bounded Git 
 fingerprints before and after the run. The fingerprint includes HEAD, index state, tracked/untracked
 content, and ignored-file metadata so staging, commits, and ignored workspace writes invalidate the
 result. Lifecycle cancellation is propagated to the reviewer adapter, and an aborted result remains
-failed even if a nonconforming adapter later emits success.
+failed even if a nonconforming adapter later emits success. Core also races the provider stream
+against cancellation, so an adapter that ignores `cancel()` and never settles cannot strand the
+authoritative lifecycle.
 
 Reviewer output is validated as `pass`, `advisory`, or `fail`, with bounded severity findings,
 position-based criterion mapping, confidence, and unknowns. Positions remain unambiguous when
@@ -111,4 +122,5 @@ so callers cannot bypass the default policy or consume retries on a configuratio
 invocation and requires its request timestamp to follow the durable `PHASE_VALIDATION_STARTED`
 boundary. Timestamp comparisons use parsed instants rather than ISO text ordering. Completed
 findings, severities, criterion mappings, and unknowns are included in authoritative and portable
-phase reports.
+phase reports. Final phase validation fingerprints the workspace around the complete validator and
+review composition; a validator that mutates the state it certifies fails closed.

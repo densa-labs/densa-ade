@@ -209,7 +209,7 @@ export class AcceptanceEvidenceService {
 
   recordManualReview(request: RecordManualAcceptanceReviewRequest): AcceptanceReport {
     const occurredAt = isoTimestampSchema.parse(request.occurredAt ?? this.#now());
-    const actor = request.actor.trim();
+    const actor = redactPortableText(request.actor.trim());
     const reason = redactPortableText(request.reason.trim());
     const run = this.database.repositories.validationRuns.findById(request.validationRunId);
     const task = this.database.repositories.tasks.findById(request.taskId);

@@ -13,11 +13,13 @@ import {
   isoTimestampSchema,
   jsonObjectSchema,
   usageStateSchema,
+  validationResultIdSchema,
   type AgentRunId,
   type Attempt,
   type AttemptId,
   type CheckpointId,
   type EventId,
+  type IndependentReview,
   type IndependentReviewId,
   type JsonObject,
   type ProjectId,
@@ -748,6 +750,8 @@ export class SingleTaskOrchestrator {
         taskId: task.id,
         attemptId: attempt.id,
         validatorId: request.validator.validatorId,
+        planId: `task-lifecycle:${request.validator.validatorId}`,
+        planVersion: "1",
         manualReviewCriteria: [],
         startedAt: validatingAt,
       });
@@ -794,34 +798,60 @@ export class SingleTaskOrchestrator {
       });
     }
     const riskLevel = taskRiskLevel(this.database, request.projectId, request.taskId);
-    if (validation.passed && (riskLevel === "high" || riskLevel === "critical")) {
-      const review =
-        validation.independentReviewId === undefined
-          ? undefined
-          : this.database.repositories.independentReviews.findById(validation.independentReviewId);
+    let currentReview: IndependentReview | undefined;
+    if (validation.independentReviewId !== undefined) {
+      const review = this.database.repositories.independentReviews.findById(
+        validation.independentReviewId,
+      );
       const reviewCompletedEvent =
         review === undefined
           ? undefined
           : this.database.eventJournal.findById(independentReviewCompletedEventId(review.id));
-      if (
-        review?.taskId !== task.id ||
-        review.validationRunId !== validationId ||
-        review.completedAt === undefined ||
-        review.output === undefined ||
-        reviewCompletedEvent?.type !== "INDEPENDENT_REVIEW_COMPLETED" ||
-        reviewCompletedEvent.taskId !== task.id ||
-        reviewCompletedEvent.payload["contextHash"] !== review.contextHash ||
-        Date.parse(review.requestedAt) < Date.parse(validatingAt) ||
-        !independentReviewSupportsCompletion(review.output)
-      ) {
+      const isCurrent =
+        review !== undefined &&
+        review.taskId === task.id &&
+        review.validationRunId === validationId &&
+        review.completedAt !== undefined &&
+        review.output !== undefined &&
+        reviewCompletedEvent?.type === "INDEPENDENT_REVIEW_COMPLETED" &&
+        reviewCompletedEvent.taskId === task.id &&
+        reviewCompletedEvent.payload["contextHash"] === review.contextHash &&
+        Date.parse(review.requestedAt) >= Date.parse(validatingAt);
+      if (isCurrent) currentReview = review;
+      else {
         validation = Object.freeze({
           passed: false,
           diagnostics: Object.freeze({
-            kind: "required_independent_review_missing_or_blocking",
-            riskLevel,
+            kind: "independent_review_invalid_or_stale",
           }),
         });
       }
+    }
+    if (
+      validation.passed &&
+      (riskLevel === "high" || riskLevel === "critical") &&
+      currentReview === undefined
+    ) {
+      validation = Object.freeze({
+        passed: false,
+        diagnostics: Object.freeze({
+          kind: "required_independent_review_missing_or_blocking",
+          riskLevel,
+        }),
+      });
+    }
+    if (
+      validation.passed &&
+      currentReview?.output !== undefined &&
+      !independentReviewSupportsCompletion(currentReview.output)
+    ) {
+      validation = Object.freeze({
+        passed: false,
+        diagnostics: Object.freeze({
+          kind: "independent_review_blocking",
+          reviewId: currentReview.id,
+        }),
+      });
     }
     const validationCompletedAt = this.#now();
     if (signalAborted(request.signal)) {
@@ -834,6 +864,60 @@ export class SingleTaskOrchestrator {
       };
     }
     this.database.transaction((repositories) => {
+      repositories.validationResults.create({
+        id: validationResultIdSchema.parse(`${validationId}:result:0`),
+        validationRunId: validationId,
+        position: 0,
+        validatorId: request.validator.validatorId,
+        validatorVersion: "1",
+        evidenceSource: "deterministic_validator",
+        policy: "required",
+        status: validation.passed ? "passed" : "failed",
+        startedAt: validatingAt,
+        completedAt: validationCompletedAt,
+        diagnostics: [
+          {
+            severity: validation.passed ? "info" : "error",
+            code: validation.passed
+              ? "TASK_LIFECYCLE_VALIDATION_PASSED"
+              : "TASK_LIFECYCLE_VALIDATION_FAILED",
+            message: validation.passed
+              ? "The configured task lifecycle validator returned passing structured evidence."
+              : redactSensitiveText(boundedDiagnostics(validation.diagnostics)).slice(0, 4_096),
+          },
+        ],
+        relatedAcceptanceCriteria: [...task.acceptanceCriteria],
+        retryRelevant: !validation.passed,
+      });
+      if (currentReview?.output !== undefined) {
+        const reviewPassed = independentReviewSupportsCompletion(currentReview.output);
+        repositories.validationResults.create({
+          id: validationResultIdSchema.parse(`${validationId}:result:1`),
+          validationRunId: validationId,
+          position: 1,
+          validatorId: "independent-ai-review",
+          validatorVersion: "1",
+          evidenceSource: "independent_review",
+          policy: "required",
+          status: reviewPassed ? "passed" : "failed",
+          startedAt: currentReview.requestedAt,
+          completedAt: currentReview.completedAt!,
+          config: {
+            reviewId: currentReview.id,
+            verdict: currentReview.output.verdict,
+            confidence: currentReview.output.confidence,
+          },
+          diagnostics: [
+            {
+              severity: reviewPassed ? "info" : "error",
+              code: reviewPassed ? "INDEPENDENT_REVIEW_PASSED" : "INDEPENDENT_REVIEW_BLOCKING",
+              message: redactSensitiveText(currentReview.output.summary).slice(0, 4_096),
+            },
+          ],
+          relatedAcceptanceCriteria: [...task.acceptanceCriteria],
+          retryRelevant: !reviewPassed,
+        });
+      }
       repositories.validationRuns.recordCompleted(
         validationId,
         validationCompletedAt,

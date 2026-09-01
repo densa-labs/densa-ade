@@ -123,6 +123,11 @@ document backup, forward, and rollback assumptions alongside their migration tes
 Migration 12 compares review request/completion timestamps with SQLite `julianday()` so valid
 ISO-8601 numeric offsets are ordered by instant rather than lexically.
 
+Migration 17 rebuilds `validation_results` with the same instant-based chronology rule and adds
+defensive insert/update triggers for `validation_runs`. The protocol schemas and SQLite constraints
+now agree that `completedAt` must not precede `startedAt`, including when valid timestamps use
+different numeric offsets. Existing result rows and indexes are preserved transactionally.
+
 ## Data and secret boundary
 
 All timestamps are validated ISO-8601 strings and SQLite receives only parameterized values.

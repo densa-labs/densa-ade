@@ -496,6 +496,47 @@ test("an adapter that ignores cancellation cannot return an accepted review", as
   }
 });
 
+test("cancellation cannot strand Core when a reviewer stream never settles", async () => {
+  const database = DensaAdeDatabase.openInMemory();
+  try {
+    const fixture = seed(database, "stranded-cancellation");
+    const controller = new globalThis.AbortController();
+    const adapter = {
+      adapterId: "stranded-reviewer",
+      detect: async () => ({
+        status: "available",
+        adapterId: "stranded-reviewer",
+        command: "fake",
+        version: "1",
+      }),
+      getStatus: async () => ({ status: "available", version: "1" }),
+      execute() {
+        return {
+          [Symbol.asyncIterator]() {
+            return {
+              next() {
+                controller.abort("fixture cancellation");
+                return new Promise(() => undefined);
+              },
+            };
+          },
+        };
+      },
+      cancel: async () => undefined,
+      getUsageState: async () => ({ status: "available" }),
+    };
+    const review = await reviewService(database).execute({
+      ...request(fixture, adapter, "stranded-cancellation"),
+      signal: controller.signal,
+    });
+
+    assert.equal(review.output.verdict, "fail");
+    assert.match(review.output.findings[0].detail, /cancel/u);
+  } finally {
+    database.close();
+  }
+});
+
 test("review requests reject missing diff, deterministic evidence, or architecture constraints", async () => {
   const database = DensaAdeDatabase.openInMemory();
   try {

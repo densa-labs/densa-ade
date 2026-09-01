@@ -4,6 +4,8 @@ import { isAbsolute, relative, resolve, sep } from "node:path";
 
 import { isoTimestampSchema, type ValidationPolicy } from "@densa-ade/protocol";
 
+import { redactPortableText } from "./persistence/portable-project.js";
+
 const MAX_PROJECT_METADATA_BYTES = 1_024 * 1_024;
 const MAX_COMMAND_ARGUMENTS = 128;
 const MAX_COMMAND_PART_BYTES = 4_096;
@@ -360,13 +362,27 @@ function validCommandPart(value: string): boolean {
   return value.length > 0 && !value.includes("\0") && byteLength(value) <= MAX_COMMAND_PART_BYTES;
 }
 
-function normalizedWorkingDirectory(workspaceRoot: string, value: string | undefined): string {
+async function normalizedWorkingDirectory(
+  workspaceRoot: string,
+  value: string | undefined,
+): Promise<string> {
   const cwd = value ?? ".";
   if (!validCommandPart(cwd) || isAbsolute(cwd)) {
     throw new Error("User-configured validation cwd must be a bounded workspace-relative path");
   }
   const absolute = resolve(workspaceRoot, cwd);
   if (!isInside(workspaceRoot, absolute)) {
+    throw new Error("User-configured validation cwd cannot escape the workspace");
+  }
+  let realDirectory: string;
+  try {
+    realDirectory = await realpath(absolute);
+    const metadata = await lstat(realDirectory);
+    if (!metadata.isDirectory()) throw new Error("not a directory");
+  } catch {
+    throw new Error("User-configured validation cwd must be an existing workspace directory");
+  }
+  if (!isInside(workspaceRoot, realDirectory)) {
     throw new Error("User-configured validation cwd cannot escape the workspace");
   }
   const normalized = relative(workspaceRoot, absolute);
@@ -384,10 +400,10 @@ function rejectsShellEvaluation(argv: readonly string[]): boolean {
   );
 }
 
-function normalizeConfiguredCommands(
+async function normalizeConfiguredCommands(
   workspaceRoot: string,
   configured: readonly UserConfiguredValidationCommand[],
-): readonly StructuredValidationCommand[] {
+): Promise<readonly StructuredValidationCommand[]> {
   const seen = new Set<string>();
   const categories = new Set<ValidationCommandCategory>([
     "build",
@@ -397,33 +413,35 @@ function normalizeConfiguredCommands(
     "custom",
   ]);
   return Object.freeze(
-    configured.map((command) => {
-      if (
-        !validCommandPart(command.id) ||
-        seen.has(command.id) ||
-        !categories.has(command.category) ||
-        command.argv.length === 0 ||
-        command.argv.length > MAX_COMMAND_ARGUMENTS ||
-        command.argv.some((part) => !validCommandPart(part)) ||
-        rejectsShellEvaluation(command.argv) ||
-        (command.policy !== undefined &&
-          command.policy !== "required" &&
-          command.policy !== "advisory")
-      ) {
-        throw new Error(
-          "User-configured validation commands require supported categories, unique IDs, bounded argv, and no shell evaluation",
-        );
-      }
-      seen.add(command.id);
-      return Object.freeze({
-        id: command.id,
-        category: command.category,
-        argv: Object.freeze([...command.argv]),
-        cwd: normalizedWorkingDirectory(workspaceRoot, command.cwd),
-        policy: command.policy ?? "required",
-        source: "user-configured" as const,
-      });
-    }),
+    await Promise.all(
+      configured.map(async (command) => {
+        if (
+          !validCommandPart(command.id) ||
+          seen.has(command.id) ||
+          !categories.has(command.category) ||
+          command.argv.length === 0 ||
+          command.argv.length > MAX_COMMAND_ARGUMENTS ||
+          command.argv.some((part) => !validCommandPart(part)) ||
+          rejectsShellEvaluation(command.argv) ||
+          (command.policy !== undefined &&
+            command.policy !== "required" &&
+            command.policy !== "advisory")
+        ) {
+          throw new Error(
+            "User-configured validation commands require supported categories, unique IDs, bounded argv, and no shell evaluation",
+          );
+        }
+        seen.add(command.id);
+        return Object.freeze({
+          id: command.id,
+          category: command.category,
+          argv: Object.freeze([...command.argv]),
+          cwd: await normalizedWorkingDirectory(workspaceRoot, command.cwd),
+          policy: command.policy ?? "required",
+          source: "user-configured" as const,
+        });
+      }),
+    ),
   );
 }
 
@@ -543,13 +561,18 @@ export class ProjectValidationDetector {
       if (this.#auditSink === undefined) {
         throw new Error("User-configured validation overrides require a durable audit sink");
       }
-      const configured = normalizeConfiguredCommands(workspaceRoot, request.userConfiguredCommands);
+      const configured = await normalizeConfiguredCommands(
+        workspaceRoot,
+        request.userConfiguredCommands,
+      );
+      const actor = redactPortableText(request.overrideAudit.actor.trim());
+      const reason = redactPortableText(request.overrideAudit.reason.trim());
       const auditFact: ValidationCommandOverrideAuditFact = Object.freeze({
         type: "VALIDATION_COMMANDS_OVERRIDDEN",
         eventVersion: 1,
         occurredAt: this.#now(),
-        actor: request.overrideAudit.actor.trim(),
-        reason: request.overrideAudit.reason.trim(),
+        actor,
+        reason,
         replacedCommandIds: Object.freeze(commands.map((command) => command.id)),
         configuredCommands: Object.freeze(configured.map(auditCommand)),
       });

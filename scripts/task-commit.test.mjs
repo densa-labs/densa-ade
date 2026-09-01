@@ -111,7 +111,7 @@ function seedGraph(database) {
 async function preparePassingAttempt(
   database,
   repository,
-  { passed = true, planBased = false } = {},
+  { passed = true, planBased = true, withEvidence = planBased } = {},
 ) {
   const graph = seedGraph(database);
   const checkpoint = await new RunCheckpointService(database).prepareTask({
@@ -154,6 +154,23 @@ async function preparePassingAttempt(
     passed,
   };
   database.repositories.validationRuns.create(validation);
+  if (withEvidence) {
+    database.repositories.validationResults.create({
+      id: `${validation.id}:result:0`,
+      validationRunId: validation.id,
+      position: 0,
+      validatorId: validation.validatorId,
+      validatorVersion: "1",
+      evidenceSource: "deterministic_validator",
+      policy: "required",
+      status: passed ? "passed" : "failed",
+      startedAt: validation.startedAt,
+      completedAt: validation.completedAt,
+      diagnostics: [],
+      relatedAcceptanceCriteria: [...task.acceptanceCriteria],
+      retryRelevant: !passed,
+    });
+  }
   return {
     ...graph,
     task,
@@ -213,6 +230,26 @@ test("automatic commits never sweep an explicitly named .env into Git history", 
   assert.equal(git(repository, ["rev-parse", "HEAD"]).trim(), graph.checkpoint.checkpoint.gitHead);
   assert.equal(git(repository, ["diff", "--cached", "--name-only"]).trim(), "");
   database.close();
+});
+
+test("a newly selected legacy validation without criterion evidence cannot authorize a commit", async () => {
+  const root = createRoot();
+  let repository = createRepository(root);
+  const database = DensaAdeDatabase.open(join(root, "runtime.sqlite"));
+  try {
+    const graph = await preparePassingAttempt(database, repository, { planBased: false });
+    repository = graph.executionPath;
+    configureCommitIdentity(repository);
+    writeFileSync(join(repository, "task.txt"), "legacy validator claimed pass\n");
+    const result = await new TaskCommitService(database).commitPassingTask(
+      await requestFor(graph, repository),
+    );
+    assert.equal(result.status, "STOPPED");
+    assert.equal(result.code, "NOT_VALIDATED");
+    assert.match(result.reason, /criterion evidence|plan/u);
+  } finally {
+    database.close();
+  }
 });
 
 test("the public validation pipeline records commit-verifiable workspace evidence", async () => {
@@ -616,7 +653,10 @@ test("does not stage or commit when a required criterion has no plan evidence", 
   const root = createRoot();
   let repository = createRepository(root);
   const database = DensaAdeDatabase.open(join(root, "runtime.sqlite"));
-  const graph = await preparePassingAttempt(database, repository, { planBased: true });
+  const graph = await preparePassingAttempt(database, repository, {
+    planBased: true,
+    withEvidence: false,
+  });
   repository = graph.executionPath;
   configureCommitIdentity(repository);
   const checkpointHead = git(repository, ["rev-parse", "HEAD"]).trim();

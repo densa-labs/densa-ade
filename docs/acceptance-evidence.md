@@ -19,13 +19,20 @@ Advisory results remain visible evidence but cannot satisfy a required criterion
 not an evidence source and cannot enter the acceptance report.
 
 Pre-migration validator results are labeled `legacy_unspecified`; they remain inspectable but are
-inconclusive because Core cannot safely reconstruct their evidence source.
+inconclusive because Core cannot safely reconstruct their evidence source. A legacy run therefore
+cannot be newly selected to authorize a task commit.
 
 Manual decisions are durable SQLite records paired atomically with a
 `MANUAL_ACCEPTANCE_REVIEW_RECORDED` event containing the actor, reason, criterion, decision, and
 validation run. A manual criterion cannot also consume automatic validator evidence.
+Manual-review actor and reason fields are redacted at the persistence boundary.
 
 Task completion requires both a passing plan run and a report in which every criterion is
 `satisfied`. Phase callers use the explicit phase gate with the exact validation run selected for
 each task; a missing run or unresolved task report blocks completion. Legacy validation runs created
-before the plan framework remain readable, but do not fabricate criterion-level evidence.
+before the plan framework remain readable, but do not fabricate criterion-level evidence. The
+current serial task lifecycle creates a versioned plan-bound aggregate result for its configured
+validator, maps it to every task criterion, and persists that result before commit authorization;
+when that validator composes a fresh Reviewer, Core also persists the bound review as a distinct
+`independent_review` result. The commit and completion persistence boundaries independently
+recompute the acceptance report.

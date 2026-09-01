@@ -114,8 +114,8 @@ test("a file database migrates from zero and reopening does not reapply migratio
   const path = join(directory, "runtime.sqlite");
   try {
     const first = DensaAdeDatabase.open(path, { now: fixedMigrationTime });
-    assert.equal(first.schemaVersion, 16);
-    assert.equal(first.expectedSchemaVersion, 16);
+    assert.equal(first.schemaVersion, 17);
+    assert.equal(first.expectedSchemaVersion, 17);
     assert.deepEqual(first.listUserTables(), [
       "acceptance_criteria",
       "agent_runs",
@@ -145,7 +145,7 @@ test("a file database migrates from zero and reopening does not reapply migratio
     first.close();
 
     const reopened = DensaAdeDatabase.open(path, { now: fixedMigrationTime });
-    assert.equal(reopened.schemaVersion, 16);
+    assert.equal(reopened.schemaVersion, 17);
     reopened.close();
   } finally {
     rmSync(directory, { force: true, recursive: true });
@@ -218,7 +218,7 @@ test("migration 15 preserves legacy run branches and phase-report paths", () => 
     raw.close();
 
     const database = DensaAdeDatabase.open(path, { now: fixedMigrationTime });
-    assert.equal(database.schemaVersion, 16);
+    assert.equal(database.schemaVersion, 17);
     assert.equal(
       database.repositories.densaAdeRunBranches.findByProjectId("project-legacy-namespace")
         ?.branchName,
@@ -490,7 +490,7 @@ test("migrations 3 through 16 preserve version-2 runtime rows and convert legacy
     raw.close();
 
     const database = DensaAdeDatabase.open(path, { now: fixedMigrationTime });
-    assert.equal(database.schemaVersion, 16);
+    assert.equal(database.schemaVersion, 17);
     assert.deepEqual(database.repositories.agentRuns.findById("agent-run-v2"), {
       id: "agent-run-v2",
       attemptId: "attempt-v2",
@@ -619,6 +619,88 @@ test("foreign keys reject cross-project and cross-task relationships", () => {
       ),
     );
     assert.equal(repositories.tasks.findById("task-cross-project-dependency"), undefined);
+  });
+});
+
+test("validation-result chronology uses timestamp instants across numeric offsets", () => {
+  withDatabase(({ repositories }) => {
+    const { task } = seedTaskGraph(repositories);
+    repositories.validationRuns.create({
+      id: "validation-offset-chronology",
+      taskId: task.id,
+      validatorId: "offset-validator",
+      planId: "offset-plan",
+      planVersion: "1",
+      manualReviewCriteria: [],
+      startedAt: createdAt,
+    });
+    assert.doesNotThrow(() =>
+      repositories.validationResults.create({
+        id: "validation-offset-valid",
+        validationRunId: "validation-offset-chronology",
+        position: 0,
+        validatorId: "offset-validator",
+        validatorVersion: "1",
+        evidenceSource: "deterministic_validator",
+        policy: "required",
+        status: "passed",
+        startedAt: "2026-08-28T10:00:00+08:00",
+        completedAt: "2026-08-28T03:00:00Z",
+        diagnostics: [],
+        relatedAcceptanceCriteria: [],
+        retryRelevant: false,
+      }),
+    );
+    assert.throws(() =>
+      repositories.validationResults.create({
+        id: "validation-offset-reversed",
+        validationRunId: "validation-offset-chronology",
+        position: 1,
+        validatorId: "offset-validator",
+        validatorVersion: "1",
+        evidenceSource: "deterministic_validator",
+        policy: "required",
+        status: "passed",
+        startedAt: "2026-08-28T03:00:00Z",
+        completedAt: "2026-08-28T10:00:00+08:00",
+        diagnostics: [],
+        relatedAcceptanceCriteria: [],
+        retryRelevant: false,
+      }),
+    );
+  });
+});
+
+test("validation-run chronology uses timestamp instants across numeric offsets", () => {
+  withDatabase(({ repositories }) => {
+    const { task } = seedTaskGraph(repositories);
+    repositories.validationRuns.create({
+      id: "validation-offset-run",
+      taskId: task.id,
+      validatorId: "fixture",
+      startedAt: "2026-08-28T10:00:00+08:00",
+    });
+    assert.equal(
+      repositories.validationRuns.recordCompleted(
+        "validation-offset-run",
+        "2026-08-28T02:30:00Z",
+        true,
+      ).passed,
+      true,
+    );
+    repositories.validationRuns.create({
+      id: "validation-reversed-run",
+      taskId: task.id,
+      validatorId: "fixture",
+      startedAt: "2026-08-28T10:00:00+08:00",
+    });
+    assert.throws(() =>
+      repositories.validationRuns.recordCompleted(
+        "validation-reversed-run",
+        "2026-08-28T01:30:00Z",
+        false,
+      ),
+    );
   });
 });
 
@@ -865,7 +947,7 @@ test("migration 16 preserves legacy ownership without granting isolated rollback
       );
     raw.close();
     const database = DensaAdeDatabase.open(databasePath);
-    assert.equal(database.schemaVersion, 16);
+    assert.equal(database.schemaVersion, 17);
     const legacy = database.repositories.densaAdeRunBranches.findByProjectId("legacy-project");
     assert.equal(legacy.workspacePath, "/legacy/source");
     assert.equal(legacy.sourceWorkspacePath, undefined);
@@ -888,6 +970,64 @@ test("migration 16 preserves legacy ownership without granting isolated rollback
       /FOREIGN KEY/,
     );
     assert.deepEqual(migrated.prepare("PRAGMA foreign_key_check").all(), []);
+    migrated.close();
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("migration 17 preserves populated validation evidence and adds instant chronology", () => {
+  const directory = mkdtempSync(join(tmpdir(), "densa-validation-chronology-migration-"));
+  const databasePath = join(directory, "runtime.sqlite");
+  try {
+    const raw = new DatabaseSync(databasePath);
+    raw.exec(
+      "CREATE TABLE _densa_migrations (version INTEGER PRIMARY KEY, name TEXT NOT NULL, checksum TEXT NOT NULL, applied_at TEXT NOT NULL) STRICT",
+    );
+    for (const migration of schemaMigrations.slice(0, 16)) {
+      raw.exec(migration.sql);
+      raw
+        .prepare("INSERT INTO _densa_migrations VALUES (?, ?, ?, ?)")
+        .run(
+          migration.version,
+          migration.name,
+          createHash("sha256").update(migration.sql).digest("hex"),
+          createdAt,
+        );
+    }
+    raw.exec(`
+      INSERT INTO projects (id,name,state,execution_mode,created_at,updated_at)
+      VALUES ('migration17-project','Migration 17','DRAFT','guided','${createdAt}','${createdAt}');
+      INSERT INTO phases (id,project_id,title,state,position,created_at,updated_at)
+      VALUES ('migration17-phase','migration17-project','Phase','PENDING',0,'${createdAt}','${createdAt}');
+      INSERT INTO tasks (id,project_id,phase_id,title,state,position,created_at,updated_at)
+      VALUES ('migration17-task','migration17-project','migration17-phase','Task','PENDING',0,'${createdAt}','${createdAt}');
+      INSERT INTO validation_runs
+        (id,task_id,validator_id,started_at,completed_at,passed,plan_id,plan_version,manual_review_criteria_json)
+      VALUES ('migration17-run','migration17-task','fixture','${createdAt}','${updatedAt}',1,'fixture-plan','1','[]');
+      INSERT INTO validation_results
+        (id,validation_run_id,position,validator_id,validator_version,policy,status,started_at,
+         completed_at,diagnostics_json,related_acceptance_criteria_json,retry_relevant,evidence_source)
+      VALUES ('migration17-result','migration17-run',0,'fixture','1','required','passed',
+              '${createdAt}','${updatedAt}','[]','[]',0,'deterministic_validator');
+    `);
+    raw.close();
+
+    const database = DensaAdeDatabase.open(databasePath);
+    assert.equal(database.schemaVersion, 17);
+    assert.equal(
+      database.repositories.validationResults.findById("migration17-result").status,
+      "passed",
+    );
+    database.close();
+    const migrated = new DatabaseSync(databasePath);
+    migrated.exec("PRAGMA foreign_keys=ON");
+    assert.deepEqual(migrated.prepare("PRAGMA foreign_key_check").all(), []);
+    assert.throws(() =>
+      migrated
+        .prepare("UPDATE validation_runs SET completed_at = ? WHERE id = ?")
+        .run("2026-08-25T23:59:59Z", "migration17-run"),
+    );
     migrated.close();
   } finally {
     rmSync(directory, { recursive: true, force: true });

@@ -31,6 +31,10 @@ import { DependencyScheduler, type SchedulerGateSnapshot } from "./scheduler.js"
 import { stateTransitionService } from "./state-transitions.js";
 import { redactSensitiveText } from "./secret-redaction.js";
 import {
+  assertValidationWorkspaceUnchanged,
+  captureValidationWorkspace,
+} from "./validation-workspace.js";
+import {
   type ExecuteTaskLifecycleRequest,
   SingleTaskOrchestrator,
   type TaskLifecycleResult,
@@ -687,26 +691,28 @@ export class PhaseLifecycleOrchestrator {
           summary: "Phase validation was cancelled before its result could be accepted.",
           checks: validation.checks,
         }
-      : currentReview?.output === undefined
-        ? {
-            passed: false,
-            summary: "Phase validation did not persist a fresh-context independent review.",
-            checks: [
-              ...validation.checks,
-              {
-                validatorId: "independent-ai-review",
-                passed: false,
-                summary: "No completed phase-scoped independent review was recorded.",
-              },
-            ],
-          }
-        : !independentReviewSupportsCompletion(currentReview.output)
+      : !validation.passed
+        ? validation
+        : currentReview?.output === undefined
           ? {
               passed: false,
-              summary: `Independent phase review failed: ${currentReview.output.summary}`,
-              checks: validation.checks,
+              summary: "Phase validation did not persist a fresh-context independent review.",
+              checks: [
+                ...validation.checks,
+                {
+                  validatorId: "independent-ai-review",
+                  passed: false,
+                  summary: "No completed phase-scoped independent review was recorded.",
+                },
+              ],
             }
-          : validation;
+          : !independentReviewSupportsCompletion(currentReview.output)
+            ? {
+                passed: false,
+                summary: `Independent phase review failed: ${currentReview.output.summary}`,
+                checks: validation.checks,
+              }
+            : validation;
     return await this.#finish(
       request,
       roadmapPhase,
@@ -1030,6 +1036,7 @@ export class PhaseLifecycleOrchestrator {
     tasks: readonly Task[],
   ): Promise<PhaseValidationOutcome> {
     try {
+      const workspaceEvidence = await captureValidationWorkspace(request.workspacePath);
       const outcome = await request.validator.validate({
         projectId: request.projectId,
         phase,
@@ -1041,6 +1048,7 @@ export class PhaseLifecycleOrchestrator {
         ),
         ...(request.signal === undefined ? {} : { signal: request.signal }),
       });
+      await assertValidationWorkspaceUnchanged(workspaceEvidence);
       const checks = outcome.checks.map((check) => ({
         validatorId: cleanText(check.validatorId),
         passed: check.passed,
@@ -1073,14 +1081,17 @@ export class PhaseLifecycleOrchestrator {
           : { independentReviewId: outcome.independentReviewId }),
       });
     } catch (error) {
+      const message = cleanText(errorMessage(error));
       return Object.freeze({
         passed: false,
-        summary: `Phase validator failed: ${cleanText(errorMessage(error))}`,
+        summary: `Phase validator failed: ${message}`,
         checks: Object.freeze([
           Object.freeze({
             validatorId: request.validator.validatorId,
             passed: false,
-            summary: "The phase validation hook did not return a confirmed outcome.",
+            summary: message.includes("Workspace changed")
+              ? "The phase validation hook mutated the workspace it was validating."
+              : "The phase validation hook did not return a confirmed outcome.",
           }),
         ]),
       });
