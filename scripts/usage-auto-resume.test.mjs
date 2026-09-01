@@ -477,3 +477,52 @@ test("cancelling an in-flight backend check prevents a late available result fro
   );
   database.close();
 });
+
+test("malformed persisted auto-resume state fails closed instead of appearing disabled", () => {
+  const database = DensaAdeDatabase.openInMemory();
+  const clock = new FakeClock();
+  const { project } = seedWaiting(database, clock);
+  database.repositories.projectSettings.set({
+    projectId: project.id,
+    values: {
+      usageAutoResume: {
+        formatVersion: 1,
+        projectId: project.id,
+        enabled: true,
+        workspacePath: "relative/workspace",
+        actor: "usage-auto-resume:test",
+        updatedAt: iso(startingTime),
+      },
+    },
+    updatedAt: iso(startingTime),
+  });
+  const { instance } = service(database, clock, [{ status: "available" }]);
+
+  const restored = instance.restore(project.id);
+  assert.equal(restored.status, "BLOCKED");
+  assert.match(restored.reason, /malformed/u);
+  assert.equal(clock.pendingCount, 0);
+  database.close();
+});
+
+test("auto-resume redacts credential-shaped actors before settings and events persist", () => {
+  const database = DensaAdeDatabase.openInMemory();
+  const clock = new FakeClock();
+  const { project } = seedWaiting(database, clock);
+  const { instance } = service(database, clock, [{ status: "available" }]);
+
+  instance.enable({
+    projectId: project.id,
+    workspacePath,
+    actor: "Bearer usage-auto-resume-secret-12345",
+  });
+
+  const serialized = JSON.stringify({
+    settings: database.repositories.projectSettings.findByProjectId(project.id),
+    events: database.repositories.events.replay({ projectId: project.id, limit: 1_000 }),
+  });
+  assert.doesNotMatch(serialized, /usage-auto-resume-secret-12345/u);
+  assert.match(serialized, /\[REDACTED\]/u);
+  instance.dispose();
+  database.close();
+});

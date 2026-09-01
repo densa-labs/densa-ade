@@ -224,6 +224,7 @@ test("Keychain store uses stdin for writes and never places the secret in argv",
   const authorizationResult = policy(database, "permission-keychain").authorize({
     ...permissionRequest(),
     operation: "secret_access",
+    approvalCategory: "approval.secret-access",
   });
   assert.notEqual(authorizationResult.authorization, undefined);
   const calls = [];
@@ -275,5 +276,22 @@ test("redaction utilities sanitize exact values in prompts, logs, events, and pa
   for (const serialized of [prompt, log, JSON.stringify(event), JSON.stringify(packet)]) {
     assert.equal(serialized.includes(secretValue), false);
     assert.match(serialized, /REDACTED/u);
+  }
+});
+
+test("redaction fails closed for quoted assignments and unterminated explicit secret blocks", () => {
+  const privateKey = "-----BEGIN PRIVATE KEY-----\nopaque-tail-without-an-end-marker";
+  for (const value of [
+    'payload={"password":"quoted-secret-value"}',
+    "<secret>unterminated-angle-secret",
+    "[secret:unterminated-bracket-secret",
+    privateKey,
+  ]) {
+    const redacted = redactLog(value);
+    assert.match(redacted, /\[REDACTED/u);
+    assert.doesNotMatch(
+      redacted,
+      /quoted-secret-value|unterminated-angle-secret|unterminated-bracket-secret|opaque-tail/u,
+    );
   }
 });

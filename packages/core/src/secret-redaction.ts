@@ -4,13 +4,15 @@ const SENSITIVE_KEY_PATTERN =
   /(?:^|[_.-])(?:api[_-]?key|access[_-]?key|access[_-]?token|auth[_-]?token|authorization|bearer|client[_-]?secret|cookie|credential|password|passwd|private[_-]?key|refresh[_-]?token|secret|session[_-]?token|token)(?:$|[_.-])/iu;
 const PRIVATE_KEY_PATTERN =
   /-----BEGIN (?:EC |OPENSSH |PGP |RSA )?PRIVATE KEY-----[\s\S]*?-----END (?:EC |OPENSSH |PGP |RSA )?PRIVATE KEY-----/gu;
+const INCOMPLETE_PRIVATE_KEY_PATTERN =
+  /-----BEGIN (?:EC |OPENSSH |PGP |RSA )?PRIVATE KEY-----[\s\S]*$/gu;
 const KNOWN_TOKEN_PATTERN =
-  /\b(?:AKIA[0-9A-Z]{12,}|github_pat_[A-Za-z0-9_]{12,}|gh[pousr]_[A-Za-z0-9]{12,}|glpat-[A-Za-z0-9_-]{12,}|npm_[A-Za-z0-9]{12,}|sk-(?:proj-)?[A-Za-z0-9_-]{12,}|xox[baprs]-[A-Za-z0-9-]{12,})\b/gu;
+  /\b(?:AKIA[0-9A-Z]{12,}|github_pat_[A-Za-z0-9_]{12,}|gh[pousr]_[A-Za-z0-9]{12,}|glpat-[A-Za-z0-9_-]{12,}|npm_[A-Za-z0-9]{12,}|sk-(?:proj-)?[A-Za-z0-9_-]{8,}|xox[baprs]-[A-Za-z0-9-]{12,})\b/gu;
 const JWT_PATTERN = /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/gu;
 const BEARER_PATTERN = /\b(Bearer\s+)[A-Za-z0-9._~+/=-]{8,}/giu;
 const SECRET_ASSIGNMENT_PATTERN =
-  /\b((?:api[_-]?key|access[_-]?token|auth[_-]?token|authorization|client[_-]?secret|password|passwd|private[_-]?key|refresh[_-]?token|secret|session[_-]?token|token)\s*[:=]\s*)(?:"[^"]*"|'[^']*'|[^\s,;]+)/giu;
-const EXPLICIT_SECRET_PATTERN = /<secret>[\s\S]*?<\/secret>|\[secret:[^\]]*\]/giu;
+  /(["']?\b(?:api[_-]?key|access[_-]?token|auth[_-]?token|authorization|client[_-]?secret|cookie|credential|password|passwd|private[_-]?key|refresh[_-]?token|secret|session[_-]?token|token)["']?\s*[:=]\s*)(?:"((?:\\.|[^"\\])*)"|'((?:\\.|[^'\\])*)'|[^\s,;}]+)/giu;
+const EXPLICIT_SECRET_PATTERN = /<secret>[\s\S]*?(?:<\/secret>|$)|\[secret:[^\]]*(?:\]|$)/giu;
 
 function replaceLiteral(input: string, value: string): string {
   return value.length === 0 ? input : input.split(value).join("[REDACTED]");
@@ -34,10 +36,20 @@ export class SecretRedactor {
     return output
       .replace(EXPLICIT_SECRET_PATTERN, "[REDACTED]")
       .replace(PRIVATE_KEY_PATTERN, "[REDACTED PRIVATE KEY]")
+      .replace(INCOMPLETE_PRIVATE_KEY_PATTERN, "[REDACTED PRIVATE KEY]")
       .replace(KNOWN_TOKEN_PATTERN, "[REDACTED]")
       .replace(JWT_PATTERN, "[REDACTED]")
       .replace(BEARER_PATTERN, "$1[REDACTED]")
-      .replace(SECRET_ASSIGNMENT_PATTERN, "$1[REDACTED]");
+      .replace(
+        SECRET_ASSIGNMENT_PATTERN,
+        (
+          _match: string,
+          prefix: string,
+          doubleQuoted: string | undefined,
+          singleQuoted: string | undefined,
+        ) =>
+          `${prefix}${doubleQuoted !== undefined ? '"[REDACTED]"' : singleQuoted !== undefined ? "'[REDACTED]'" : "[REDACTED]"}`,
+      );
   }
 
   prompt(input: string): string {

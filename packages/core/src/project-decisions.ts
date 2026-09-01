@@ -187,7 +187,10 @@ export class ProjectDecisionService {
       occurredAt,
       ...(request.approvalDecisionId === undefined
         ? {}
-        : { approvalDecisionId: request.approvalDecisionId }),
+        : {
+            approvalDecisionId: request.approvalDecisionId,
+            approvalCategory: "approval.write-workspace",
+          }),
     });
     if (permission.authorization === undefined) {
       throw new ProjectDecisionError(

@@ -433,7 +433,10 @@ export class SecretService {
       occurredAt: isoTimestampSchema.parse(request.occurredAt),
       ...(request.approvalDecisionId === undefined
         ? {}
-        : { approvalDecisionId: request.approvalDecisionId }),
+        : {
+            approvalDecisionId: request.approvalDecisionId,
+            approvalCategory: "approval.secret-access",
+          }),
     });
     if (decision.authorization !== undefined) {
       return Object.freeze({

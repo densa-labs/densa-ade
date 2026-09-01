@@ -21,6 +21,7 @@ import {
 } from "@densa-ade/protocol";
 
 import type { DensaAdeDatabase } from "./persistence/database.js";
+import { SecretRedactor, redactSensitiveText } from "./secret-redaction.js";
 
 const execFileAsync = promisify(execFile);
 const DEFAULT_MINIMUM_BATTERY_PERCENT = 20;
@@ -480,13 +481,15 @@ export class KeepAwakeManager {
     return await this.#serialize(async () => {
       const projectId = projectIdSchema.parse(request.projectId);
       const reasonId = keepAwakeReasonIdSchema.parse(request.reasonId);
+      const safeReason = redactSensitiveText(request.reason);
+      const safeActor = redactSensitiveText(request.actor);
       if (this.database.repositories.projects.findById(projectId) === undefined) {
         throw new Error(`Project ${projectId} does not exist`);
       }
       const current = this.#stored(projectId);
       const existing = current?.reasons.find((reason) => reason.id === reasonId);
       if (existing !== undefined) {
-        if (existing.reason !== request.reason.trim() || existing.actor !== request.actor.trim()) {
+        if (existing.reason !== safeReason.trim() || existing.actor !== safeActor.trim()) {
           throw new Error(`Keep-awake reason ${reasonId} is already associated differently`);
         }
         return Object.freeze({ outcome: "unchanged" as const, status: this.status(projectId) });
@@ -495,8 +498,8 @@ export class KeepAwakeManager {
       const reason = keepAwakeReasonSchema.parse({
         id: reasonId,
         projectId,
-        reason: request.reason,
-        actor: request.actor,
+        reason: safeReason,
+        actor: safeActor,
         acquiredAt: occurredAt,
       });
       const base = current ?? this.#inactiveState(projectId, occurredAt);
@@ -505,7 +508,7 @@ export class KeepAwakeManager {
         occurredAt,
       );
       try {
-        this.#persist(next, request.actor, "KEEP_AWAKE_REASON_ACQUIRED", {
+        this.#persist(next, safeActor, "KEEP_AWAKE_REASON_ACQUIRED", {
           reasonId,
           disposition: next.state,
         });
@@ -530,7 +533,8 @@ export class KeepAwakeManager {
     return await this.#serialize(async () => {
       const projectId = projectIdSchema.parse(request.projectId);
       const reasonId = keepAwakeReasonIdSchema.parse(request.reasonId);
-      if (request.actor.trim().length === 0) throw new Error("Release actor must not be empty");
+      const safeActor = redactSensitiveText(request.actor);
+      if (safeActor.trim().length === 0) throw new Error("Release actor must not be empty");
       const current = this.#stored(projectId);
       if (current === undefined || !current.reasons.some((reason) => reason.id === reasonId)) {
         return Object.freeze({ outcome: "unchanged" as const, status: this.status(projectId) });
@@ -541,7 +545,7 @@ export class KeepAwakeManager {
         Object.freeze({ ...current, reasons: nextReasons }),
         occurredAt,
       );
-      this.#persist(next, request.actor, "KEEP_AWAKE_REASON_RELEASED", {
+      this.#persist(next, safeActor, "KEEP_AWAKE_REASON_RELEASED", {
         reasonId,
         remainingReasonCount: nextReasons.length,
       });
@@ -556,7 +560,8 @@ export class KeepAwakeManager {
   ): Promise<KeepAwakeOperationResult> {
     return await this.#serialize(async () => {
       const projectId = projectIdSchema.parse(projectIdInput);
-      if (actor.trim().length === 0) throw new Error("Release actor must not be empty");
+      const safeActor = redactSensitiveText(actor);
+      if (safeActor.trim().length === 0) throw new Error("Release actor must not be empty");
       const current = this.#stored(projectId);
       if (
         current === undefined ||
@@ -569,7 +574,7 @@ export class KeepAwakeManager {
         Object.freeze({ ...current, reasons: Object.freeze([]) }),
         occurredAt,
       );
-      this.#persist(next, actor, "KEEP_AWAKE_PROJECT_RELEASED", {
+      this.#persist(next, safeActor, "KEEP_AWAKE_PROJECT_RELEASED", {
         releasedReasonCount: current.reasons.length,
       });
       this.#unmonitorProject(projectId);
@@ -850,11 +855,14 @@ export class KeepAwakeManager {
 
   #persist(state: StoredKeepAwakeState, actor: string, type: string, payload: JsonObject): void {
     const eventId = eventIdSchema.parse(this.#eventIdFactory());
+    const redactor = new SecretRedactor();
+    const safeState = redactor.json(jsonState(state)) as JsonObject;
+    const safePayload = redactor.json(payload) as JsonObject;
     this.database.transaction((repositories) => {
       const settings = repositories.projectSettings.findByProjectId(state.projectId);
       repositories.projectSettings.set({
         projectId: state.projectId,
-        values: { ...(settings?.values ?? {}), keepAwake: jsonState(state) },
+        values: { ...(settings?.values ?? {}), keepAwake: safeState },
         updatedAt: state.updatedAt,
       });
       repositories.events.append({
@@ -863,8 +871,8 @@ export class KeepAwakeManager {
         type,
         eventVersion: 1,
         occurredAt: state.updatedAt,
-        actor,
-        payload,
+        actor: redactor.text(actor),
+        payload: safePayload,
       });
     });
   }
@@ -894,7 +902,7 @@ export class KeepAwakeManager {
   }
 
   #errorMessage(error: unknown): string {
-    return error instanceof Error ? error.message : String(error);
+    return redactSensitiveText(error instanceof Error ? error.message : String(error));
   }
 
   async #releaseNewAssertionAfterPersistenceFailure(

@@ -9,6 +9,9 @@ Keychain writes invoke `/usr/bin/security` without a shell and send the value th
 value is never placed in process arguments. The store interface requires the unforgeable
 `secret_access` authorization context introduced by the permission policy milestone, so callers
 cannot bypass Core by invoking a raw credential helper without a matching project authorization.
+When an operation requires a user decision, the decision ID must be paired with the exact persisted
+approval category for that operation. An active decision for another sensitive operation cannot be
+reused as a generic approval.
 
 `SecretService` is the Core-owned lifecycle boundary:
 
@@ -25,7 +28,8 @@ reason only. They never contain values. `SECRET_USE_STARTED` is persisted before
 recovery can distinguish an operation that may have started from one that did not; a matching
 `SECRET_USE_FINISHED` records the bounded outcome.
 
-The shared redactor covers prompts, log text, JSON event payloads, explicit secret markers, common
-credential shapes, sensitive object keys, and the exact transient values resolved for a scoped
-operation. Redaction is defense in depth: raw values still must not be inserted into task packets,
-project settings, events, reports, or `.densa-ade/` in the first place.
+The shared redactor covers prompts, log text, JSON event payloads, explicit secret markers (including
+truncated markers), complete or interrupted private-key blocks, quoted or unquoted sensitive
+assignments, common credential shapes, sensitive object keys, and the exact transient values
+resolved for a scoped operation. Redaction is defense in depth: raw values still must not be inserted
+into task packets, project settings, events, reports, or `.densa-ade/` in the first place.

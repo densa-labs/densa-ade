@@ -312,3 +312,26 @@ test("protocol status cannot optimistically claim an assertion", () => {
     false,
   );
 });
+
+test("keep-awake reasons and actors are redacted before durable persistence", async (t) => {
+  const { database, manager } = setup();
+  t.after(async () => {
+    await manager.dispose();
+    database.close();
+  });
+
+  await manager.acquire({
+    projectId,
+    reasonId: "worker.redaction",
+    reason: "token=keep-awake-secret-12345",
+    actor: "Bearer keep-awake-actor-secret-12345",
+  });
+
+  const serialized = JSON.stringify({
+    settings: database.repositories.projectSettings.findByProjectId(projectId),
+    events: database.repositories.events.replay({ projectId, limit: 1_000 }),
+  });
+  assert.doesNotMatch(serialized, /keep-awake-secret-12345/u);
+  assert.doesNotMatch(serialized, /keep-awake-actor-secret-12345/u);
+  assert.match(serialized, /\[REDACTED\]/u);
+});

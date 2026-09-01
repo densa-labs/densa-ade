@@ -74,3 +74,8 @@ export const keepAwakeStatusSchema = z
   })
   .readonly();
 export type KeepAwakeStatus = z.infer<typeof keepAwakeStatusSchema>;
+
+export const keepAwakeStatusRequestSchema = z
+  .strictObject({ projectId: projectIdSchema })
+  .readonly();
+export type KeepAwakeStatusRequest = z.infer<typeof keepAwakeStatusRequestSchema>;

@@ -18,7 +18,8 @@ Amphetamine is not required and is not part of this boundary.
   assertion.
 - Releasing the final reason terminates and confirms cleanup of the project assertion. Project stop
   invokes the same project-wide release immediately, including while the scheduling stop waits for
-  a safe task boundary.
+  a safe task boundary. Daemon shutdown also disposes the shared manager before removing the Core
+  endpoint.
 - Core checks the power source before acquiring and every minute while demand remains. External
   power is allowed. Battery power is allowed only at or above the configured threshold (20% by
   default). Unknown power evidence fails closed.
@@ -32,8 +33,13 @@ SQLite records demand, battery observations, disposition, and the opaque platfor
 not make an operating-system assertion true. A new manager therefore reports a persisted active
 handle as `recovery_required`, never optimistically active. Startup recovery enumerates all project
 settings, verifies and terminates only a matching Densa ADE `caffeinate -i -w` process, clears stale
-demand/state, and records the outcome. An identity mismatch or unconfirmed termination remains
-`recovery_required` for inspection rather than risking an unrelated process.
+demand/state, and records the outcome. Core daemon startup runs this recovery before accepting
+clients. An identity mismatch or unconfirmed termination remains `recovery_required` for inspection
+rather than risking an unrelated process.
+
+Human-supplied reason and actor metadata is redacted before it reaches SQLite settings or events.
+Protocol clients read the current state through the schema-validated `keep-awake.status` daemon
+method.
 
 The platform abstraction is injectable. Tests use a fake implementation to prove lifecycle,
 battery release/reacquisition, restart recovery, and final-reason cleanup without creating a real

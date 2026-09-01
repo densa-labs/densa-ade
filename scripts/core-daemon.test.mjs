@@ -335,3 +335,68 @@ test("a killed owner leaves stale PID/socket state that the next daemon safely r
     await rm(runtimeDirectory, { recursive: true, force: true });
   }
 });
+
+test("daemon startup recovers malformed keep-awake state and exposes authoritative status", async () => {
+  const runtimeDirectory = await mkdtemp(join(tmpdir(), "densa-core-keep-awake-recovery-"));
+  const database = DensaAdeDatabase.openInMemory();
+  database.repositories.projects.create({
+    id: "project-keep-awake-recovery",
+    name: "Keep-awake recovery",
+    state: "DRAFT",
+    executionMode: "guided",
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  });
+  database.repositories.projectSettings.set({
+    projectId: "project-keep-awake-recovery",
+    values: { keepAwake: { formatVersion: 1, malformed: true } },
+    updatedAt: timestamp,
+  });
+  const daemon = await CoreDaemon.start({ runtimeDirectory, database });
+  try {
+    const client = new CoreIpcClient({ runtimeDirectory });
+    const status = await client.request(
+      request("request-keep-awake-status", "keep-awake.status", {
+        projectId: "project-keep-awake-recovery",
+      }),
+    );
+    assert.equal(status.state, "inactive");
+    assert.equal(status.systemSleepPrevented, false);
+    assert.equal(
+      database.repositories.events
+        .replay({ projectId: "project-keep-awake-recovery", limit: 1_000 })
+        .at(-1).type,
+      "KEEP_AWAKE_RECOVERY_COMPLETED",
+    );
+    client.disconnect();
+  } finally {
+    await daemon.stop();
+    database.close();
+    await rm(runtimeDirectory, { recursive: true, force: true });
+  }
+});
+
+test("concurrent daemon starters leave exactly one authenticated owner", async () => {
+  const runtimeDirectory = await mkdtemp(join(tmpdir(), "densa-core-concurrent-start-"));
+  const database = DensaAdeDatabase.openInMemory();
+  const attempts = await Promise.allSettled([
+    CoreDaemon.start({ runtimeDirectory, database }),
+    CoreDaemon.start({ runtimeDirectory, database }),
+  ]);
+  const daemons = attempts
+    .filter((attempt) => attempt.status === "fulfilled")
+    .map((attempt) => attempt.value);
+  try {
+    assert.equal(daemons.length, 1);
+    const client = new CoreIpcClient({ runtimeDirectory });
+    assert.equal(
+      (await client.request(request("request-concurrent-status", "core.status"))).state,
+      "running",
+    );
+    client.disconnect();
+  } finally {
+    await Promise.allSettled(daemons.map(async (daemon) => await daemon.stop()));
+    database.close();
+    await rm(runtimeDirectory, { recursive: true, force: true });
+  }
+});

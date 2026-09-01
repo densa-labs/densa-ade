@@ -717,6 +717,7 @@ export class RoadmapMutationService {
         throw invalid("Roadmap proposal resolution does not match the inspected base and result");
       }
     }
+    let permissionApprovalCategory: string | undefined;
     if (request.approval !== undefined) {
       const approvalDecision = this.database.repositories.decisions.findById(
         request.approval.decisionId,
@@ -735,6 +736,7 @@ export class RoadmapMutationService {
               request.operations,
             )
           : `roadmap.revision.approval.${proposalResolution.proposal.id}`;
+      permissionApprovalCategory = expectedCategory;
       if (
         approvalDecision.source !== "user" ||
         approvalDecision.status !== "active" ||
@@ -757,7 +759,10 @@ export class RoadmapMutationService {
       occurredAt: now,
       ...(request.approval === undefined
         ? {}
-        : { approvalDecisionId: request.approval.decisionId }),
+        : {
+            approvalDecisionId: request.approval.decisionId,
+            approvalCategory: permissionApprovalCategory as string,
+          }),
     });
     if (workspacePermission.authorization === undefined) {
       throw invalid(
@@ -774,7 +779,10 @@ export class RoadmapMutationService {
         occurredAt: now,
         ...(request.approval === undefined
           ? {}
-          : { approvalDecisionId: request.approval.decisionId }),
+          : {
+              approvalDecisionId: request.approval.decisionId,
+              approvalCategory: permissionApprovalCategory as string,
+            }),
       });
       if (classifiedPermission.authorization === undefined) {
         if (

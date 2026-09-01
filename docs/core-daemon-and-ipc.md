@@ -16,10 +16,13 @@ file. Every request carries it in the transport frame. The daemon compares it wi
 value-dependent timing and rejects unauthenticated requests before dispatch. Tokens are not
 included in responses, notifications, events, or diagnostics.
 
-Startup persists PID/instance intent before listening. A live recorded owner blocks another
-daemon. A dead owner permits cleanup of only the known, current-user-owned PID, token, and socket
-paths. A socket without PID metadata is probed and is never removed while it accepts connections.
-This avoids replacing a live endpoint and makes SIGKILL residue recoverable.
+Startup first acquires `core.start.lock` with exclusive creation and records the candidate instance,
+PID, and timestamp. A live lock owner blocks concurrent startup; a dead lock owner permits recovery.
+While holding that lock, startup recovers stale runtime paths, persists PID/instance intent, recovers
+Core-owned keep-awake state, and begins listening. Cleanup is ownership-aware, so a losing concurrent
+starter cannot remove the winning instance's token, PID metadata, or socket. A socket without PID
+metadata is probed and is never removed while it accepts connections. This avoids replacing a live
+endpoint and makes SIGKILL residue recoverable.
 
 ## Protocol and replay
 
@@ -30,9 +33,13 @@ protocol versions return `PROTOCOL_VERSION_MISMATCH`; wrong credentials return
 
 `events.replay` reads committed facts after an exclusive per-project sequence number.
 `events.subscribe` returns the initial replay and then emits `core.event` notifications for facts
-published after SQLite commit. IPC replay is capped at ten events per request so a client can page
-without exceeding the transport bound. A second or reconnecting client is a reader of Core state;
-it does not become authoritative.
+published after SQLite commit. IPC replay defaults to 50 and is capped at 200 events per request so
+a client can page without exceeding the transport bound. A second or reconnecting client is a reader
+of Core state; it does not become authoritative.
+
+`keep-awake.status` accepts a schema-validated project identifier and returns the authoritative Core
+status. Clients must use this method rather than inferring an operating-system assertion from local
+UI state or persisted demand.
 
 ## CLI lifecycle
 

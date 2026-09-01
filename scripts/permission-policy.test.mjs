@@ -184,6 +184,7 @@ test("ask and deny decisions are audited, while explicit approvals issue unforge
     reason: "Apply the specifically approved scope change",
     occurredAt: "2026-08-29T01:04:00.000Z",
     approvalDecisionId: "decision-user-approved-scope",
+    approvalCategory: "approval.roadmap-scope-change",
   });
   assert.equal(approved.decision.disposition, "allow");
   assert.equal(approved.decision.source, "user_approval");
@@ -212,6 +213,65 @@ test("ask and deny decisions are audited, while explicit approvals issue unforge
       ["PERMISSION_DECISION_RECORDED", "allow"],
     ],
   );
+  database.close();
+});
+
+test("user approvals are bound to an exact category and operation", () => {
+  const database = DensaAdeDatabase.openInMemory();
+  database.repositories.projects.create(project());
+  database.repositories.decisions.create({
+    id: "decision-user-approved-secret",
+    projectId,
+    kind: "decision",
+    statement: "Approve one secret access operation.",
+    title: "Approve one secret access operation",
+    rationale: "The user approved exactly one credential operation.",
+    category: "approval.secret-access",
+    source: "user",
+    scope: "project",
+    status: "active",
+    affectedPhaseIds: [],
+    affectedTaskIds: [],
+    createdAt,
+  });
+  const policy = service(database, "event-policy-bounded-approval");
+
+  assert.throws(
+    () =>
+      policy.authorize({
+        projectId,
+        operation: "remote_push",
+        actor: "worker:test",
+        reason: "Try to reuse an unrelated approval",
+        occurredAt: "2026-08-29T01:04:00.000Z",
+        approvalDecisionId: "decision-user-approved-secret",
+        approvalCategory: "approval.remote-push",
+      }),
+    /does not approve remote_push/u,
+  );
+
+  const first = policy.authorize({
+    projectId,
+    operation: "secret_access",
+    actor: "worker:test",
+    reason: "Use the specifically approved credential once",
+    occurredAt: "2026-08-29T01:05:00.000Z",
+    approvalDecisionId: "decision-user-approved-secret",
+    approvalCategory: "approval.secret-access",
+  });
+  assert.equal(first.decision.disposition, "allow");
+  assertAuthorizedOperation(first.authorization, projectId, "secret_access");
+
+  const retry = policy.authorize({
+    projectId,
+    operation: "secret_access",
+    actor: "worker:test",
+    reason: "Retry the same bounded approved operation",
+    occurredAt: "2026-08-29T01:06:00.000Z",
+    approvalDecisionId: "decision-user-approved-secret",
+    approvalCategory: "approval.secret-access",
+  });
+  assert.equal(retry.decision.source, "user_approval");
   database.close();
 });
 

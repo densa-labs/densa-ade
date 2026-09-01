@@ -18,6 +18,7 @@ import {
   isoTimestampSchema,
   jsonObjectSchema,
   jsonValueSchema,
+  keepAwakeStatusRequestSchema,
   parseProtocolEnvelope,
   parseCoreV1Payload,
   parseCoreV1Result,
@@ -36,6 +37,7 @@ import {
 import { DensaAdeDatabase } from "./persistence/database.js";
 import { ProjectExecutionControlService } from "./execution-control.js";
 import type { ProjectControlRequest, ResumeProjectRequest } from "./execution-control.js";
+import { KeepAwakeManager } from "./keep-awake.js";
 
 const MAX_FRAME_BYTES = 1024 * 1024;
 const RUNTIME_DIRECTORY_MODE = 0o700;
@@ -45,6 +47,7 @@ const STOP_TIMEOUT_MS = 5_000;
 
 export interface CoreRuntimePaths {
   readonly directory: string;
+  readonly startupLock: string;
   readonly socket: string;
   readonly pid: string;
   readonly token: string;
@@ -99,6 +102,7 @@ export function coreRuntimePaths(options: CoreDaemonOptions = {}): CoreRuntimePa
   const directory = resolve(options.runtimeDirectory ?? defaultCoreRuntimeDirectory());
   return Object.freeze({
     directory,
+    startupLock: join(directory, "core.start.lock"),
     socket: join(directory, "core.sock"),
     pid: join(directory, "core.pid"),
     token: join(directory, "core.token"),
@@ -208,6 +212,67 @@ async function removeIfPresent(path: string, expectedKind: "file" | "socket"): P
   try {
     await assertOwnedPath(path, expectedKind);
     await unlink(path);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+}
+
+interface StartupLockState {
+  readonly instanceId: string;
+  readonly pid: number;
+  readonly startedAt: string;
+}
+
+function parseStartupLock(value: string): StartupLockState {
+  const parsed = JSON.parse(value) as unknown;
+  if (
+    typeof parsed !== "object" ||
+    parsed === null ||
+    Object.keys(parsed).length !== 3 ||
+    !("instanceId" in parsed) ||
+    typeof parsed.instanceId !== "string" ||
+    parsed.instanceId.length === 0 ||
+    !("pid" in parsed) ||
+    typeof parsed.pid !== "number" ||
+    !Number.isSafeInteger(parsed.pid) ||
+    parsed.pid <= 0 ||
+    !("startedAt" in parsed) ||
+    typeof parsed.startedAt !== "string"
+  ) {
+    throw new Error("Densa ADE Core startup lock is malformed");
+  }
+  isoTimestampSchema.parse(parsed.startedAt);
+  return Object.freeze({
+    instanceId: parsed.instanceId,
+    pid: parsed.pid,
+    startedAt: parsed.startedAt,
+  });
+}
+
+async function acquireStartupLock(paths: CoreRuntimePaths, state: StartupLockState): Promise<void> {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      await writePrivateFile(paths.startupLock, JSON.stringify(state));
+      return;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+      const existing = parseStartupLock(await readPrivateFile(paths.startupLock));
+      if (processExists(existing.pid)) {
+        throw new Error(
+          `Densa ADE Core startup is already owned by process ${String(existing.pid)}`,
+          { cause: error },
+        );
+      }
+      await removeIfPresent(paths.startupLock, "file");
+    }
+  }
+  throw new Error("Densa ADE Core startup lock could not be acquired");
+}
+
+async function releaseStartupLock(paths: CoreRuntimePaths, instanceId: string): Promise<void> {
+  try {
+    const current = parseStartupLock(await readPrivateFile(paths.startupLock));
+    if (current.instanceId === instanceId) await removeIfPresent(paths.startupLock, "file");
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
   }
@@ -324,6 +389,7 @@ function jsonRequestId(value: unknown): string {
 export class CoreDaemon {
   readonly #paths: CoreRuntimePaths;
   readonly #database: DensaAdeDatabase;
+  readonly #keepAwake: KeepAwakeManager;
   readonly #executionControl: ProjectExecutionControlService;
   readonly #server: Server;
   readonly #token: string;
@@ -343,10 +409,11 @@ export class CoreDaemon {
   ) {
     this.#paths = coreRuntimePaths(options);
     this.#database = database;
-    this.#executionControl = new ProjectExecutionControlService(
-      database,
-      options.now === undefined ? {} : { now: options.now },
-    );
+    this.#keepAwake = new KeepAwakeManager(database);
+    this.#executionControl = new ProjectExecutionControlService(database, {
+      ...(options.now === undefined ? {} : { now: options.now }),
+      keepAwake: this.#keepAwake,
+    });
     this.#token = token;
     this.#instanceId = options.instanceId ?? randomUUID();
     this.#ownerPid = options.ownerPid ?? process.pid;
@@ -358,31 +425,47 @@ export class CoreDaemon {
   static async start(options: CoreDaemonOptions = {}): Promise<CoreDaemon> {
     const paths = coreRuntimePaths(options);
     await ensureRuntimeDirectory(paths.directory);
-    await recoverStaleState(paths);
-    const token = randomBytes(32).toString("base64url");
-    await writePrivateFile(paths.token, token);
-    let database: DensaAdeDatabase | undefined;
+    const startup = Object.freeze({
+      instanceId: options.instanceId ?? randomUUID(),
+      pid: options.ownerPid ?? process.pid,
+      startedAt: isoTimestampSchema.parse((options.now ?? (() => new Date().toISOString()))()),
+    });
+    await acquireStartupLock(paths, startup);
     try {
-      database = options.database ?? DensaAdeDatabase.open(paths.database);
-      if (options.database === undefined) await chmod(paths.database, PRIVATE_FILE_MODE);
-      const daemon = new CoreDaemon(options, database, token, options.database === undefined);
-      await writePrivateFile(
-        paths.pid,
-        JSON.stringify({
-          instanceId: daemon.#instanceId,
-          pid: daemon.#ownerPid,
-          startedAt: daemon.#startedAt,
-          socketPath: paths.socket,
-        }),
-      );
-      await daemon.#listen();
-      return daemon;
-    } catch (error) {
-      if (options.database === undefined) database?.close();
-      await removeIfPresent(paths.socket, "socket");
-      await removeIfPresent(paths.token, "file");
-      await removeIfPresent(paths.pid, "file");
-      throw error;
+      await recoverStaleState(paths);
+      const token = randomBytes(32).toString("base64url");
+      await writePrivateFile(paths.token, token);
+      let database: DensaAdeDatabase | undefined;
+      try {
+        database = options.database ?? DensaAdeDatabase.open(paths.database);
+        if (options.database === undefined) await chmod(paths.database, PRIVATE_FILE_MODE);
+        const daemon = new CoreDaemon(
+          { ...options, instanceId: startup.instanceId, ownerPid: startup.pid },
+          database,
+          token,
+          options.database === undefined,
+        );
+        await daemon.#keepAwake.recover();
+        await writePrivateFile(
+          paths.pid,
+          JSON.stringify({
+            instanceId: daemon.#instanceId,
+            pid: daemon.#ownerPid,
+            startedAt: daemon.#startedAt,
+            socketPath: paths.socket,
+          }),
+        );
+        await daemon.#listen();
+        return daemon;
+      } catch (error) {
+        if (options.database === undefined) database?.close();
+        await removeIfPresent(paths.socket, "socket");
+        await removeIfPresent(paths.token, "file");
+        await removeIfPresent(paths.pid, "file");
+        throw error;
+      }
+    } finally {
+      await releaseStartupLock(paths, startup.instanceId);
     }
   }
 
@@ -408,6 +491,7 @@ export class CoreDaemon {
     this.#subscriptions.clear();
     for (const client of this.#clients) client.destroy();
     this.#clients.clear();
+    await this.#keepAwake.dispose();
     await new Promise<void>((resolvePromise, reject) => {
       this.#server.close((error) => (error === undefined ? resolvePromise() : reject(error)));
     });
@@ -545,6 +629,10 @@ export class CoreDaemon {
       case "core.status":
         jsonObjectSchema.parse(request.payload);
         return this.status();
+      case "keep-awake.status": {
+        const payload = keepAwakeStatusRequestSchema.parse(request.payload);
+        return asJson(this.#keepAwake.status(payload.projectId));
+      }
       case "core.stop":
         jsonObjectSchema.parse(request.payload);
         setImmediate(() => void this.stop().catch(() => undefined));

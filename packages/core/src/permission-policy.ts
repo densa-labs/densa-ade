@@ -133,6 +133,8 @@ export interface PermissionAuthorizationRequest {
   readonly reason: string;
   readonly occurredAt: string;
   readonly approvalDecisionId?: DecisionId;
+  /** Exact persisted decision category that binds a one-operation approval to this request. */
+  readonly approvalCategory?: string;
 }
 
 export type PermissionAuthorizationResult =
@@ -344,69 +346,82 @@ export class PermissionPolicyService {
     if (request.actor.trim().length === 0 || request.reason.trim().length === 0) {
       throw new PermissionPolicyError("Permission decisions require a non-empty actor and reason");
     }
+    if ((request.approvalDecisionId === undefined) !== (request.approvalCategory === undefined)) {
+      throw new PermissionPolicyError(
+        "Permission approvals require both a decision id and an exact approval category",
+      );
+    }
     if (this.database.repositories.projects.findById(request.projectId) === undefined) {
       throw new PermissionPolicyError(
         `Permission policy project ${request.projectId} does not exist`,
       );
     }
-    const configuration = this.#configuration(request.projectId);
-    const evaluated = evaluatePermissionPolicy(configuration, request.operation);
-    let disposition = evaluated.disposition;
-    let source: PermissionDecision["source"] = evaluated.source;
-    if (request.approvalDecisionId !== undefined) {
-      const approval = this.database.repositories.decisions.findById(request.approvalDecisionId);
-      if (
-        approval?.projectId !== request.projectId ||
-        approval.source !== "user" ||
-        approval.status !== "active"
-      ) {
-        throw new PermissionPolicyError(
-          `Approval decision ${request.approvalDecisionId} is not an active user decision for project ${request.projectId}`,
-        );
+    return this.database.transaction((repositories) => {
+      const configuration = this.#configuration(request.projectId);
+      const evaluated = evaluatePermissionPolicy(configuration, request.operation);
+      let disposition = evaluated.disposition;
+      let source: PermissionDecision["source"] = evaluated.source;
+      if (request.approvalDecisionId !== undefined) {
+        const approval = repositories.decisions.findById(request.approvalDecisionId);
+        if (
+          approval?.projectId !== request.projectId ||
+          approval.kind !== "decision" ||
+          approval.source !== "user" ||
+          approval.status !== "active"
+        ) {
+          throw new PermissionPolicyError(
+            `Approval decision ${request.approvalDecisionId} is not an active user decision for project ${request.projectId}`,
+          );
+        }
+        if (approval.category !== request.approvalCategory) {
+          throw new PermissionPolicyError(
+            `Approval decision ${request.approvalDecisionId} does not approve ${request.operation}`,
+          );
+        }
+        if (disposition === "ask_user") {
+          disposition = "allow";
+          source = "user_approval";
+        }
       }
-      if (disposition === "ask_user") {
-        disposition = "allow";
-        source = "user_approval";
-      }
-    }
-    const decision = permissionDecisionSchema.parse({
-      decisionId: this.#decisionIdFactory(),
-      projectId: request.projectId,
-      preset: configuration.preset,
-      operation: request.operation,
-      disposition,
-      source,
-      actor: request.actor,
-      reason: request.reason,
-      occurredAt: request.occurredAt,
-      ...(request.approvalDecisionId === undefined
-        ? {}
-        : { approvalDecisionId: request.approvalDecisionId }),
-    });
-    if (decision.disposition !== "allow" || decision.source === "user_approval") {
-      this.database.repositories.events.append({
-        id: eventIdSchema.parse(this.#eventIdFactory()),
+      const decision = permissionDecisionSchema.parse({
+        decisionId: this.#decisionIdFactory(),
         projectId: request.projectId,
-        type: "PERMISSION_DECISION_RECORDED",
-        eventVersion: 1,
-        occurredAt: request.occurredAt,
+        preset: configuration.preset,
+        operation: request.operation,
+        disposition,
+        source,
         actor: request.actor,
-        payload: {
-          decisionId: decision.decisionId,
-          preset: decision.preset,
-          operation: decision.operation,
-          disposition: decision.disposition,
-          source: decision.source,
-          reason: decision.reason,
-          ...(decision.approvalDecisionId === undefined
-            ? {}
-            : { approvalDecisionId: decision.approvalDecisionId }),
-        },
+        reason: request.reason,
+        occurredAt: request.occurredAt,
+        ...(request.approvalDecisionId === undefined
+          ? {}
+          : { approvalDecisionId: request.approvalDecisionId }),
       });
-    }
-    return decision.disposition === "allow"
-      ? Object.freeze({ decision, authorization: issueAuthorization(decision) })
-      : Object.freeze({ decision });
+      if (decision.disposition !== "allow" || decision.source === "user_approval") {
+        repositories.events.append({
+          id: eventIdSchema.parse(this.#eventIdFactory()),
+          projectId: request.projectId,
+          type: "PERMISSION_DECISION_RECORDED",
+          eventVersion: 1,
+          occurredAt: request.occurredAt,
+          actor: request.actor,
+          payload: {
+            decisionId: decision.decisionId,
+            preset: decision.preset,
+            operation: decision.operation,
+            disposition: decision.disposition,
+            source: decision.source,
+            reason: decision.reason,
+            ...(decision.approvalDecisionId === undefined
+              ? {}
+              : { approvalDecisionId: decision.approvalDecisionId }),
+          },
+        });
+      }
+      return decision.disposition === "allow"
+        ? Object.freeze({ decision, authorization: issueAuthorization(decision) })
+        : Object.freeze({ decision });
+    });
   }
 
   #configuration(projectId: ProjectId): PermissionPolicyConfiguration {

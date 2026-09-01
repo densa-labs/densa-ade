@@ -4,6 +4,8 @@ import { isAbsolute } from "node:path";
 import {
   eventIdSchema,
   isoTimestampSchema,
+  projectIdSchema,
+  taskIdSchema,
   usageStateSchema,
   type EventId,
   type JsonObject,
@@ -16,6 +18,7 @@ import {
 import type { DensaAdeDatabase } from "./persistence/database.js";
 import { RecoveryInspector, type RecoveryPlan, type WorkspaceProbe } from "./recovery-inspector.js";
 import type { SchedulerGateSnapshot } from "./scheduler.js";
+import { SecretRedactor, redactSensitiveText } from "./secret-redaction.js";
 import { stateTransitionService } from "./state-transitions.js";
 import { WorkspacePreflight, type WorkspacePreflightResult } from "./workspace-preflight.js";
 
@@ -137,7 +140,7 @@ function parseWaitState(value: unknown): UsageAutoResumeWaitState | undefined {
     "resumed",
   ]);
   if (
-    typeof value["taskId"] !== "string" ||
+    !taskIdSchema.safeParse(value["taskId"]).success ||
     typeof value["status"] !== "string" ||
     !statuses.has(value["status"] as UsageAutoResumeWaitStatus) ||
     typeof value["probeAttempt"] !== "number" ||
@@ -170,7 +173,7 @@ function parseState(value: unknown): UsageAutoResumeState | undefined {
   if (!isRecord(value)) return undefined;
   if (
     value["formatVersion"] !== 1 ||
-    typeof value["projectId"] !== "string" ||
+    !projectIdSchema.safeParse(value["projectId"]).success ||
     typeof value["enabled"] !== "boolean" ||
     typeof value["workspacePath"] !== "string" ||
     !isAbsolute(value["workspacePath"]) ||
@@ -324,7 +327,7 @@ export class UsageAutoResumeService {
       projectId: project.id,
       enabled: true,
       workspacePath: request.workspacePath,
-      actor: request.actor,
+      actor: redactSensitiveText(request.actor),
       updatedAt: now,
       ...(previous?.wait === undefined ? {} : { wait: previous.wait }),
     });
@@ -335,7 +338,11 @@ export class UsageAutoResumeService {
 
   disable(projectId: ProjectId, actor: string): UsageAutoResumeResult {
     const state = this.state(projectId);
-    if (state === undefined) return result(projectId, "DISABLED", "Auto-resume is not configured");
+    if (state === undefined) {
+      return this.#malformedState(projectId)
+        ? result(projectId, "BLOCKED", "Persisted usage auto-resume state is malformed")
+        : result(projectId, "DISABLED", "Auto-resume is not configured");
+    }
     if (actor.trim().length === 0)
       return result(projectId, "REJECTED", "Disable requires an actor");
     this.#disarm(projectId);
@@ -343,7 +350,7 @@ export class UsageAutoResumeService {
     const disabled: UsageAutoResumeState = Object.freeze({
       ...state,
       enabled: false,
-      actor,
+      actor: redactSensitiveText(actor),
       updatedAt: now,
       ...(state.wait === undefined
         ? {}
@@ -362,13 +369,16 @@ export class UsageAutoResumeService {
   cancel(projectId: ProjectId, actor: string): UsageAutoResumeResult {
     const state = this.state(projectId);
     if (state === undefined || state.wait === undefined) {
+      if (state === undefined && this.#malformedState(projectId)) {
+        return result(projectId, "BLOCKED", "Persisted usage auto-resume state is malformed");
+      }
       return result(projectId, "CANCELLED", "No future usage probe is scheduled");
     }
     if (actor.trim().length === 0) return result(projectId, "REJECTED", "Cancel requires an actor");
     this.#disarm(projectId);
     const cancelled: UsageAutoResumeState = Object.freeze({
       ...state,
-      actor,
+      actor: redactSensitiveText(actor),
       updatedAt: this.#now(),
       wait: Object.freeze({
         ...state.wait,
@@ -387,6 +397,9 @@ export class UsageAutoResumeService {
   restore(projectId: ProjectId): UsageAutoResumeResult {
     const state = this.state(projectId);
     if (state === undefined || !state.enabled) {
+      if (state === undefined && this.#malformedState(projectId)) {
+        return result(projectId, "BLOCKED", "Persisted usage auto-resume state is malformed");
+      }
       return result(projectId, "DISABLED", "Auto-resume is not enabled");
     }
     if (state.wait === undefined) return this.handleUsageWait(projectId);
@@ -425,6 +438,9 @@ export class UsageAutoResumeService {
   handleUsageWait(projectId: ProjectId): UsageAutoResumeResult {
     const state = this.state(projectId);
     if (state === undefined || !state.enabled) {
+      if (state === undefined && this.#malformedState(projectId)) {
+        return result(projectId, "BLOCKED", "Persisted usage auto-resume state is malformed");
+      }
       return result(projectId, "DISABLED", "Auto-resume requires explicit project opt-in");
     }
     const boundary = this.#waitingBoundary(projectId);
@@ -467,6 +483,9 @@ export class UsageAutoResumeService {
     }
     const state = this.state(projectId);
     if (state === undefined || !state.enabled) {
+      if (state === undefined && this.#malformedState(projectId)) {
+        return result(projectId, "BLOCKED", "Persisted usage auto-resume state is malformed");
+      }
       return result(projectId, "DISABLED", "Auto-resume is not enabled");
     }
     const wait = state.wait;
@@ -826,42 +845,58 @@ export class UsageAutoResumeService {
   #block(state: UsageAutoResumeState, reason: string): UsageAutoResumeResult {
     const projectId = this.#projectIdFor(state);
     this.#disarm(projectId);
+    const safeReason = redactSensitiveText(reason);
     const blocked: UsageAutoResumeState = Object.freeze({
       ...state,
       updatedAt: this.#now(),
       ...(state.wait === undefined
         ? {}
-        : { wait: Object.freeze({ ...state.wait, status: "blocked" as const, reason }) }),
+        : {
+            wait: Object.freeze({
+              ...state.wait,
+              status: "blocked" as const,
+              reason: safeReason,
+            }),
+          }),
     });
     this.#persist(blocked, "USAGE_AUTO_RESUME_BLOCKED", {
-      reason,
+      reason: safeReason,
       ...(blocked.wait === undefined ? {} : { taskId: blocked.wait.taskId }),
     });
-    return result(projectId, "BLOCKED", reason, blocked.wait);
+    return result(projectId, "BLOCKED", safeReason, blocked.wait);
   }
 
   #persist(state: UsageAutoResumeState, type: string, payload: JsonObject): void {
     const projectId = this.#projectIdFor(state);
+    const redactor = new SecretRedactor();
+    const safeState: UsageAutoResumeState = Object.freeze({
+      ...state,
+      actor: redactor.text(state.actor),
+      ...(state.wait?.reason === undefined
+        ? {}
+        : { wait: Object.freeze({ ...state.wait, reason: redactor.text(state.wait.reason) }) }),
+    });
+    const safePayload = redactor.json(payload) as JsonObject;
     this.database.transaction((repositories) => {
       const settings = repositories.projectSettings.findByProjectId(projectId);
       repositories.projectSettings.set({
         projectId,
-        values: { ...(settings?.values ?? {}), usageAutoResume: jsonState(state) },
-        updatedAt: state.updatedAt,
+        values: { ...(settings?.values ?? {}), usageAutoResume: jsonState(safeState) },
+        updatedAt: safeState.updatedAt,
       });
       repositories.events.append({
         id: eventId(
           projectId,
           type,
-          state.updatedAt,
-          `${state.wait?.probeAttempt ?? 0}:${state.wait?.nextProbeAt ?? ""}:${repositories.events.latest(projectId)?.sequenceNumber ?? 0}`,
+          safeState.updatedAt,
+          `${safeState.wait?.probeAttempt ?? 0}:${safeState.wait?.nextProbeAt ?? ""}:${repositories.events.latest(projectId)?.sequenceNumber ?? 0}`,
         ),
         projectId,
         type,
         eventVersion: 1,
-        occurredAt: state.updatedAt,
-        actor: state.actor,
-        payload,
+        occurredAt: safeState.updatedAt,
+        actor: safeState.actor,
+        payload: safePayload,
       });
     });
   }
@@ -870,6 +905,7 @@ export class UsageAutoResumeService {
     const projectId = this.#projectIdFor(state);
     const occurredAt = this.#now();
     const latestSequence = this.database.repositories.events.latest(projectId)?.sequenceNumber ?? 0;
+    const redactor = new SecretRedactor();
     this.database.repositories.events.append({
       id: eventId(
         projectId,
@@ -881,8 +917,8 @@ export class UsageAutoResumeService {
       type,
       eventVersion: 1,
       occurredAt,
-      actor: state.actor,
-      payload,
+      actor: redactor.text(state.actor),
+      payload: redactor.json(payload) as JsonObject,
     });
   }
 
@@ -890,9 +926,24 @@ export class UsageAutoResumeService {
     return state.projectId;
   }
 
+  #malformedState(projectId: ProjectId): boolean {
+    const raw =
+      this.database.repositories.projectSettings.findByProjectId(projectId)?.values[
+        "usageAutoResume"
+      ];
+    return raw !== undefined && parseState(raw) === undefined;
+  }
+
   #supersededResult(probing: UsageAutoResumeState): UsageAutoResumeResult | undefined {
     const current = this.state(probing.projectId);
     if (current === undefined || !current.enabled) {
+      if (current === undefined && this.#malformedState(probing.projectId)) {
+        return result(
+          probing.projectId,
+          "BLOCKED",
+          "Persisted usage auto-resume state became malformed during probing",
+        );
+      }
       return result(probing.projectId, "DISABLED", "Auto-resume was disabled during probing");
     }
     if (
