@@ -16,6 +16,7 @@ import {
   roadmapRevisionSchema,
   taskIdSchema,
   type ExecutionMode,
+  type DecisionId,
   type MasterRoadmap,
   type MasterRoadmapPhase,
   type MasterRoadmapTask,
@@ -31,6 +32,7 @@ import type { PersistedEvent } from "./event-publisher.js";
 import { assertSpecificationReady } from "./master-roadmap.js";
 import { redactSensitiveText } from "./secret-redaction.js";
 import type { DensaAdeDatabase } from "./persistence/database.js";
+import { assertProjectWorkspace } from "./project-workspace.js";
 import type { PortableSyncResult } from "./persistence/portable-project.js";
 import {
   PermissionPolicyService,
@@ -93,7 +95,7 @@ export interface RoadmapMutationProposalResolution {
 
 export interface RoadmapPortableSyncFailure {
   readonly status: "failed";
-  readonly code: "PERSISTENCE_FAILURE" | "WORKSPACE_CONFLICT";
+  readonly code: "PERMISSION_DENIED" | "PERSISTENCE_FAILURE" | "WORKSPACE_CONFLICT";
   readonly message: string;
 }
 
@@ -573,6 +575,7 @@ export class RoadmapMutationService {
     const project = this.database.repositories.projects.findById(parsedProjectId);
     if (project === undefined)
       throw invalid(`Cannot store a roadmap for missing project ${projectId}`);
+    assertProjectWorkspace(this.database, project.id, this.options.workspacePath);
     if (project.state !== "DRAFT" && project.state !== "PLANNING") {
       throw invalid(
         "Initial roadmap must be stored during project planning, before execution becomes eligible",
@@ -648,6 +651,7 @@ export class RoadmapMutationService {
     const project = this.database.repositories.projects.findById(parsedProjectId);
     if (project === undefined)
       throw invalid(`Cannot preview a roadmap for missing project ${projectId}`);
+    assertProjectWorkspace(this.database, project.id, this.options.workspacePath);
     const current = this.database.repositories.masterRoadmaps.findByProjectId(project.id);
     if (current === undefined)
       throw invalid(`Project ${projectId} has no authoritative master roadmap`);
@@ -689,6 +693,7 @@ export class RoadmapMutationService {
     const project = this.database.repositories.projects.findById(parsedProjectId);
     if (project === undefined)
       throw invalid(`Cannot mutate a roadmap for missing project ${projectId}`);
+    assertProjectWorkspace(this.database, project.id, this.options.workspacePath);
     const current = this.database.repositories.masterRoadmaps.findByProjectId(project.id);
     if (current === undefined)
       throw invalid(`Project ${projectId} has no authoritative master roadmap`);
@@ -901,6 +906,42 @@ export class RoadmapMutationService {
       operations: Object.freeze([...request.operations]),
       ...(resolvedProposal === undefined ? {} : { proposal: resolvedProposal }),
     });
+  }
+
+  /** Repairs a portable projection after an earlier authoritative commit without replaying it. */
+  async synchronizePortableProjection(
+    projectIdInput: string,
+    request: Readonly<{
+      actor: string;
+      reason: string;
+      approvalDecisionId?: DecisionId;
+      approvalCategory?: string;
+    }>,
+  ): Promise<RoadmapPortableSyncOutcome> {
+    const projectId = projectIdSchema.parse(projectIdInput);
+    assertProjectWorkspace(this.database, projectId, this.options.workspacePath);
+    const occurredAt = isoTimestampSchema.parse(this.#now());
+    const permission = new PermissionPolicyService(this.database).authorize({
+      projectId,
+      operation: "write_workspace",
+      actor: redactSensitiveText(request.actor),
+      reason: redactSensitiveText(request.reason),
+      occurredAt,
+      ...(request.approvalDecisionId === undefined
+        ? {}
+        : {
+            approvalDecisionId: request.approvalDecisionId,
+            approvalCategory: request.approvalCategory as string,
+          }),
+    });
+    if (permission.authorization === undefined) {
+      return Object.freeze({
+        status: "failed" as const,
+        code: "PERMISSION_DENIED" as const,
+        message: `Portable roadmap regeneration requires user authorization: ${permission.decision.disposition}`,
+      });
+    }
+    return await this.#synchronize(projectId, permission.authorization);
   }
 
   async #synchronize(

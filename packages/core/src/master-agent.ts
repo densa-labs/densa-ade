@@ -14,8 +14,11 @@ import {
   type JsonValue,
   type MasterAgentCitation,
   type MasterAgentProposal,
+  type MasterRoadmapRecord,
   type Phase,
   type Project,
+  type ProjectRundown,
+  type ProjectSpecification,
   type ProjectConstraintChange,
   type ProjectId,
   type RoadmapMutationOperation,
@@ -38,11 +41,14 @@ import {
   MasterRoadmapRevisionWorkflow,
   type RoadmapRevisionWorkflowResult,
 } from "./roadmap-revision-workflow.js";
-import { SecretRedactor } from "./secret-redaction.js";
+import { SecretRedactor, redactSensitiveText } from "./secret-redaction.js";
+import { ProjectRundownService, renderProjectRundown } from "./rundown.js";
 
 const MASTER_CONTEXT_EVENT_LIMIT = 50;
 const MASTER_CONTEXT_REVISION_LIMIT = 20;
 const MAX_MASTER_MESSAGE_BYTES = 64 * 1_024;
+const MAX_MASTER_PROMPT_BYTES = 1_024 * 1_024;
+const MAX_MASTER_PROPOSAL_BYTES = 256 * 1_024;
 
 export interface MasterAgentRequest {
   readonly projectId: ProjectId;
@@ -53,6 +59,8 @@ export interface MasterAgentRequest {
 
 export interface MasterProjectContext {
   readonly project: Project;
+  readonly specification?: ProjectSpecification;
+  readonly roadmap?: MasterRoadmapRecord;
   readonly phases: readonly Phase[];
   readonly tasks: readonly Task[];
   readonly decisions: readonly Decision[];
@@ -75,6 +83,15 @@ export interface MasterConversationAgent {
 
 export interface MasterProjectContextReader {
   read(projectId: ProjectId): MasterProjectContext;
+}
+
+export interface MasterRundownGenerator {
+  generate(request: {
+    readonly kind: ProjectRundown["kind"];
+    readonly projectId: ProjectId;
+    readonly workspacePath: string;
+    readonly phaseId?: string;
+  }): Promise<ProjectRundown>;
 }
 
 interface MasterCommandBase {
@@ -184,10 +201,18 @@ export class AgentAdapterMasterAgent implements MasterConversationAgent {
     let failureMessage: string | undefined;
     let failureCode: DensaAdeErrorCode = "PROCESS_FAILURE";
 
+    const prompt = buildMasterPrompt(request);
+    if (Buffer.byteLength(prompt) > MAX_MASTER_PROMPT_BYTES) {
+      throw new MasterAgentError(
+        "USER_CONFIGURATION_ERROR",
+        `Master Agent context exceeds the ${String(MAX_MASTER_PROMPT_BYTES)} byte prompt limit`,
+      );
+    }
+
     for await (const event of this.adapter.execute({
       runId: this.#runIdFactory(request.sessionId),
       cwd: this.#cwd,
-      prompt: buildMasterPrompt(request),
+      prompt,
       outputSchema: masterAgentProposalOutputSchema,
       accessMode: "read-only",
     })) {
@@ -196,7 +221,9 @@ export class AgentAdapterMasterAgent implements MasterConversationAgent {
       if (event.outcome === "succeeded") finalMessage = event.finalMessage;
       else {
         failureCode = event.error?.code ?? "PROCESS_FAILURE";
-        failureMessage = event.error?.message ?? `Master Agent run ended ${event.outcome}`;
+        failureMessage = redactSensitiveText(
+          event.error?.message ?? `Master Agent run ended ${event.outcome}`,
+        );
       }
     }
 
@@ -211,6 +238,12 @@ export class AgentAdapterMasterAgent implements MasterConversationAgent {
       throw new MasterAgentError(
         "PROCESS_FAILURE",
         "Master Agent run succeeded without a structured final response",
+      );
+    }
+    if (Buffer.byteLength(finalMessage) > MAX_MASTER_PROPOSAL_BYTES) {
+      throw new MasterAgentError(
+        "PROCESS_FAILURE",
+        `Master Agent final response exceeds the ${String(MAX_MASTER_PROPOSAL_BYTES)} byte limit`,
       );
     }
 
@@ -245,8 +278,12 @@ export class DatabaseMasterProjectContextReader implements MasterProjectContextR
       afterSequence,
       limit: MASTER_CONTEXT_EVENT_LIMIT,
     });
+    const specification = this.database.repositories.specifications.findByProjectId(projectId);
+    const roadmap = this.database.repositories.masterRoadmaps.findByProjectId(projectId);
     return Object.freeze({
       project,
+      ...(specification === undefined ? {} : { specification: specification.specification }),
+      ...(roadmap === undefined ? {} : { roadmap }),
       phases: this.database.repositories.phases.listByProjectId(projectId),
       tasks: this.database.repositories.tasks.listByProjectId(projectId),
       decisions: this.database.repositories.decisions.listByProjectId(projectId),
@@ -258,6 +295,12 @@ export class DatabaseMasterProjectContextReader implements MasterProjectContextR
         .slice(-MASTER_CONTEXT_REVISION_LIMIT),
       events,
     });
+  }
+
+  async generate(
+    request: Parameters<MasterRundownGenerator["generate"]>[0],
+  ): Promise<ProjectRundown> {
+    return await new ProjectRundownService(this.database).generate(request);
   }
 }
 
@@ -324,6 +367,20 @@ export class ValidatedMasterCoreCommandGateway implements MasterCoreCommandGatew
               proposalEventId: command.proposalEventId as Event["id"],
               actor: command.actor,
               rationale: command.rationale,
+            }),
+          );
+        }
+        if (
+          proposal.status === "applied" ||
+          proposal.status === "rejected" ||
+          proposal.status === "stale" ||
+          !proposal.approvalRequired ||
+          proposal.approvalDecisionId !== undefined
+        ) {
+          return roadmapWorkflowCommandResult(
+            command.kind,
+            await workflow.applyProposal({
+              proposalEventId: command.proposalEventId as Event["id"],
             }),
           );
         }
@@ -421,7 +478,10 @@ export class ValidatedMasterCoreCommandGateway implements MasterCoreCommandGatew
           return Object.freeze({
             command: command.kind,
             status: "UNCHANGED" as const,
-            details: Object.freeze({ decisionId: result.decision.id }),
+            details: Object.freeze({
+              decisionId: result.decision.id,
+              portableSyncStatus: result.portableSync.status,
+            }),
           });
         }
         if (result.status === "CONFLICT_REQUIRES_USER_DECISION") {
@@ -576,6 +636,14 @@ function roadmapWorkflowCommandResult(
             roadmapChangeEventId: result.mutation.event.id,
             portableSyncStatus: result.mutation.portableSync.status,
           }),
+      ...(result.portableSync === undefined
+        ? {}
+        : {
+            portableSyncStatus: result.portableSync.status,
+            ...(result.portableSync.status === "failed"
+              ? { portableSyncCode: result.portableSync.code }
+              : {}),
+          }),
       ...(result.proposal.approvalDecisionId === undefined
         ? {}
         : { approvalDecisionId: result.proposal.approvalDecisionId }),
@@ -592,26 +660,41 @@ export class MasterAgentService {
     private readonly agent: MasterConversationAgent,
     private readonly contextReader: MasterProjectContextReader,
     private readonly commands: MasterCoreCommandGateway,
+    private readonly rundowns?: MasterRundownGenerator,
   ) {}
 
   async handle(input: MasterAgentRequest): Promise<MasterAgentResponse> {
     const request = validateRequest(input);
     const context = this.contextReader.read(request.projectId);
     assertContextScope(request.projectId, context);
+    const safeContext = redactMasterContext(context);
+    if (Buffer.byteLength(JSON.stringify(safeContext)) > MAX_MASTER_PROMPT_BYTES) {
+      throw new MasterAgentError(
+        "USER_CONFIGURATION_ERROR",
+        `Master Agent context exceeds the ${String(MAX_MASTER_PROMPT_BYTES)} byte limit`,
+      );
+    }
     const proposal = masterAgentProposalSchema.parse(
       await this.agent.propose({
         projectId: request.projectId,
         sessionId: request.sessionId,
-        message: request.message,
-        context,
+        message: redactSensitiveText(request.message),
+        context: safeContext,
       }),
     );
     assertCitations(context, proposal.citations);
     const command = commandFromProposal(request, proposal);
     const commandResult = command === undefined ? undefined : await this.commands.execute(command);
+    const response = await trustedMasterResponse(
+      request,
+      context,
+      proposal,
+      commandResult,
+      this.rundowns ?? masterRundownGenerator(this.contextReader),
+    );
     return Object.freeze({
       intent: proposal.intent,
-      response: proposal.response,
+      response,
       citations: Object.freeze([...proposal.citations]),
       ...(commandResult === undefined ? {} : { commandResult }),
     });
@@ -643,6 +726,9 @@ function validateRequest(input: MasterAgentRequest): MasterAgentRequest {
 function assertContextScope(projectId: ProjectId, context: MasterProjectContext): void {
   const incorrectlyScoped = [
     ...(context.project.id === projectId ? [] : [`project:${context.project.id}`]),
+    ...(context.roadmap === undefined || context.roadmap.projectId === projectId
+      ? []
+      : [`roadmap:${context.roadmap.projectId}`]),
     ...context.phases
       .filter((phase) => phase.projectId !== projectId)
       .map((phase) => `phase:${phase.id}`),
@@ -740,6 +826,8 @@ function buildMasterPrompt(request: MasterConversationRequest): string {
   const redactor = new SecretRedactor();
   const safeContext = {
     project: request.context.project,
+    specification: request.context.specification,
+    roadmap: request.context.roadmap,
     phases: request.context.phases,
     tasks: request.context.tasks,
     decisions: request.context.decisions,
@@ -762,4 +850,103 @@ function buildMasterPrompt(request: MasterConversationRequest): string {
       request.message,
     ].join("\n"),
   );
+}
+
+function redactMasterContext(context: MasterProjectContext): MasterProjectContext {
+  return new SecretRedactor().json(
+    context as unknown as JsonValue,
+  ) as unknown as MasterProjectContext;
+}
+
+function masterRundownGenerator(
+  reader: MasterProjectContextReader,
+): MasterRundownGenerator | undefined {
+  return "generate" in reader && typeof reader.generate === "function"
+    ? (reader as MasterProjectContextReader & MasterRundownGenerator)
+    : undefined;
+}
+
+async function trustedMasterResponse(
+  request: MasterAgentRequest,
+  context: MasterProjectContext,
+  proposal: MasterAgentProposal,
+  commandResult: MasterCoreCommandResult | undefined,
+  rundowns: MasterRundownGenerator | undefined,
+): Promise<string> {
+  if (commandResult !== undefined) {
+    return `Core processed ${commandResult.command} with outcome ${commandResult.status}.`;
+  }
+  if (proposal.intent === "explain_decision") {
+    const citedDecisionIds = new Set(
+      proposal.citations
+        .filter((citation) => citation.kind === "decision")
+        .map((citation) => citation.id),
+    );
+    const citedRevisionIds = new Set(
+      proposal.citations
+        .filter((citation) => citation.kind === "roadmap_revision")
+        .map((citation) => citation.id),
+    );
+    const decisions = context.decisions.filter((decision) => citedDecisionIds.has(decision.id));
+    const revisions = context.roadmapRevisions.filter((revision) =>
+      citedRevisionIds.has(revision.id),
+    );
+    if (decisions.length === 0 && revisions.length === 0) {
+      throw new MasterAgentError(
+        "INTERNAL_INVARIANT_VIOLATION",
+        "Decision explanations require a cited authoritative decision or roadmap revision",
+      );
+    }
+    return [
+      ...decisions.map(
+        (decision) =>
+          `Decision ${decision.id}: ${redactSensitiveText(decision.statement)} Rationale: ${redactSensitiveText(decision.rationale)} Status: ${decision.status}.`,
+      ),
+      ...revisions.map(
+        (revision) =>
+          `Roadmap revision ${revision.id}: ${redactSensitiveText(revision.reason)} Classification: ${revision.classification}.`,
+      ),
+    ].join("\n");
+  }
+  if (
+    proposal.intent !== "explain_project_status" &&
+    proposal.intent !== "explain_current_phase" &&
+    proposal.intent !== "summarize_failures"
+  ) {
+    return proposal.response;
+  }
+  if (rundowns === undefined) {
+    throw new MasterAgentError(
+      "INTERNAL_INVARIANT_VIOLATION",
+      "Factual Master summaries require the Core-owned rundown service",
+    );
+  }
+  const phase =
+    proposal.intent === "explain_current_phase" ? currentPhase(context.phases) : undefined;
+  const kind: ProjectRundown["kind"] =
+    proposal.intent === "summarize_failures"
+      ? context.project.state === "BLOCKED"
+        ? "blocked_project"
+        : "retry_failure_history"
+      : context.project.state === "WAITING_FOR_USAGE"
+        ? "usage_waiting"
+        : context.project.state === "BLOCKED"
+          ? "blocked_project"
+          : "project_status";
+  const rundown = await rundowns.generate({
+    kind,
+    projectId: request.projectId,
+    workspacePath: request.workspacePath,
+    ...(phase === undefined ? {} : { phaseId: phase.id }),
+  });
+  return renderProjectRundown(rundown);
+}
+
+function currentPhase(phases: readonly Phase[]): Phase | undefined {
+  const priority = ["RUNNING", "VALIDATING", "AWAITING_APPROVAL", "BLOCKED", "READY"];
+  for (const state of priority) {
+    const phase = phases.find((candidate) => candidate.state === state);
+    if (phase !== undefined) return phase;
+  }
+  return phases.find((phase) => phase.state !== "COMPLETED") ?? phases.at(-1);
 }

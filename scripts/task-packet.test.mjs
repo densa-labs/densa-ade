@@ -512,6 +512,54 @@ test("durable active constraints affect future packets while conflicts and super
     assert.match(portable, /Status: superseded/u);
     assert.match(portable, /Supersedes: `decision\.constraint\.1`/u);
     assert.match(portable, /Use SQLite for authoritative runtime state\./u);
+
+    database.repositories.phases.create({
+      id: "phase.extra",
+      projectId,
+      title: "Extra",
+      state: "PENDING",
+      position: 1,
+      createdAt,
+      updatedAt: createdAt,
+    });
+    database.repositories.tasks.create({
+      id: "task.extra",
+      projectId,
+      phaseId: "phase.extra",
+      title: "Extra task",
+      state: "PENDING",
+      position: 0,
+      acceptanceCriteria: ["The extra task remains scoped."],
+      dependencyIds: [],
+      createdAt,
+      updatedAt: createdAt,
+    });
+    const phaseCore = await service.record({
+      ...base,
+      statement: "Use one Core-local cache.",
+      category: "architecture.cache",
+      scope: "phase",
+      affectedPhaseIds: ["phase.core"],
+    });
+    const phaseExtra = await service.record({
+      ...base,
+      statement: "Use another extra-phase cache.",
+      category: "architecture.cache",
+      scope: "phase",
+      affectedPhaseIds: ["phase.extra"],
+    });
+    assert.equal(phaseCore.status, "RECORDED");
+    assert.equal(phaseExtra.status, "RECORDED");
+
+    const unsafeWidening = await service.record({
+      ...base,
+      statement: "Use the Core-local cache everywhere.",
+      category: "architecture.cache",
+      supersedesId: phaseCore.decision.id,
+    });
+    assert.equal(unsafeWidening.status, "CONFLICT_REQUIRES_USER_DECISION");
+    assert.deepEqual(unsafeWidening.conflictDecisionIds, [phaseExtra.decision.id]);
+    assert.equal(database.repositories.decisions.findById(phaseCore.decision.id).status, "active");
   } finally {
     database.close();
     await rm(workspacePath, { force: true, recursive: true });

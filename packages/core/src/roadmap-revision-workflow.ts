@@ -24,7 +24,11 @@ import {
 import type { PersistedEvent } from "./event-publisher.js";
 import type { DensaAdeDatabase } from "./persistence/database.js";
 import { PermissionPolicyService, evaluatePermissionPolicy } from "./permission-policy.js";
-import { RoadmapMutationService, type RoadmapMutationBatchResult } from "./roadmap-mutations.js";
+import {
+  RoadmapMutationService,
+  type RoadmapMutationBatchResult,
+  type RoadmapPortableSyncOutcome,
+} from "./roadmap-mutations.js";
 import { redactSensitiveText } from "./secret-redaction.js";
 
 const ACTIVE_TASK_STATES = new Set(["RUNNING", "VALIDATING", "RETRYING"]);
@@ -56,6 +60,7 @@ export type RoadmapRevisionWorkflowResult = Readonly<{
   proposal: RoadmapRevisionProposal;
   event?: PersistedEvent;
   mutation?: RoadmapMutationBatchResult;
+  portableSync?: RoadmapPortableSyncOutcome;
 }>;
 
 export interface MasterRoadmapRevisionWorkflowOptions {
@@ -203,7 +208,17 @@ export class MasterRoadmapRevisionWorkflow {
       );
     }
     if (proposal.status === "applied") {
-      return Object.freeze({ status: "APPLIED" as const, proposal });
+      const portableSync = await this.#mutations.synchronizePortableProjection(proposal.projectId, {
+        actor: proposal.actor,
+        reason: `Regenerate the portable projection for applied proposal ${proposal.id}`,
+        ...(proposal.approvalDecisionId === undefined
+          ? {}
+          : {
+              approvalDecisionId: proposal.approvalDecisionId,
+              approvalCategory: `roadmap.revision.approval.${proposal.id}`,
+            }),
+      });
+      return Object.freeze({ status: "APPLIED" as const, proposal, portableSync });
     }
     if (proposal.status === "rejected") {
       return Object.freeze({ status: "REJECTED" as const, proposal });
@@ -293,6 +308,7 @@ export class MasterRoadmapRevisionWorkflow {
       proposal: appliedProposal,
       event: mutation.event,
       mutation,
+      portableSync: mutation.portableSync,
     });
   }
 
@@ -314,6 +330,9 @@ export class MasterRoadmapRevisionWorkflow {
     }
     if (proposal.status === "rejected") {
       return Object.freeze({ status: "REJECTED" as const, proposal });
+    }
+    if (proposal.status === "stale") {
+      return Object.freeze({ status: "STALE" as const, proposal });
     }
     const occurredAt = isoTimestampSchema.parse(this.#now());
     const actor = cleanText(request.actor, "actor", MAX_ACTOR_BYTES);

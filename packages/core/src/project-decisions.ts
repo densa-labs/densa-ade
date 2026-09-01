@@ -24,6 +24,7 @@ import type { PersistedEvent } from "./event-publisher.js";
 import type { DensaAdeDatabase } from "./persistence/database.js";
 import type { PortableSyncResult } from "./persistence/portable-project.js";
 import { redactSensitiveText } from "./secret-redaction.js";
+import { assertProjectWorkspace } from "./project-workspace.js";
 
 const MAX_DECISION_TEXT_BYTES = 64 * 1_024;
 const MAX_DECISION_CATEGORY_BYTES = 512;
@@ -55,6 +56,7 @@ export type ProjectDecisionResult =
   | Readonly<{
       status: "UNCHANGED";
       decision: Decision;
+      portableSync: PortableSyncResult | ProjectDecisionPortableSyncFailure;
     }>
   | Readonly<{
       status: "CONFLICT_REQUIRES_USER_DECISION";
@@ -109,6 +111,7 @@ export class ProjectDecisionService {
   async record(requestInput: RecordProjectDecisionRequest): Promise<ProjectDecisionResult> {
     const occurredAt = isoTimestampSchema.parse(this.#now());
     const request = this.#validateRequest(requestInput);
+    assertProjectWorkspace(this.database, request.projectId, this.options.workspacePath);
     const active = this.database.repositories.decisions
       .listByProjectId(request.projectId)
       .filter((decision) => decision.status === "active");
@@ -148,15 +151,14 @@ export class ProjectDecisionService {
         sameReferences(decision.affectedTaskIds, request.affectedTaskIds) &&
         decision.scope === request.scope,
     );
-    if (request.supersedesId === undefined && duplicate !== undefined) {
-      return Object.freeze({ status: "UNCHANGED" as const, decision: duplicate });
-    }
-    const conflicts = overlapping.filter(
-      (decision) =>
-        decision.id !== request.supersedesId &&
-        normalizedStatement(decision.statement) !== normalizedStatement(request.statement),
-    );
-    if (request.supersedesId === undefined && conflicts.length > 0) {
+    const conflicts = overlapping.filter((decision) => {
+      if (decision.id === request.supersedesId) return false;
+      return (
+        request.supersedesId !== undefined ||
+        normalizedStatement(decision.statement) !== normalizedStatement(request.statement)
+      );
+    });
+    if (conflicts.length > 0) {
       const event = this.database.repositories.events.append({
         id: eventIdSchema.parse(this.#eventIdFactory()),
         projectId: request.projectId,
@@ -197,6 +199,13 @@ export class ProjectDecisionService {
         "PERMISSION_DENIED",
         `Project decision mutation requires user authorization: ${permission.decision.disposition}`,
       );
+    }
+    if (request.supersedesId === undefined && duplicate !== undefined) {
+      return Object.freeze({
+        status: "UNCHANGED" as const,
+        decision: duplicate,
+        portableSync: await this.#synchronize(request.projectId),
+      });
     }
 
     const decision = {

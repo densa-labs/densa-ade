@@ -3,9 +3,11 @@
 `MasterAgentService` is the project-level coordinator boundary. It is deliberately separate from
 worker execution and cannot edit a workspace or authoritative records directly.
 
-For each turn, Core reads a same-project snapshot containing project, phase, task, decision,
-roadmap-revision, and recent event records; recent history and user-message size are bounded.
-Credential-shaped content is redacted before the snapshot reaches the agent.
+For each turn, Core reads a same-project snapshot containing the current specification and roadmap
+plus project, phase, task, decision, roadmap-revision, and recent event records. Recent history,
+the complete serialized context, provider prompt, provider result, and user message are bounded.
+Credential-shaped content is redacted at the service boundary before any model-neutral Master
+implementation sees the message or snapshot, and provider failures are redacted before surfacing.
 `AgentAdapterMasterAgent` executes the turn with read-only workspace access and a Master-specific
 logical session/run ID. The final response must satisfy the strict `MasterAgentProposal` protocol
 schema.
@@ -32,3 +34,11 @@ mutation API and cannot bypass this Core validation boundary.
 Worker orchestration has no dependency on `MasterAgentService`, a Master session, or a Master
 conversation transcript. Master responses are coordination input, not completion evidence, and the
 validation pipeline remains the only authority that can certify worker results.
+
+Project-status, current-phase, blocked/usage-wait, and failure-summary answers do not trust prose
+or numeric values supplied by the Master. `MasterAgentService` obtains a current
+`ProjectRundownService` snapshot and returns Core-rendered facts. Decision explanations are likewise
+rendered from the exact cited persisted records. Mutation/control answers report the actual Core
+command outcome rather than an agent prediction. Once execution ownership exists, Phase 8 portable
+writes and Git-backed rundowns must use the persisted source workspace; substituted paths fail with
+`WORKSPACE_CONFLICT`.

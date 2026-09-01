@@ -29,9 +29,16 @@ guess which statement is correct: it appends `PROJECT_CONSTRAINT_CONFLICT_DETECT
 conflicting decision IDs and returns `CONFLICT_REQUIRES_USER_DECISION`. An explicit replacement
 must identify the active record through `supersedesId`; Core then marks the old record superseded,
 creates the replacement, and appends `PROJECT_DECISION_SUPERSEDED` in one transaction.
+Widening a scoped replacement must not overlap another active constraint in the same category; that
+case also returns the explicit conflict flow instead of leaving contradictory active records.
 
 Master constraint proposals use this same service through `ValidatedMasterCoreCommandGateway`.
 Additions become Master-sourced project constraints; replacements explicitly supersede the active
 record in the same category; removals create an auditable decision record that supersedes the
 removed constraint. Conflicting or ambiguous changes return a blocked decision flow rather than
 silently changing worker context.
+
+The SQLite record/event transaction remains authoritative when portable regeneration fails. An
+idempotent retry of the same active constraint retries `.densa-ade/DECISIONS.md` synchronization
+without creating another decision or event. After a run branch establishes project ownership,
+portable regeneration is bound to its persisted source workspace and rejects path substitution.

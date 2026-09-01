@@ -26,11 +26,13 @@ import {
 import type { DensaAdeDatabase } from "./persistence/database.js";
 import { redactPortableText } from "./persistence/portable-project.js";
 import { WorkspacePreflight } from "./workspace-preflight.js";
+import { assertProjectWorkspace } from "./project-workspace.js";
 
 const GIT_TIMEOUT_MS = 10_000;
 const GIT_OUTPUT_LIMIT_BYTES = 1024 * 1024;
 const DEFAULT_RECENT_LIMIT = 20;
 const MAX_RECENT_LIMIT = 50;
+const MAX_RUNDOWN_RECORDS = 10_000;
 
 export interface GenerateProjectRundownRequest {
   readonly kind: RundownKind;
@@ -224,6 +226,49 @@ function sameStrings(left: readonly string[], right: readonly string[]): boolean
   const a = sorted(left);
   const b = sorted(right);
   return a.length === b.length && a.every((value, index) => value === b[index]);
+}
+
+function decisionAppliesToScope(
+  decision: {
+    readonly scope: string;
+    readonly affectedPhaseIds: readonly string[];
+    readonly affectedTaskIds: readonly string[];
+  },
+  phase: Phase | undefined,
+  task: Task | undefined,
+  projectTasks: readonly Task[],
+): boolean {
+  if (phase === undefined && task === undefined) return true;
+  if (decision.scope === "project") return true;
+  if (task !== undefined) {
+    return decision.scope === "phase"
+      ? decision.affectedPhaseIds.includes(task.phaseId)
+      : decision.affectedTaskIds.includes(task.id);
+  }
+  if (phase === undefined) return true;
+  return decision.scope === "phase"
+    ? decision.affectedPhaseIds.includes(phase.id)
+    : decision.affectedTaskIds.some(
+        (taskId) => projectTasks.find((candidate) => candidate.id === taskId)?.phaseId === phase.id,
+      );
+}
+
+function revisionAppliesToScope(
+  revision: {
+    readonly affectedPhaseIds: readonly string[];
+    readonly affectedTaskIds: readonly string[];
+  },
+  phase: Phase | undefined,
+  task: Task | undefined,
+): boolean {
+  if (phase === undefined && task === undefined) return true;
+  if (revision.affectedPhaseIds.length === 0 && revision.affectedTaskIds.length === 0) return true;
+  if (task !== undefined) {
+    return (
+      revision.affectedTaskIds.includes(task.id) || revision.affectedPhaseIds.includes(task.phaseId)
+    );
+  }
+  return phase !== undefined && revision.affectedPhaseIds.includes(phase.id);
 }
 
 function digestFacts(facts: object): string {
@@ -457,6 +502,7 @@ export class ProjectRundownService {
         `Project ${projectId} does not exist`,
       );
     }
+    assertProjectWorkspace(this.database, projectId, request.workspacePath);
     if (request.kind === "blocked_project" && project.state !== "BLOCKED") {
       throw new ProjectRundownError(
         "USER_CONFIGURATION_ERROR",
@@ -502,7 +548,12 @@ export class ProjectRundownService {
       );
     }
 
-    const phases = requestedPhase === undefined ? allPhases : [requestedPhase];
+    const phases =
+      requestedPhase !== undefined
+        ? [requestedPhase]
+        : requestedTask === undefined
+          ? allPhases
+          : allPhases.filter((phase) => phase.id === requestedTask.phaseId);
     const tasks =
       requestedTask === undefined
         ? requestedPhase === undefined
@@ -522,6 +573,28 @@ export class ProjectRundownService {
     const attempts = new Map(
       tasks.map((task) => [task.id, this.database.repositories.attempts.listByTaskId(task.id)]),
     );
+    const decisions = this.database.repositories.decisions
+      .listByProjectId(projectId)
+      .filter((decision) =>
+        decisionAppliesToScope(decision, requestedPhase, requestedTask, allTasks),
+      );
+    const revisions = this.database.repositories.roadmapRevisions
+      .listByProjectId(projectId)
+      .filter((revision) => revisionAppliesToScope(revision, requestedPhase, requestedTask));
+    const recordCount =
+      phases.length +
+      tasks.length +
+      validationRuns.length +
+      [...validationResults.values()].reduce((count, results) => count + results.length, 0) +
+      [...attempts.values()].reduce((count, taskAttempts) => count + taskAttempts.length, 0) +
+      decisions.length +
+      revisions.length;
+    if (recordCount > MAX_RUNDOWN_RECORDS) {
+      throw new ProjectRundownError(
+        "USER_CONFIGURATION_ERROR",
+        `Project rundown scope exceeds the ${String(MAX_RUNDOWN_RECORDS)} record limit`,
+      );
+    }
     const commitShas = sorted(
       tasks.flatMap((task) =>
         (attempts.get(task.id) ?? []).flatMap((attempt) =>
@@ -588,8 +661,6 @@ export class ProjectRundownService {
           event.taskId === requestedTask.id,
       )
       .slice(-recentLimit);
-    const decisions = this.database.repositories.decisions.listByProjectId(projectId);
-    const revisions = this.database.repositories.roadmapRevisions.listByProjectId(projectId);
     const recentChanges = [
       ...recentEvents.map((event) => ({
         kind: "event" as const,

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { test } from "node:test";
 
@@ -8,6 +8,8 @@ import {
   DatabaseMasterProjectContextReader,
   MasterAgentError,
   MasterAgentService,
+  ProjectDecisionService,
+  ProjectRundownService,
   StateTransitionService,
   ValidatedMasterCoreCommandGateway,
   runTemporaryRepoTaskProof,
@@ -127,7 +129,7 @@ function proposal(intent, action, overrides = {}) {
   };
 }
 
-function serviceWithGateway(database, structuredProposal, gateway) {
+function serviceWithGateway(database, structuredProposal, gateway, rundowns) {
   const adapter = new FakeAgentAdapter({ finalMessage: JSON.stringify(structuredProposal) });
   const agent = new AgentAdapterMasterAgent(adapter, {
     cwd: workspacePath,
@@ -139,6 +141,7 @@ function serviceWithGateway(database, structuredProposal, gateway) {
       agent,
       new DatabaseMasterProjectContextReader(database),
       gateway,
+      rundowns,
     ),
   };
 }
@@ -176,6 +179,112 @@ test("Master explanation runs in a separate read-only session and cites authorit
   assert.equal(adapter.requests[0].outputSchema.type, "object");
   assert.match(adapter.requests[0].prompt, /TASK_BLOCKED/u);
   assert.match(adapter.requests[0].prompt, /decision-architecture/u);
+  database.close();
+});
+
+test("Master factual summaries use Core-owned rundown facts instead of agent-authored numbers", async () => {
+  const database = seed();
+  const structured = proposal(
+    "explain_project_status",
+    { kind: "respond" },
+    { response: "The agent claims there are 999 tasks and 999 validation runs." },
+  );
+  const { service } = serviceWithGateway(
+    database,
+    structured,
+    {
+      async execute() {
+        throw new Error("Status explanations must not issue commands");
+      },
+    },
+    new ProjectRundownService(database, {
+      now: () => "2026-08-29T01:10:00.000Z",
+      git: {
+        async inspect() {
+          return { status: "unavailable", reason: "No Git fixture", commits: [] };
+        },
+      },
+    }),
+  );
+
+  const response = await service.handle(request("Give me the current project status."));
+
+  assert.match(response.response, /Tasks: 1 \(BLOCKED=1\)/u);
+  assert.match(response.response, /Validation runs: 0/u);
+  assert.doesNotMatch(response.response, /999/u);
+  database.close();
+});
+
+test("Master context fails closed before provider execution when its authoritative snapshot is oversized", async () => {
+  const database = seed();
+  const adapter = new FakeAgentAdapter({
+    finalMessage: JSON.stringify(proposal("explain_project_status", { kind: "respond" })),
+  });
+  const service = new MasterAgentService(
+    new AgentAdapterMasterAgent(adapter, { cwd: workspacePath }),
+    {
+      read(projectId) {
+        const context = new DatabaseMasterProjectContextReader(database).read(projectId);
+        return {
+          ...context,
+          tasks: [{ ...context.tasks[0], title: "x".repeat(1_024 * 1_024) }],
+        };
+      },
+    },
+    {
+      async execute() {
+        throw new Error("Oversized context must stop before command execution");
+      },
+    },
+  );
+
+  await assert.rejects(
+    service.handle(request("Summarize the project.")),
+    (error) =>
+      error instanceof MasterAgentError &&
+      error.code === "USER_CONFIGURATION_ERROR" &&
+      /context exceeds/u.test(error.message),
+  );
+  assert.equal(adapter.requests.length, 0);
+  database.close();
+});
+
+test("Master service redacts user and persisted context before any model-neutral agent sees it", async () => {
+  const database = seed();
+  database.repositories.events.append({
+    id: "event-secret-context",
+    projectId: "project-master",
+    type: "PROJECT_CONTEXT_RECORDED",
+    eventVersion: 1,
+    occurredAt: "2026-08-29T01:11:00.000Z",
+    actor: "fixture",
+    payload: { api_key: "sk-proj-secret-context-value" },
+  });
+  let seen;
+  const service = new MasterAgentService(
+    {
+      async propose(conversation) {
+        seen = conversation;
+        return proposal(
+          "explain_decision",
+          { kind: "respond" },
+          { citations: [{ kind: "decision", id: "decision-architecture" }] },
+        );
+      },
+    },
+    new DatabaseMasterProjectContextReader(database),
+    {
+      async execute() {
+        throw new Error("Decision explanation must not issue a command");
+      },
+    },
+  );
+
+  await service.handle(request("My token=sk-proj-user-message-secret; explain the decision."));
+
+  assert.ok(seen);
+  assert.doesNotMatch(JSON.stringify(seen), /sk-proj|user-message-secret|secret-context-value/u);
+  assert.match(JSON.stringify(seen), /\[REDACTED\]/u);
   database.close();
 });
 
@@ -458,6 +567,7 @@ test("an explicit follow-up approval resolves and applies the persisted roadmap 
   });
   const first = serviceWithGateway(database, proposedAction, gateway);
   const proposed = await first.service.handle(request("Propose the replacement."));
+  assert.match(first.adapter.requests[0].prompt, /Prove the Master boundary/u);
   const proposalEventId = proposed.commandResult.details.proposalEventId;
 
   const approvalAction = proposal(
@@ -489,8 +599,178 @@ test("an explicit follow-up approval resolves and applies the persisted roadmap 
       .tasks[0].acceptanceCriteria[0],
     "A replacement criterion is explicitly approved.",
   );
+  const repeated = serviceWithGateway(database, approvalAction, gateway);
+  const repeatedResult = await repeated.service.handle(request("Approve that roadmap revision."));
+  assert.equal(repeatedResult.commandResult.status, "APPLIED");
+  assert.equal(
+    database.repositories.decisions
+      .listByProjectId("project-master")
+      .filter((decision) => decision.category.startsWith("roadmap.revision.approval.")).length,
+    1,
+  );
   database.close();
   await rm(workspacePath, { force: true, recursive: true });
+});
+
+test("approving an approval-free safe-boundary proposal does not fabricate user approval", async () => {
+  const database = seed();
+  database.persistInitialMasterRoadmap({
+    projectId: "project-master",
+    roadmap: {
+      formatVersion: 1,
+      projectGoal: "Prove safe-boundary steering.",
+      phases: [
+        {
+          id: "phase-current",
+          title: "Current phase",
+          goal: "Keep active work stable.",
+          required: true,
+          completionCriteria: ["The active task remains stable."],
+          tasks: [
+            {
+              id: "task-blocked",
+              title: "Blocked task",
+              goal: "Resolve the blocker.",
+              executable: true,
+              dependencyIds: [],
+              acceptanceCriteria: ["The blocker is resolved."],
+              riskLevel: "medium",
+              expectedValidators: ["acceptance"],
+            },
+          ],
+        },
+      ],
+    },
+    revisionNumber: 0,
+    createdAt,
+    updatedAt: createdAt,
+  });
+  database.repositories.attempts.create({
+    id: "attempt-unfinished-boundary",
+    taskId: "task-blocked",
+    number: 1,
+    startedAt: "2026-08-29T01:20:00.000Z",
+  });
+  const gateway = new ValidatedMasterCoreCommandGateway(database, {
+    now: () => "2026-08-29T01:21:00.000Z",
+  });
+  const proposed = await gateway.execute({
+    kind: "propose_roadmap_change",
+    projectId: "project-master",
+    workspacePath,
+    sessionId: "session-boundary",
+    actor: "densa-master:session-boundary",
+    operation: {
+      kind: "modify_acceptance_criteria",
+      taskId: "task-blocked",
+      acceptanceCriteria: [
+        "The blocker is resolved.",
+        "The active task context changes only after a safe boundary.",
+      ],
+    },
+    rationale: "Keep the task in place while proving the boundary.",
+  });
+  assert.equal(proposed.status, "WAITING_FOR_SAFE_BOUNDARY");
+
+  const resolved = await gateway.execute({
+    kind: "resolve_roadmap_revision",
+    projectId: "project-master",
+    workspacePath,
+    sessionId: "session-boundary",
+    actor: "densa-master:session-boundary",
+    proposalEventId: proposed.details.proposalEventId,
+    resolution: "approve",
+    rationale: "Continue when the task reaches a safe boundary.",
+  });
+
+  assert.equal(resolved.status, "WAITING_FOR_SAFE_BOUNDARY");
+  assert.equal(
+    database.repositories.decisions
+      .listByProjectId("project-master")
+      .some((decision) => decision.category.startsWith("roadmap.revision.approval.")),
+    false,
+  );
+  database.close();
+});
+
+test("an idempotent decision retry repairs a previously failed portable projection", async () => {
+  await rm(workspacePath, { force: true, recursive: true });
+  await writeFile(workspacePath, "block portable directory creation", "utf8");
+  const database = seed();
+  let decisionNumber = 0;
+  let eventNumber = 0;
+  const decisions = new ProjectDecisionService(database, {
+    workspacePath,
+    now: () => "2026-08-29T01:30:00.000Z",
+    decisionIdFactory: () => `decision-portable-${String(++decisionNumber)}`,
+    eventIdFactory: () => `event-portable-${String(++eventNumber)}`,
+  });
+  const input = {
+    projectId: "project-master",
+    kind: "constraint",
+    statement: "Remain local only.",
+    title: "Local only",
+    rationale: "Preserve local-first behavior.",
+    category: "architecture.local-only",
+    source: "user",
+    scope: "project",
+    affectedPhaseIds: [],
+    affectedTaskIds: [],
+    actor: "user",
+  };
+  const first = await decisions.record(input);
+  assert.equal(first.status, "RECORDED");
+  assert.equal(first.portableSync.status, "failed");
+  assert.equal(database.repositories.decisions.listByProjectId("project-master").length, 2);
+
+  await rm(workspacePath, { force: true });
+  await mkdir(workspacePath);
+  const retried = await decisions.record(input);
+  assert.equal(retried.status, "UNCHANGED");
+  assert.equal(retried.portableSync.status, "synchronized");
+  assert.equal(database.repositories.decisions.listByProjectId("project-master").length, 2);
+  assert.match(
+    await readFile(path.join(workspacePath, ".densa-ade", "DECISIONS.md"), "utf8"),
+    /Remain local only/u,
+  );
+  database.close();
+  await rm(workspacePath, { force: true, recursive: true });
+});
+
+test("Phase 8 portable mutations reject a workspace substituted after run ownership is persisted", async () => {
+  const database = seed();
+  database.repositories.densaAdeRunBranches.createCreating({
+    projectId: "project-master",
+    sourceWorkspacePath: workspacePath,
+    workspacePath: "/tmp/densa-p8m0-isolated-run",
+    branchName: "densa-ade/run/project-master",
+    sourceBranch: "main",
+    startingCommit: "abc1234",
+    createdAt: "2026-08-29T01:40:00.000Z",
+  });
+  database.repositories.densaAdeRunBranches.activate("project-master", "2026-08-29T01:41:00.000Z");
+  const decisions = new ProjectDecisionService(database, {
+    workspacePath: "/tmp/densa-p8m0-substituted-workspace",
+  });
+
+  await assert.rejects(
+    decisions.record({
+      projectId: "project-master",
+      kind: "constraint",
+      statement: "Do not cross workspace boundaries.",
+      title: "Workspace boundary",
+      rationale: "Project identity must bind portable writes.",
+      category: "workspace.boundary",
+      source: "user",
+      scope: "project",
+      affectedPhaseIds: [],
+      affectedTaskIds: [],
+      actor: "user",
+    }),
+    (error) => error?.code === "WORKSPACE_CONFLICT" && /bound to workspace/u.test(error.message),
+  );
+  assert.equal(database.repositories.decisions.listByProjectId("project-master").length, 1);
+  database.close();
 });
 
 test("constraint actions persist through Core and update the portable decision record", async () => {

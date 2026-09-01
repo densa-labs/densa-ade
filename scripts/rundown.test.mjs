@@ -361,6 +361,74 @@ test("usage-wait rundown says reset unknown and omits unavailable token and cost
   }
 });
 
+test("task-scoped rundowns exclude unrelated phase and decision facts", async () => {
+  const { database, now } = seedBase();
+  try {
+    const createdAt = now();
+    database.repositories.phases.create({
+      id: "phase-unrelated",
+      projectId: "project-rundown",
+      title: "Unrelated",
+      state: "PENDING",
+      position: 1,
+      createdAt,
+      updatedAt: createdAt,
+    });
+    database.repositories.tasks.create({
+      id: "task-unrelated",
+      projectId: "project-rundown",
+      phaseId: "phase-unrelated",
+      title: "Unrelated task",
+      state: "PENDING",
+      position: 0,
+      acceptanceCriteria: ["Remain outside the requested rundown scope."],
+      dependencyIds: [],
+      createdAt,
+      updatedAt: createdAt,
+    });
+    for (const [id, taskId] of [
+      ["decision-task-build", "task-build"],
+      ["decision-task-unrelated", "task-unrelated"],
+    ]) {
+      database.repositories.decisions.create({
+        id,
+        projectId: "project-rundown",
+        kind: "constraint",
+        statement: `Constraint for ${taskId}.`,
+        title: `Constraint for ${taskId}`,
+        rationale: "Prove task rundown scoping.",
+        category: `task.scope.${taskId}`,
+        source: "user",
+        scope: "task",
+        status: "active",
+        affectedPhaseIds: [],
+        affectedTaskIds: [taskId],
+        createdAt: now(),
+      });
+    }
+
+    const rundown = await new ProjectRundownService(database, {
+      now,
+      git: fakeGit(),
+    }).generate({
+      kind: "project_status",
+      projectId: "project-rundown",
+      taskId: "task-build",
+      workspacePath,
+    });
+
+    assert.deepEqual(rundown.phaseStateCounts, [{ state: "RUNNING", count: 1 }]);
+    assert.deepEqual(rundown.taskStateCounts, [{ state: "RUNNING", count: 1 }]);
+    assert.deepEqual(rundown.activeDecisionIds, ["decision-task-build"]);
+    assert.equal(
+      rundown.drillDownReferences.some(({ id }) => id === "decision-task-unrelated"),
+      false,
+    );
+  } finally {
+    database.close();
+  }
+});
+
 test("blocked and retry/failure rundowns use persisted attempt and validator history", async () => {
   const { database, now } = seedBase();
   try {

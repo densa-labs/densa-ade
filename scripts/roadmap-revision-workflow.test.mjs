@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -438,6 +438,13 @@ test("an intervening authoritative revision makes an inspected proposal stale in
     assert.equal(stale.status, "STALE");
     assert.equal(stale.proposal.status, "stale");
     assert.equal(stale.proposal.resolvedAt !== undefined, true);
+    const rejectedAfterStale = service.reject({
+      proposalEventId: proposed.proposal.proposalEventId,
+      actor: "user",
+      rationale: "A stale proposal must remain terminal.",
+    });
+    assert.equal(rejectedAfterStale.status, "STALE");
+    assert.equal(rejectedAfterStale.proposal.status, "stale");
     assert.equal(
       database.repositories.masterRoadmaps
         .findByProjectId(projectId)
@@ -447,5 +454,38 @@ test("an intervening authoritative revision makes an inspected proposal stale in
   } finally {
     database.close();
     await rm(workspace, { recursive: true, force: true });
+  }
+});
+
+test("retrying an applied proposal repairs portable projection without replaying the mutation", async () => {
+  const parent = await mkdtemp(join(tmpdir(), "densa-p8m2-portable-retry-"));
+  const workspace = join(parent, "workspace");
+  await writeFile(workspace, "block portable directory creation", "utf8");
+  const database = DensaAdeDatabase.openInMemory();
+  try {
+    seed(database);
+    const service = workflow(database, workspace);
+    const applied = await service.propose(projectId, {
+      operations: [{ kind: "reorder_task", taskId: "search", phaseId: "product", position: 1 }],
+      rationale: "Move search after QA planning.",
+      actor: "densa-master:portable-retry",
+      sessionId: "portable-retry",
+    });
+    assert.equal(applied.status, "APPLIED");
+    assert.equal(applied.portableSync.status, "failed");
+    assert.equal(database.repositories.roadmapRevisions.listByProjectId(projectId).length, 1);
+
+    await rm(workspace, { force: true });
+    await mkdir(workspace);
+    const retried = await service.applyProposal({
+      proposalEventId: applied.proposal.proposalEventId,
+    });
+    assert.equal(retried.status, "APPLIED");
+    assert.equal(retried.portableSync.status, "synchronized");
+    assert.equal(database.repositories.roadmapRevisions.listByProjectId(projectId).length, 1);
+    assert.match(await readFile(join(workspace, ".densa-ade", "ROADMAP.md"), "utf8"), /search/u);
+  } finally {
+    database.close();
+    await rm(parent, { recursive: true, force: true });
   }
 });

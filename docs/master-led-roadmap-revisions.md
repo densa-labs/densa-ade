@@ -26,6 +26,10 @@ Proposal states are:
 - `stale`
 
 If another roadmap revision wins before a proposal is applied, the proposal becomes `stale`; Core never rebases or silently rewrites the user's inspected change.
+`stale`, `rejected`, and `applied` are idempotent terminal outcomes. Repeated approval cannot create
+another approval decision, and an approval-free minor proposal waiting at an active-task boundary
+does not fabricate user-approval evidence. Retrying an applied proposal may regenerate a previously
+failed portable projection, but it never replays the authoritative roadmap revision or event.
 
 Phase 4's current mutation boundary also checks the exact stored proposal, reconciles runtime rows
 transactionally, includes indirectly shifted tasks in affected IDs, and treats unfinished attempts
