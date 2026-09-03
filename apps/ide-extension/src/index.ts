@@ -34,6 +34,10 @@
  * default (see `./master.js`). Phase-completion rundown UX (Phase 11 M3)
  * renders the persisted `phases.report.get` stopping point with gated
  * Start Next Phase approval (see `./phase-completion.js`).
+ * Pause/intervene/live-run UX (Phase 11 M4) exposes Pause, immediate
+ * Cancel, Stop, current-task/agent-run/changes drill-downs, and
+ * acknowledge-to-resume intervention over the same protocol boundary
+ * (see `./live-run.js`).
  */
 
 export {
@@ -245,6 +249,43 @@ export {
   type PhaseCompletionReopenRefresh,
   type PhaseCompletionValidationSummary,
 } from "./phase-completion.js";
+export {
+  LIVE_RUN_CANONICAL_PROJECT_STATES,
+  LIVE_RUN_CANONICAL_TASK_STATES,
+  LIVE_RUN_CANCEL_FALLBACK_METHOD,
+  LIVE_RUN_CANCEL_TRANSPORT_METHOD,
+  LIVE_RUN_CAPABILITY_METHODS,
+  LIVE_RUN_LIFECYCLE,
+  LIVE_RUN_OPEN_REFRESH_METHODS,
+  applyLiveRunControlOutcome,
+  buildLiveRunModel,
+  liveRunEventIsRefreshHint,
+  resolveLiveRunCancel,
+  resolveLiveRunDrilldown,
+  resolveLiveRunPause,
+  resolveLiveRunReopenRefresh,
+  resolveLiveRunResume,
+  resolveLiveRunStop,
+  type LiveRunCancelResolution,
+  type LiveRunConnectionState,
+  type LiveRunControlDescriptor,
+  type LiveRunControlEffect,
+  type LiveRunControlId,
+  type LiveRunControlOutcome,
+  type LiveRunCurrentTask,
+  type LiveRunDrilldown,
+  type LiveRunGitStatus,
+  type LiveRunIntervention,
+  type LiveRunLastControl,
+  type LiveRunLifecycle,
+  type LiveRunLifecycleKind,
+  type LiveRunModel,
+  type LiveRunModelInput,
+  type LiveRunPauseResolution,
+  type LiveRunReopenRefresh,
+  type LiveRunResumeResolution,
+  type LiveRunStopResolution,
+} from "./live-run.js";
 
 export const EXTENSION_ID = "densa-labs.densa-ade" as const;
 

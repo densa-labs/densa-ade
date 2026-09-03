@@ -5,7 +5,8 @@ established the package boundary; Phase 10 Milestone 1 connects the IDE to the
 existing Core daemon; Phase 10 Milestone 2 adds the Home/Welcome actions;
 Phase 10 Milestone 3 adds the Dashboard/Roadmap/Master navigation shells.
 Phase 11 Milestone 0 adds the Roadmap content model, Milestone 1 the
-Dashboard command center, and Milestone 2 the Master Agent UI.
+Dashboard command center, Milestone 2 the Master Agent UI, Milestone 3 the
+phase-completion rundown, and Milestone 4 the pause/intervene/live-run UX.
 
 ## Boundary (AGENTS.md §1.1–§1.2)
 
@@ -68,6 +69,13 @@ Dashboard command center, and Milestone 2 the Master Agent UI.
   roadmap/constraint approval, stale revalidation, durable decisions, and no
   worker-log dumping by default (see `docs/master-agent-ui.md` and
   `src/master.ts`).
+- Phase-completion rundown (Phase 11 M3): persisted `phases.report.get`
+  stopping point with gated Start Next Phase approval (see
+  `docs/phase-completion-rundown.md` and `src/phase-completion.ts`).
+- Pause/intervene/live-run UX (Phase 11 M4): Pause, immediate Cancel, Stop,
+  current-task/agent-run/changes drill-downs, and acknowledge-to-resume
+  intervention over Core truth with no optimistic state changes (see
+  `docs/live-run-ux.md` and `src/live-run.ts`).
 - No binary icons. The container uses the `$(placeholder)` codicon until product
   polish.
 
@@ -88,7 +96,9 @@ apps/ide-extension/
     ├── surfaces.ts      # Dashboard/Roadmap/Master editor-area shells, disposable views (M3)
     ├── roadmap.ts       # Roadmap content model over Core truth (P11M0)
     ├── dashboard.ts     # Dashboard command center over Core truth (P11M1)
-    └── master.ts        # Master Agent UI over Core truth, no worker-log dumping (P11M2)
+    ├── master.ts        # Master Agent UI over Core truth, no worker-log dumping (P11M2)
+    ├── phase-completion.ts # Phase-completion rundown over Core truth (P11M3)
+    └── live-run.ts      # Pause/intervene/live-run UX over Core truth (P11M4)
 ```
 
 ## Verification
