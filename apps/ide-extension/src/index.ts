@@ -31,7 +31,9 @@
  * Master Agent conversation/control surface (M2) distinguishes explanations
  * from proposed state changes over `master.send` with explicit approval,
  * stale revalidation, durable decisions, and no worker-log dumping by
- * default (see `./master.js`).
+ * default (see `./master.js`). Phase-completion rundown UX (Phase 11 M3)
+ * renders the persisted `phases.report.get` stopping point with gated
+ * Start Next Phase approval (see `./phase-completion.js`).
  */
 
 export {
@@ -216,6 +218,33 @@ export {
   type MasterTurnKind,
   type MasterTurnView,
 } from "./master.js";
+export {
+  PHASE_COMPLETION_ACTIONS,
+  PHASE_COMPLETION_CAPABILITY_METHODS,
+  PHASE_COMPLETION_LIFECYCLE,
+  PHASE_COMPLETION_NAVIGATION_COMMANDS,
+  PHASE_COMPLETION_OPEN_REFRESH_METHODS,
+  buildPhaseCompletionModel,
+  phaseCompletionEventIsRefreshHint,
+  resolvePhaseCompletionDrilldown,
+  resolvePhaseCompletionInspectChanges,
+  resolvePhaseCompletionMasterAsk,
+  resolvePhaseCompletionOpenRoadmap,
+  resolvePhaseCompletionPhaseApproval,
+  resolvePhaseCompletionReopenRefresh,
+  type PhaseCompletionActionId,
+  type PhaseCompletionConnectionState,
+  type PhaseCompletionDrilldown,
+  type PhaseCompletionInspectChangesResolution,
+  type PhaseCompletionLiveNextPhase,
+  type PhaseCompletionMasterAskResolution,
+  type PhaseCompletionModel,
+  type PhaseCompletionModelInput,
+  type PhaseCompletionOpenRoadmapResolution,
+  type PhaseCompletionPhaseApprovalResolution,
+  type PhaseCompletionReopenRefresh,
+  type PhaseCompletionValidationSummary,
+} from "./phase-completion.js";
 
 export const EXTENSION_ID = "densa-labs.densa-ade" as const;
 
