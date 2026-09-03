@@ -23,6 +23,11 @@
  * entries navigate; they do not host surface content. Surfaces are
  * disposable: closing or reopening a tab never changes Core execution
  * (see `./surfaces.js`).
+ *
+ * Dashboard command center (Phase 11 M1) renders the project command center
+ * over the same protocol boundary: PROJECT/CURRENT/HEALTH/CHANGES/
+ * AGENTS-USAGE/EVENTS sections plus drill-downs and WAITING/BLOCKED banners
+ * (see `./dashboard.js`). Roadmap content (M0) lives in `./roadmap.js`.
  */
 
 export {
@@ -138,6 +143,38 @@ export {
   type RoadmapTaskApprovalResolution,
   type RoadmapTaskView,
 } from "./roadmap.js";
+export {
+  DASHBOARD_CANONICAL_PHASE_STATES,
+  DASHBOARD_CANONICAL_PROJECT_STATES,
+  DASHBOARD_CANONICAL_TASK_STATES,
+  DASHBOARD_CAPABILITY_METHODS,
+  DASHBOARD_COMMAND,
+  DASHBOARD_EDITOR_VIEW_TYPE,
+  DASHBOARD_LIFECYCLE,
+  DASHBOARD_OPEN_REFRESH_METHODS,
+  buildDashboardModel,
+  dashboardEventIsRefreshHint,
+  dashboardPhaseProgressById,
+  resolveDashboardDrilldown,
+  resolveDashboardReopenRefresh,
+  type DashboardAgentsUsageSection,
+  type DashboardBannerKind,
+  type DashboardChangesSection,
+  type DashboardConnectionState,
+  type DashboardCurrentSection,
+  type DashboardDrilldown,
+  type DashboardEventsSection,
+  type DashboardHealthSection,
+  type DashboardModel,
+  type DashboardModelInput,
+  type DashboardPendingApproval,
+  type DashboardPhaseProgress,
+  type DashboardProjectSection,
+  type DashboardRecentEvent,
+  type DashboardReopenRefresh,
+  type DashboardStateCount,
+  type DashboardStatusBanner,
+} from "./dashboard.js";
 
 export const EXTENSION_ID = "densa-labs.densa-ade" as const;
 
