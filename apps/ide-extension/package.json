@@ -50,6 +50,11 @@
         "command": "densa-ade.resumeProject",
         "title": "Densa ADE: Resume Project",
         "category": "Densa ADE"
+      },
+      {
+        "command": "densa-ade.showOnboarding",
+        "title": "Densa ADE: Show Onboarding",
+        "category": "Densa ADE"
       }
     ],
     "viewsContainers": {
@@ -104,6 +109,16 @@
         "selector": [
           {
             "filenamePattern": "*.densa-master"
+          }
+        ],
+        "priority": "option"
+      },
+      {
+        "viewType": "densa-ade.onboarding",
+        "displayName": "Densa ADE Onboarding",
+        "selector": [
+          {
+            "filenamePattern": "*.densa-onboarding"
           }
         ],
         "priority": "option"

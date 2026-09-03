@@ -38,6 +38,11 @@
  * Cancel, Stop, current-task/agent-run/changes drill-downs, and
  * acknowledge-to-resume intervention over the same protocol boundary
  * (see `./live-run.js`).
+ * First-launch onboarding and resize transition (Phase 12 M0) checks Codex,
+ * Codex auth (unknown unless reliably observed), Git, and the product
+ * defaults (Phase-by-phase, Standard, keep-awake on, telemetry off) in a
+ * compact window, then resizes to the full workspace without creating a
+ * second authoritative state (see `./onboarding.js`).
  */
 
 export {
@@ -286,6 +291,44 @@ export {
   type LiveRunResumeResolution,
   type LiveRunStopResolution,
 } from "./live-run.js";
+export {
+  ONBOARDING_COMMAND,
+  ONBOARDING_DEFAULT_EXECUTION_MODE,
+  ONBOARDING_DEFAULT_KEEP_AWAKE_ENABLED,
+  ONBOARDING_DEFAULT_KEEP_AWAKE_MINIMUM_BATTERY_PERCENT,
+  ONBOARDING_DEFAULT_PERMISSION_PRESET,
+  ONBOARDING_DEFAULT_TELEMETRY_ENABLED,
+  ONBOARDING_EDITOR_VIEW_TYPE,
+  ONBOARDING_LIFECYCLE,
+  ONBOARDING_STORAGE_KEY,
+  ONBOARDING_VERSION,
+  buildOnboardingModel,
+  getOnboardingDefaults,
+  parseOnboardingPreferences,
+  parseOnboardingStoredState,
+  resetOnboarding,
+  resolveOnboardingProjectDefaults,
+  resolveOnboardingReopen,
+  resolveOnboardingTransition,
+  serializeOnboardingCompletion,
+  shouldShowOnboarding,
+  type OnboardingCodexAuthCheck,
+  type OnboardingCodexAuthStatus,
+  type OnboardingCodexCheck,
+  type OnboardingCodexStatus,
+  type OnboardingConnectionState,
+  type OnboardingGitCheck,
+  type OnboardingModel,
+  type OnboardingModelInput,
+  type OnboardingPreferences,
+  type OnboardingProjectDefaults,
+  type OnboardingStep,
+  type OnboardingStepId,
+  type OnboardingStepStatus,
+  type OnboardingStoredState,
+  type OnboardingTransition,
+  type OnboardingWindowMode,
+} from "./onboarding.js";
 
 export const EXTENSION_ID = "densa-labs.densa-ade" as const;
 
@@ -304,6 +347,7 @@ export const IDE_COMMANDS = [
   "densa-ade.showMasterAgent",
   "densa-ade.startProject",
   "densa-ade.resumeProject",
+  "densa-ade.showOnboarding",
 ] as const;
 
 export type IdeCommand = (typeof IDE_COMMANDS)[number];

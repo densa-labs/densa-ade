@@ -348,6 +348,7 @@ function validateExtension() {
     "master.ts",
     "phase-completion.ts",
     "live-run.ts",
+    "onboarding.ts",
   ].map((file) => join(EXTENSION_DIR, "src", file));
   for (const source of sources) {
     results.push(

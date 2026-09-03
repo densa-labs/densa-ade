@@ -7,6 +7,7 @@ Phase 10 Milestone 3 adds the Dashboard/Roadmap/Master navigation shells.
 Phase 11 Milestone 0 adds the Roadmap content model, Milestone 1 the
 Dashboard command center, Milestone 2 the Master Agent UI, Milestone 3 the
 phase-completion rundown, and Milestone 4 the pause/intervene/live-run UX.
+Phase 12 Milestone 0 adds first-launch onboarding and the resize transition.
 
 ## Boundary (AGENTS.md §1.1–§1.2)
 
@@ -76,6 +77,13 @@ phase-completion rundown, and Milestone 4 the pause/intervene/live-run UX.
   current-task/agent-run/changes drill-downs, and acknowledge-to-resume
   intervention over Core truth with no optimistic state changes (see
   `docs/live-run-ux.md` and `src/live-run.ts`).
+- First-launch onboarding (Phase 12 M0): compact `densa-ade.onboarding` window
+  via `densa-ade.showOnboarding` checks Codex, Codex auth (unknown unless
+  reliably observed), Git, and the product defaults (Phase-by-phase, Standard,
+  keep-awake on, telemetry off), then resizes to the full workspace without
+  creating a second authoritative state (see `docs/onboarding.md` and
+  `src/onboarding.ts`). Missing Codex gives install/setup guidance without
+  blocking basic editing.
 - No binary icons. The container uses the `$(placeholder)` codicon until product
   polish.
 
@@ -98,7 +106,8 @@ apps/ide-extension/
     ├── dashboard.ts     # Dashboard command center over Core truth (P11M1)
     ├── master.ts        # Master Agent UI over Core truth, no worker-log dumping (P11M2)
     ├── phase-completion.ts # Phase-completion rundown over Core truth (P11M3)
-    └── live-run.ts      # Pause/intervene/live-run UX over Core truth (P11M4)
+    ├── live-run.ts      # Pause/intervene/live-run UX over Core truth (P11M4)
+    └── onboarding.ts    # First-launch onboarding + resize transition (P12M0)
 ```
 
 ## Verification
