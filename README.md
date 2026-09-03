@@ -1,3 +1,4 @@
+![Densa ADE Logo](assets/Densa-ADE-Logo.png)
 # Densa ADE
 
 Densa ADE is an agentic development environment developed by Densa Labs where coding agents can plan, build, test, and iterate on software autonomously.
