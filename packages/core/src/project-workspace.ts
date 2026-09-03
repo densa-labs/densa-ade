@@ -36,6 +36,7 @@ export function assertProjectWorkspace(
   const run = database.repositories.densaAdeRunBranches.findByProjectId(projectId);
   const settings = database.repositories.projectSettings.findByProjectId(projectId)?.values;
   const expected =
+    configuredWorkspace(settings?.["coreRuntime"]) ??
     run?.sourceWorkspacePath ??
     run?.workspacePath ??
     configuredWorkspace(settings?.["executionControl"]) ??

@@ -1,11 +1,14 @@
 import assert from "node:assert/strict";
+import { Buffer } from "node:buffer";
 import { execFile, spawn } from "node:child_process";
+import { once } from "node:events";
 import { chmod, lstat, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { createConnection } from "node:net";
+import { createConnection, createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { URL } from "node:url";
+import { setImmediate } from "node:timers";
+import { URL, fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
 import {
@@ -181,16 +184,264 @@ test("v1 and CLI aliases dispatch project controls through authoritative Core", 
   });
 });
 
+test("the IPC client rejects duplicate in-flight request IDs without orphaning the first request", async () => {
+  await withDaemon(async ({ runtimeDirectory }) => {
+    const client = new CoreIpcClient({ runtimeDirectory });
+    await client.connect();
+    const duplicate = request("request-duplicate", "core.status");
+    const first = client.request(duplicate);
+    const second = client.request(duplicate);
+    await assert.rejects(second, /already pending/u);
+    assert.equal((await first).state, "running");
+    client.disconnect();
+  });
+});
+
+test("concurrent first requests share one connection and old socket teardown cannot detach a reconnect", async () => {
+  await withDaemon(async ({ runtimeDirectory, daemon }) => {
+    const client = new CoreIpcClient({ runtimeDirectory });
+    try {
+      const statuses = await Promise.all(
+        Array.from({ length: 12 }, (_, index) =>
+          client.request(request(`request-concurrent-${index}`, "core.status")),
+        ),
+      );
+      assert.ok(statuses.every((status) => status.instanceId === daemon.status().instanceId));
+      assert.equal(daemon.status().connectedClients, 1);
+      for (let cycle = 0; cycle < 3; cycle += 1) {
+        await client.reconnect();
+        await new Promise((resolve) => setImmediate(resolve));
+        assert.equal(
+          (await client.request(request(`request-reconnected-${cycle}`, "core.status"))).state,
+          "running",
+        );
+      }
+    } finally {
+      client.disconnect();
+    }
+  });
+});
+
+test("an unresponsive endpoint times out without claiming a mutation failed or retrying it", async () => {
+  const runtimeDirectory = await mkdtemp(join(tmpdir(), "densa-core-timeout-"));
+  const paths = coreRuntimePaths({ runtimeDirectory });
+  const sockets = new Set();
+  let requestCount = 0;
+  const server = createServer((socket) => {
+    sockets.add(socket);
+    socket.on("data", () => {
+      requestCount += 1;
+    });
+  });
+  const client = new CoreIpcClient({ runtimeDirectory, requestTimeoutMs: 50 });
+  try {
+    await writeFile(paths.token, "test-token".padEnd(43, "x"), { mode: 0o600 });
+    await new Promise((resolve, reject) => {
+      server.once("error", reject);
+      server.listen(paths.socket, resolve);
+    });
+    await chmod(paths.socket, 0o600);
+    await assert.rejects(
+      client.request(
+        request("request-timeout", "projects.pause", {
+          projectId: "project-timeout",
+          workspacePath: runtimeDirectory,
+          actor: "test",
+        }),
+      ),
+      (error) =>
+        error.protocolError?.code === "PROCESS_FAILURE" &&
+        /outcome is unknown/u.test(error.message),
+    );
+    assert.equal(client.connected, false);
+    assert.equal(requestCount, 1);
+  } finally {
+    client.disconnect();
+    for (const socket of sockets) socket.destroy();
+    if (server.listening) await new Promise((resolve) => server.close(resolve));
+    await rm(runtimeDirectory, { recursive: true, force: true });
+  }
+});
+
+test("daemon lifecycle error responses release the manager's temporary connection", async () => {
+  const runtimeDirectory = await mkdtemp(join(tmpdir(), "densa-core-manager-error-"));
+  const paths = coreRuntimePaths({ runtimeDirectory });
+  const sockets = new Set();
+  const server = createServer((socket) => {
+    sockets.add(socket);
+    socket.once("data", (chunk) => {
+      const { envelope } = JSON.parse(chunk.toString());
+      socket.write(
+        `${JSON.stringify({ protocolVersion: PROTOCOL_VERSION, kind: "response", requestId: envelope.requestId, ok: false, error: { code: "PROCESS_FAILURE", message: "injected manager response failure" } })}\n`,
+      );
+    });
+  });
+  try {
+    await writeFile(paths.token, "test-token".padEnd(43, "x"), { mode: 0o600 });
+    await new Promise((resolve, reject) => {
+      server.once("error", reject);
+      server.listen(paths.socket, resolve);
+    });
+    await chmod(paths.socket, 0o600);
+    const manager = new CoreDaemonManager({ runtimeDirectory });
+    const connected = once(server, "connection");
+    const status = manager.status();
+    const [socket] = await connected;
+    const closed = once(socket, "close", { signal: globalThis.AbortSignal.timeout(1_000) });
+    assert.equal((await status).state, "stopped");
+    await closed;
+  } finally {
+    for (const socket of sockets) socket.destroy();
+    if (server.listening) await new Promise((resolve) => server.close(resolve));
+    await rm(runtimeDirectory, { recursive: true, force: true });
+  }
+});
+
+test("IPC errors redact credential-shaped untrusted method and version values", async () => {
+  await withDaemon(async ({ runtimeDirectory }) => {
+    const client = new CoreIpcClient({ runtimeDirectory });
+    const methodSecret = "sk-proj-protocolmethodsecret";
+    await assert.rejects(
+      client.request(request("request-secret-method", `unsupported.${methodSecret}`)),
+      (error) => {
+        assert.equal(error.name, "CoreIpcError");
+        assert.doesNotMatch(error.protocolError.message, new RegExp(methodSecret, "u"));
+        assert.doesNotMatch(
+          JSON.stringify(error.protocolError.details),
+          new RegExp(methodSecret, "u"),
+        );
+        assert.match(error.protocolError.message, /\[REDACTED\]/u);
+        return true;
+      },
+    );
+    client.disconnect();
+    const paths = coreRuntimePaths({ runtimeDirectory });
+    const token = (await readFile(paths.token, "utf8")).trim();
+    const versionSecret = "sk-proj-protocolversionsecret";
+    const response = await rawFrame(paths.socket, {
+      authToken: token,
+      envelope: {
+        ...request("request-secret-version", "core.status"),
+        protocolVersion: versionSecret,
+      },
+    });
+    assert.equal(response.error.code, "PROTOCOL_VERSION_MISMATCH");
+    assert.doesNotMatch(JSON.stringify(response), new RegExp(versionSecret, "u"));
+  });
+});
+
+test("large valid event histories paginate within the transport byte limit without losing events", async () => {
+  await withDaemon(async ({ runtimeDirectory, database }) => {
+    for (let number = 2; number <= 35; number += 1) {
+      database.eventJournal.append({
+        id: `event-large-${number}`,
+        projectId: "project-daemon",
+        type: "LARGE_FIXTURE_EVENT",
+        eventVersion: 1,
+        occurredAt: timestamp,
+        actor: "test",
+        payload: { content: "x".repeat(60_000) },
+      });
+    }
+    const transport = new CoreIpcClient({ runtimeDirectory });
+    let requestNumber = 0;
+    const client = new CoreV1Client(transport, () => `request-large-${++requestNumber}`);
+    try {
+      const sequences = [];
+      let afterSequence = 0;
+      for (;;) {
+        const page = await client.request("events.replay", {
+          projectId: "project-daemon",
+          afterSequence,
+          limit: 200,
+        });
+        assert.equal(page.latestSequence, 35);
+        assert.ok(Buffer.byteLength(JSON.stringify(page), "utf8") < 1024 * 1024);
+        sequences.push(...page.events.map((event) => event.sequenceNumber));
+        if (!page.hasMore) break;
+        assert.ok(page.events.length > 0);
+        afterSequence = page.events.at(-1).sequenceNumber;
+      }
+      assert.deepEqual(
+        sequences,
+        Array.from({ length: 35 }, (_, index) => index + 1),
+      );
+      const subscribed = await client.request("events.subscribe", {
+        projectId: "project-daemon",
+        afterSequence: 0,
+        limit: 200,
+      });
+      assert.equal(subscribed.hasMore, true);
+      assert.ok(subscribed.events.length < 35);
+    } finally {
+      transport.disconnect();
+    }
+  });
+});
+
+test("v1 replay requires explicit project scope even for a raw authenticated client", async () => {
+  await withDaemon(async ({ runtimeDirectory }) => {
+    const client = new CoreIpcClient({ runtimeDirectory });
+    try {
+      await assert.rejects(
+        client.request(request("request-unscoped-v1", "events.replay")),
+        (error) => error.protocolError?.code === "USER_CONFIGURATION_ERROR",
+      );
+      assert.equal(
+        (await client.request(request("request-legacy-events", "events.list"))).events.length,
+        1,
+      );
+    } finally {
+      client.disconnect();
+    }
+  });
+});
+
+test("subscription replay is written before a committed event at the response boundary", async () => {
+  await withDaemon(async ({ runtimeDirectory, database }) => {
+    const subscribe = database.eventJournal.subscribe.bind(database.eventJournal);
+    database.eventJournal.subscribe = (filter, listener) => {
+      const unsubscribe = subscribe(filter, listener);
+      globalThis.queueMicrotask(() =>
+        database.eventJournal.append({
+          id: "event-subscription-boundary",
+          projectId: "project-daemon",
+          type: "BOUNDARY_FIXTURE_EVENT",
+          eventVersion: 1,
+          occurredAt: timestamp,
+          actor: "test",
+          payload: {},
+        }),
+      );
+      return unsubscribe;
+    };
+    const paths = coreRuntimePaths({ runtimeDirectory });
+    const firstFrame = await rawFrame(paths.socket, {
+      authToken: (await readFile(paths.token, "utf8")).trim(),
+      envelope: request("request-subscription-boundary", "events.subscribe", {
+        projectId: "project-daemon",
+        afterSequence: 0,
+      }),
+    });
+    assert.equal(firstFrame.kind, "response");
+    assert.equal(firstFrame.result.subscribed, true);
+    assert.deepEqual(
+      firstFrame.result.events.map((event) => event.sequenceNumber),
+      [1],
+    );
+  });
+});
+
 test("the real CLI starts, connects to, reports, and stops a detached Core daemon", async () => {
   const runtimeDirectory = await mkdtemp(join(tmpdir(), "densa-core-cli-"));
   const execute = promisify(execFile);
-  const cliPath = new URL("../packages/cli/dist/bin.js", import.meta.url);
+  const cliPath = fileURLToPath(new URL("../packages/cli/dist/bin.js", import.meta.url));
   const environment = { ...process.env, DENSA_CORE_RUNTIME_DIR: runtimeDirectory };
   let started = false;
   try {
     const start = JSON.parse(
       (
-        await execute(process.execPath, [cliPath.pathname, "core", "start", "--json"], {
+        await execute(process.execPath, [cliPath, "core", "start", "--json"], {
           env: environment,
         })
       ).stdout,
@@ -201,7 +452,7 @@ test("the real CLI starts, connects to, reports, and stops a detached Core daemo
 
     const status = JSON.parse(
       (
-        await execute(process.execPath, [cliPath.pathname, "core", "status", "--json"], {
+        await execute(process.execPath, [cliPath, "core", "status", "--json"], {
           env: environment,
         })
       ).stdout,
@@ -210,7 +461,7 @@ test("the real CLI starts, connects to, reports, and stops a detached Core daemo
 
     const stop = JSON.parse(
       (
-        await execute(process.execPath, [cliPath.pathname, "core", "stop", "--json"], {
+        await execute(process.execPath, [cliPath, "core", "stop", "--json"], {
           env: environment,
         })
       ).stdout,
@@ -219,7 +470,7 @@ test("the real CLI starts, connects to, reports, and stops a detached Core daemo
     started = false;
   } finally {
     if (started) {
-      await execute(process.execPath, [cliPath.pathname, "core", "stop", "--json"], {
+      await execute(process.execPath, [cliPath, "core", "stop", "--json"], {
         env: environment,
       });
     }
