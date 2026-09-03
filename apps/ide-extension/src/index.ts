@@ -28,6 +28,10 @@
  * over the same protocol boundary: PROJECT/CURRENT/HEALTH/CHANGES/
  * AGENTS-USAGE/EVENTS sections plus drill-downs and WAITING/BLOCKED banners
  * (see `./dashboard.js`). Roadmap content (M0) lives in `./roadmap.js`.
+ * Master Agent conversation/control surface (M2) distinguishes explanations
+ * from proposed state changes over `master.send` with explicit approval,
+ * stale revalidation, durable decisions, and no worker-log dumping by
+ * default (see `./master.js`).
  */
 
 export {
@@ -175,6 +179,43 @@ export {
   type DashboardStateCount,
   type DashboardStatusBanner,
 } from "./dashboard.js";
+export {
+  MASTER_ACTION_KINDS,
+  MASTER_CAPABILITY_METHODS,
+  MASTER_COMMAND,
+  MASTER_EDITOR_VIEW_TYPE,
+  MASTER_EXAMPLE_PROMPTS,
+  MASTER_INTENTS,
+  MASTER_LIFECYCLE,
+  MASTER_OPEN_REFRESH_METHODS,
+  MASTER_REOPEN_REFRESH_METHODS,
+  buildMasterModel,
+  classifyMasterAction,
+  isMasterStaleOutcome,
+  masterEventIsRefreshHint,
+  masterTurnById,
+  masterWorkerLogsIncludedByDefault,
+  reconcileMasterStaleOutcome,
+  resolveMasterCitationDrilldown,
+  resolveMasterDrilldown,
+  resolveMasterModeChange,
+  resolveMasterPause,
+  resolveMasterReopenRefresh,
+  resolveMasterResume,
+  resolveMasterRoadmapResolve,
+  resolveMasterSend,
+  type MasterConnectionState,
+  type MasterDrilldown,
+  type MasterExamplePrompt,
+  type MasterModel,
+  type MasterModelInput,
+  type MasterReopenRefresh,
+  type MasterSendResolution,
+  type MasterStaleReconciliation,
+  type MasterTurnInput,
+  type MasterTurnKind,
+  type MasterTurnView,
+} from "./master.js";
 
 export const EXTENSION_ID = "densa-labs.densa-ade" as const;
 

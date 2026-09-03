@@ -345,6 +345,7 @@ function validateExtension() {
     "surfaces.ts",
     "roadmap.ts",
     "dashboard.ts",
+    "master.ts",
   ].map((file) => join(EXTENSION_DIR, "src", file));
   for (const source of sources) {
     results.push(

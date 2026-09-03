@@ -4,7 +4,8 @@ Protocol-only IDE client for the thin Code-OSS downstream. Phase 10 Milestone 0
 established the package boundary; Phase 10 Milestone 1 connects the IDE to the
 existing Core daemon; Phase 10 Milestone 2 adds the Home/Welcome actions;
 Phase 10 Milestone 3 adds the Dashboard/Roadmap/Master navigation shells.
-Surface content arrives in later milestones.
+Phase 11 Milestone 0 adds the Roadmap content model, Milestone 1 the
+Dashboard command center, and Milestone 2 the Master Agent UI.
 
 ## Boundary (AGENTS.md §1.1–§1.2)
 
@@ -59,6 +60,14 @@ Surface content arrives in later milestones.
   `src/welcome.ts`. Unavailable project actions explain what is needed; the IDE
   never invents project state. See `docs/densa-welcome-home.md`.
 - Navigation shells (M3): see `docs/ide-navigation-surfaces.md`.
+- Roadmap UI (Phase 11 M0): see `docs/roadmap-ui.md` (`src/roadmap.ts`).
+- Dashboard command center (Phase 11 M1): see `docs/dashboard-command-center.md`
+  (`src/dashboard.ts`).
+- Master Agent UI (Phase 11 M2): conversation/control surface over
+  `master.send` with explanation vs proposal distinction, explicit
+  roadmap/constraint approval, stale revalidation, durable decisions, and no
+  worker-log dumping by default (see `docs/master-agent-ui.md` and
+  `src/master.ts`).
 - No binary icons. The container uses the `$(placeholder)` codicon until product
   polish.
 
@@ -76,7 +85,10 @@ apps/ide-extension/
     ├── event-cache.ts   # replay dedup + gap detection per project (M1)
     ├── ide-connection.ts # discovery/start, handshake, replay/subscribe (M1)
     ├── welcome.ts       # Home/Welcome catalog over Core truth, no invented state (M2)
-    └── surfaces.ts      # Dashboard/Roadmap/Master editor-area shells, disposable views (M3)
+    ├── surfaces.ts      # Dashboard/Roadmap/Master editor-area shells, disposable views (M3)
+    ├── roadmap.ts       # Roadmap content model over Core truth (P11M0)
+    ├── dashboard.ts     # Dashboard command center over Core truth (P11M1)
+    └── master.ts        # Master Agent UI over Core truth, no worker-log dumping (P11M2)
 ```
 
 ## Verification
