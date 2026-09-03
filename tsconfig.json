@@ -5,8 +5,9 @@
     "paths": {
       "@densa-ade/agent-sdk": ["./packages/agent-sdk/src/index.ts"],
       "@densa-ade/core": ["./packages/core/src/index.ts"],
+      "@densa-ade/ide-extension": ["./apps/ide-extension/src/index.ts"],
       "@densa-ade/protocol": ["./packages/protocol/src/index.ts"]
     }
   },
-  "include": ["packages/*/src/**/*.ts"]
+  "include": ["packages/*/src/**/*.ts", "apps/ide-extension/src/**/*.ts"]
 }

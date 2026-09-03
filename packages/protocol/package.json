@@ -4,6 +4,7 @@
   "private": true,
   "description": "Versioned, editor-neutral contracts for Densa ADE clients and Core.",
   "author": "Densa Labs",
+  "license": "Apache-2.0",
   "type": "module",
   "exports": {
     ".": {

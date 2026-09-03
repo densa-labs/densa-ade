@@ -4,6 +4,7 @@
   "private": true,
   "description": "Headless client boundary for Densa ADE Core.",
   "author": "Densa Labs",
+  "license": "Apache-2.0",
   "type": "module",
   "bin": {
     "densa-ade": "dist/bin.js"

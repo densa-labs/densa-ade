@@ -4,6 +4,7 @@
   "private": true,
   "description": "Local-first orchestration foundation for Densa ADE.",
   "author": "Densa Labs",
+  "license": "Apache-2.0",
   "homepage": "https://densa-labs.github.io/",
   "repository": {
     "type": "git",
@@ -26,7 +27,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "playwright:install": "playwright install chromium",
-    "pretest": "tsc -b packages/protocol packages/agent-sdk packages/core packages/cli packages/testing",
+    "pretest": "tsc -b packages/protocol packages/agent-sdk packages/core packages/cli packages/testing apps/ide-extension",
     "test": "node --test scripts/*.test.mjs",
     "test:browser": "node --test scripts/browser-validation.test.mjs",
     "test:live:codex": "DENSA_LIVE_CODEX=1 node --test scripts/codex-adapter-live.test.mjs",
@@ -35,6 +36,8 @@
     "proof:p9m0": "node packages/cli/dist/bin.js --json proof phase-one",
     "proof:p9m1": "npm run pretest && node --test scripts/headless-continuous-recovery.test.mjs",
     "proof:p9m2": "npm run pretest && node scripts/core-v1-runtime-acceptance.mjs",
+    "ide:doctor": "node scripts/code-oss-dev.mjs doctor",
+    "ide:check": "node scripts/code-oss-dev.mjs check",
     "check": "npm run format:check && npm run build && npm run typecheck && npm run lint && npm test"
   },
   "devDependencies": {

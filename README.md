@@ -38,6 +38,12 @@ Authenticated third-party coding agents are subject to their own terms, policies
 
 ## License
 
-(TODO: when license is chosen, update this)
+Densa ADE written by Densa Labs is licensed under the **Apache License, Version 2.0**.
+See [`LICENSE`](LICENSE).
+
+Densa ADE is a thin downstream of Code-OSS (`microsoft/vscode`). Upstream Code-OSS code
+remains under Microsoft's **MIT License**, and every modified Code-OSS file retains
+Microsoft's MIT notice alongside the Densa ADE overlay. See
+[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) and [`code-oss/`](code-oss/).
 
 For technical documentation, see [`/docs`](docs/)

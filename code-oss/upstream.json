@@ -1,0 +1,9 @@
+{
+  "upstreamName": "microsoft/vscode (Code-OSS)",
+  "upstreamRepository": "https://github.com/microsoft/vscode.git",
+  "trackingBranch": "main",
+  "checkoutDirectory": "code-oss/upstream",
+  "pinnedRef": null,
+  "lastSync": null,
+  "syncNotes": "Phase 10 Milestone 0: upstream tracking strategy established; no upstream checkout certified yet. Set pinnedRef to the exact upstream commit SHA on the first real sync."
+}

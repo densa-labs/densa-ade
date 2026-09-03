@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json.schemastore.org/product.json",
+  "comment": "Densa ADE product identity overlay. Applied at build time on top of upstream Code-OSS product.json defaults. Densa-written overlay (Apache-2.0); upstream defaults remain MIT (Microsoft). See THIRD_PARTY_NOTICES.md.",
+  "identity": {
+    "nameShort": "Densa ADE",
+    "nameLong": "Densa ADE",
+    "applicationName": "densa-ade",
+    "dataFolderName": "densa-ade",
+    "darwinBundleIdentifier": "labs.densa.ade",
+    "win32AppId": "labs.densa.ade",
+    "linuxIconName": "densa-ade",
+    "version": "0.0.0",
+    "extensionsGallery": {
+      "comment": "Pinned in Phase 12 Milestone 1 (Open VSX). Placeholder keeps upstream defaults until then; do not claim Microsoft Marketplace compatibility.",
+      "serviceUrl": null,
+      "itemUrl": null
+    }
+  },
+  "branding": {
+    "mode": "text-placeholder",
+    "logo": null,
+    "logoComment": "Temporary text/placeholder visual branding only. Product logo comes later; do not add binary logo assets in Phase 10 Milestone 0."
+  },
+  "preservedUpstreamBehavior": [
+    "Explorer",
+    "editor tabs",
+    "terminal",
+    "Problems",
+    "SCM",
+    "debugger",
+    "extensions",
+    "Monaco"
+  ],
+  "overlayRules": {
+    "applicationNameMustDifferFromUpstream": true,
+    "upstreamApplicationNames": ["code-oss", "code"],
+    "dataFolderMustDifferFromUpstream": true,
+    "bundleIdentifierMustDifferFromUpstream": true
+  }
+}

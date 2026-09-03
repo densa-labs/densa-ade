@@ -1,0 +1,84 @@
+{
+  "name": "@densa-ade/ide-extension",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Built-in Densa ADE extension: protocol-only IDE client for Densa ADE Core.",
+  "author": "Densa Labs",
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "displayName": "Densa ADE",
+  "extensionId": "densa-labs.densa-ade",
+  "main": "./dist/index.js",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "densa-ade.showDashboard",
+        "title": "Densa ADE: Open Dashboard",
+        "category": "Densa ADE"
+      },
+      {
+        "command": "densa-ade.showRoadmap",
+        "title": "Densa ADE: Open Roadmap",
+        "category": "Densa ADE"
+      },
+      {
+        "command": "densa-ade.showMasterAgent",
+        "title": "Densa ADE: Open Master Agent",
+        "category": "Densa ADE"
+      },
+      {
+        "command": "densa-ade.startProject",
+        "title": "Densa ADE: Start Project",
+        "category": "Densa ADE"
+      },
+      {
+        "command": "densa-ade.resumeProject",
+        "title": "Densa ADE: Resume Project",
+        "category": "Densa ADE"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "densa-ade",
+          "title": "Densa ADE",
+          "icon": "$(placeholder)"
+        }
+      ]
+    },
+    "views": {
+      "densa-ade": [
+        {
+          "id": "densa-ade.dashboard",
+          "name": "Dashboard"
+        },
+        {
+          "id": "densa-ade.roadmap",
+          "name": "Roadmap"
+        },
+        {
+          "id": "densa-ade.master",
+          "name": "Master Agent"
+        }
+      ]
+    }
+  },
+  "dependencies": {
+    "@densa-ade/protocol": "0.0.0"
+  }
+}

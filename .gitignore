@@ -33,6 +33,13 @@ tmp/
 .DS_Store
 *.swp
 
+# Thin Code-OSS downstream: upstream checkout and build outputs are never vendored
+code-oss/upstream/
+code-oss/out/
+code-oss/.build/
+*.vsix
+.vscode-test/
+
 # Local Densa ADE development instructions and roadmap
 /AGENTS.md
 /MASTER_ROADMAP.md

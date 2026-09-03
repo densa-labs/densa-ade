@@ -4,6 +4,7 @@
   "private": true,
   "description": "Agent-neutral adapter boundary for Densa ADE Core.",
   "author": "Densa Labs",
+  "license": "Apache-2.0",
   "type": "module",
   "exports": {
     ".": {
