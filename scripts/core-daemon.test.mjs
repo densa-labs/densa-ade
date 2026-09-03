@@ -169,7 +169,22 @@ test("clients disconnect and reconnect while the authoritative daemon and a seco
 });
 
 test("v1 and CLI aliases dispatch project controls through authoritative Core", async () => {
-  await withDaemon(async ({ runtimeDirectory }) => {
+  await withDaemon(async ({ database, runtimeDirectory }) => {
+    const { realpath } = await import("node:fs/promises");
+    const workspacePath = await realpath(runtimeDirectory);
+    database.repositories.projectSettings.set({
+      projectId: "project-daemon",
+      values: {
+        coreRuntime: {
+          formatVersion: 1,
+          workspacePath,
+          initialIdea: "daemon fixture",
+          actor: "test",
+          initialization: "complete",
+        },
+      },
+      updatedAt: timestamp,
+    });
     const client = new CoreIpcClient({ runtimeDirectory });
     const payload = {
       projectId: "project-daemon",

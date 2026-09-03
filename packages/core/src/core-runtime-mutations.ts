@@ -782,16 +782,30 @@ export class CoreRuntimeMutations {
         typeof raw === "object" && raw !== null && !Array.isArray(raw)
           ? (raw as Record<string, unknown>)
           : undefined;
+      const preservedReasons =
+        base !== undefined && Array.isArray(base["reasons"]) ? (base["reasons"] as unknown) : [];
+      const preservedState =
+        base?.["state"] === "active" ||
+        base?.["state"] === "declined" ||
+        base?.["state"] === "unavailable" ||
+        base?.["state"] === "recovery_required"
+          ? base["state"]
+          : "inactive";
+      const effectiveReasons = preservedState === "inactive" ? [] : preservedReasons;
+      const preserveAssertion =
+        (preservedState === "active" || preservedState === "recovery_required") &&
+        base?.["assertion"] !== undefined;
       const next = {
         formatVersion: 1,
         projectId: String(id),
-        state: "inactive" as const,
-        reasons: [],
+        state: preservedState,
+        reasons: effectiveReasons,
         batteryPolicy: policy,
+        ...(preserveAssertion ? { assertion: base["assertion"] } : {}),
+        ...(base?.["batteryState"] === undefined ? {} : { batteryState: base["batteryState"] }),
         updatedAt: occurredAt,
         message: "Battery policy updated through Core v1 settings",
       };
-      void base;
       this.db.transaction((repositories) => {
         repositories.projectSettings.set({
           projectId: id,
@@ -849,15 +863,27 @@ export class CoreRuntimeMutations {
       types: ["RUNTIME_PERMISSION_RESOLVED"],
       limit: 1000,
     });
+    const requestAliases =
+      request === undefined
+        ? [decisionId]
+        : [request.id, String(request.payload["decisionId"] ?? request.id)];
     if (
-      resolutions.some(
-        (e) =>
-          String(e.payload["decisionId"]) === decisionId ||
-          String(e.payload["requestId"]) === decisionId,
-      )
+      resolutions.some((e) => {
+        const resolvedDecision = String(e.payload["decisionId"] ?? "");
+        const resolvedRequest =
+          e.payload["requestEventId"] !== undefined
+            ? String(e.payload["requestEventId"])
+            : String(e.payload["requestId"] ?? "");
+        return (
+          requestAliases.includes(resolvedDecision) ||
+          (resolvedRequest !== "" && requestAliases.includes(resolvedRequest))
+        );
+      })
     ) {
       return { projectId: id, decisionId, outcome: "UNCHANGED" as const };
     }
+    const canonicalDecision =
+      request === undefined ? decisionId : String(request.payload["decisionId"] ?? request.id);
     this.db.repositories.events.append({
       id: eventIdSchema.parse(`runtime-${randomUUID()}`),
       projectId: id,
@@ -865,7 +891,12 @@ export class CoreRuntimeMutations {
       eventVersion: 1,
       occurredAt,
       actor,
-      payload: { decisionId, resolution: input.resolution, reason },
+      payload: {
+        decisionId: canonicalDecision,
+        requestEventId: request?.id ?? decisionId,
+        resolution: input.resolution,
+        reason,
+      },
     });
     return {
       projectId: id,

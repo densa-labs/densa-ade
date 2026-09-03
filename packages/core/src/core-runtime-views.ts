@@ -118,11 +118,18 @@ export class CoreRuntimeViews {
         request.type === "RUNTIME_PERMISSION_REQUESTED"
           ? request.id
           : String(request.payload["decisionId"] ?? request.id);
-      const isResolved = resolutions.some(
-        (entry) =>
-          String(entry.payload["decisionId"] ?? "") === key &&
-          entry.sequenceNumber > request.sequenceNumber,
-      );
+      const aliases = [request.id, key];
+      const isResolved = resolutions.some((entry) => {
+        const resolvedDecision = String(entry.payload["decisionId"] ?? "");
+        const resolvedRequest =
+          entry.payload["requestEventId"] !== undefined
+            ? String(entry.payload["requestEventId"])
+            : String(entry.payload["requestId"] ?? "");
+        return (
+          (aliases.includes(resolvedDecision) || aliases.includes(resolvedRequest)) &&
+          entry.sequenceNumber > request.sequenceNumber
+        );
+      });
       if (!isResolved) {
         const reason =
           typeof request.payload["reason"] === "string"

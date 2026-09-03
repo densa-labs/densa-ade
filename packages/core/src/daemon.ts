@@ -744,11 +744,13 @@ export class CoreDaemon {
             payload.workspacePath as string,
           );
         } catch (error) {
-          if (error instanceof CoreRuntimeError && error.code === "WORKSPACE_CONFLICT") {
+          if (
+            error instanceof CoreRuntimeError &&
+            (error.code === "WORKSPACE_CONFLICT" || error.code === "PERSISTENCE_FAILURE")
+          ) {
             throw new CoreIpcError({ code: error.code, message: error.message });
           }
-          if (!(error instanceof CoreRuntimeError && error.code === "PERSISTENCE_FAILURE"))
-            throw error;
+          throw error;
         }
         const controlRequest: ProjectControlRequest = {
           projectId: projectIdSchema.parse(payload.projectId),
