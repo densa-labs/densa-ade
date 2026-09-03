@@ -343,6 +343,7 @@ function validateExtension() {
     "ide-connection.ts",
     "welcome.ts",
     "surfaces.ts",
+    "roadmap.ts",
   ].map((file) => join(EXTENSION_DIR, "src", file));
   for (const source of sources) {
     results.push(
