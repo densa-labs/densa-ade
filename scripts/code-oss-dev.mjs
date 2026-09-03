@@ -273,12 +273,49 @@ function validateExtension() {
     "densa-ade.showDashboard",
     "densa-ade.showRoadmap",
     "densa-ade.showMasterAgent",
+    "densa-ade.startProject",
+    "densa-ade.resumeProject",
   ]) {
     results.push(
       check(
         `ide-extension contributes ${command}`,
         commands.some((entry) => entry?.command === command),
         command,
+      ),
+    );
+  }
+  results.push(
+    check(
+      "ide-extension commands share the Densa ADE palette group",
+      commands.length > 0 && commands.every((entry) => entry?.category === "Densa ADE"),
+      commands.map((entry) => entry?.category).join(", ") || "(no commands)",
+    ),
+  );
+  const containers = manifest.contributes?.viewsContainers?.activitybar ?? [];
+  results.push(
+    check(
+      "ide-extension contributes the densa-ade activity bar container",
+      containers.some((entry) => entry?.id === "densa-ade"),
+      "densa-ade",
+    ),
+  );
+  const views = manifest.contributes?.views?.["densa-ade"] ?? [];
+  for (const view of ["densa-ade.dashboard", "densa-ade.roadmap", "densa-ade.master"]) {
+    results.push(
+      check(
+        `ide-extension contributes activity bar view ${view}`,
+        views.some((entry) => entry?.id === view),
+        view,
+      ),
+    );
+  }
+  const customEditors = manifest.contributes?.customEditors ?? [];
+  for (const viewType of ["densa-ade.dashboard", "densa-ade.roadmap", "densa-ade.master"]) {
+    results.push(
+      check(
+        `ide-extension contributes editor-area tab ${viewType}`,
+        customEditors.some((entry) => entry?.viewType === viewType),
+        viewType,
       ),
     );
   }
@@ -305,6 +342,7 @@ function validateExtension() {
     "event-cache.ts",
     "ide-connection.ts",
     "welcome.ts",
+    "surfaces.ts",
   ].map((file) => join(EXTENSION_DIR, "src", file));
   for (const source of sources) {
     results.push(

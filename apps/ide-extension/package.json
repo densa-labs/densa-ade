@@ -76,7 +76,39 @@
           "name": "Master Agent"
         }
       ]
-    }
+    },
+    "customEditors": [
+      {
+        "viewType": "densa-ade.dashboard",
+        "displayName": "Densa ADE Dashboard",
+        "selector": [
+          {
+            "filenamePattern": "*.densa-dashboard"
+          }
+        ],
+        "priority": "option"
+      },
+      {
+        "viewType": "densa-ade.roadmap",
+        "displayName": "Densa ADE Roadmap",
+        "selector": [
+          {
+            "filenamePattern": "*.densa-roadmap"
+          }
+        ],
+        "priority": "option"
+      },
+      {
+        "viewType": "densa-ade.master",
+        "displayName": "Densa ADE Master Agent",
+        "selector": [
+          {
+            "filenamePattern": "*.densa-master"
+          }
+        ],
+        "priority": "option"
+      }
+    ]
   },
   "dependencies": {
     "@densa-ade/protocol": "0.0.0"

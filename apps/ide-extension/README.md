@@ -2,9 +2,9 @@
 
 Protocol-only IDE client for the thin Code-OSS downstream. Phase 10 Milestone 0
 established the package boundary; Phase 10 Milestone 1 connects the IDE to the
-existing Core daemon; Phase 10 Milestone 2 adds the Home/Welcome actions.
-Dashboard/Roadmap/Master surfaces arrive in later
-milestones.
+existing Core daemon; Phase 10 Milestone 2 adds the Home/Welcome actions;
+Phase 10 Milestone 3 adds the Dashboard/Roadmap/Master navigation shells.
+Surface content arrives in later milestones.
 
 ## Boundary (AGENTS.md §1.1–§1.2)
 
@@ -37,18 +37,28 @@ milestones.
 - `disconnect()` closes the IDE window only. Core keeps running while project
   policy allows it; connection loss never changes project truth.
 
-## Contributions (M0 scaffold, M2 welcome)
+## Contributions (M0 scaffold, M2 welcome, M3 navigation shells)
 
-- Command palette group `densa-ade`: Open Dashboard / Roadmap / Master Agent,
-  Start Project, Resume Project.
-- Activity Bar container `densa-ade` with placeholder Dashboard / Roadmap /
-  Master Agent views (full editor-area tabs arrive in Phase 10 Milestone 3).
+- Command palette group `Densa ADE`: Open Dashboard / Roadmap / Master Agent,
+  Start Project, Resume Project. Every command shares the category so the
+  palette group stays coherent.
+- Activity Bar container `densa-ade` with Dashboard / Roadmap /
+  Master Agent launcher views. Launchers navigate; they do not host content.
+- Editor-area tabs (M3): `densa-ade.dashboard`, `densa-ade.roadmap`, and
+  `densa-ade.master` custom-editor viewTypes opened via the surface commands,
+  rendered beside source tabs (`priority: option`, never a default file
+  association). Opening Dashboard/Roadmap refreshes the authoritative Core
+  snapshot (`dashboard.get` / `roadmaps.get`) for the selected persisted
+  project; opening Master Agent never auto-sends (`src/surfaces.ts`).
+  Closing or reopening a tab never affects Core execution. No visual polish
+  yet; surface content arrives in Phase 11.
 - Welcome/Home (M2): familiar `Open Folder` / `Open File` / `New Window`
   workbench commands stay usable without Core; Densa ADE entries resolve to the
   existing Core v1 operations (`projects.create`, `dashboard.get`,
   `roadmaps.get`, `master.send`, `projects.resume`, `projects.list`) via
   `src/welcome.ts`. Unavailable project actions explain what is needed; the IDE
   never invents project state. See `docs/densa-welcome-home.md`.
+- Navigation shells (M3): see `docs/ide-navigation-surfaces.md`.
 - No binary icons. The container uses the `$(placeholder)` codicon until product
   polish.
 
@@ -56,7 +66,7 @@ milestones.
 
 ```text
 apps/ide-extension/
-├── package.json   # contributes.commands/views, engines.vscode, protocol-only deps
+├── package.json   # contributes.commands/views/customEditors, engines.vscode, protocol-only deps
 ├── tsconfig.json  # composite build, references @densa-ade/protocol
 └── src/
     ├── index.ts         # extension id, product binding, commands/views, summary
@@ -65,7 +75,8 @@ apps/ide-extension/
     ├── ide-transport.ts # authenticated IPC transport, reconnectable (M1)
     ├── event-cache.ts   # replay dedup + gap detection per project (M1)
     ├── ide-connection.ts # discovery/start, handshake, replay/subscribe (M1)
-    └── welcome.ts       # Home/Welcome catalog over Core truth, no invented state (M2)
+    ├── welcome.ts       # Home/Welcome catalog over Core truth, no invented state (M2)
+    └── surfaces.ts      # Dashboard/Roadmap/Master editor-area shells, disposable views (M3)
 ```
 
 ## Verification

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * Built-in Densa ADE extension (Phase 10 Milestone 2).
+ * Built-in Densa ADE extension (Phase 10 Milestone 3).
  *
  * Protocol-only IDE client boundary: this package may import
  * `@densa-ade/protocol` and nothing else from Densa ADE Core. It never imports
@@ -16,6 +16,13 @@
  * Welcome/Home actions (M2) keep familiar Code-OSS `Open Folder` / `Open File`
  * / `New Window` flows usable without Core and resolve every Densa ADE action
  * to an existing Core v1 operation (see `./welcome.js`).
+ *
+ * Navigation shells (M3) open Dashboard, Roadmap, and Master Agent as full
+ * editor-area tabs beside source tabs via standard contribution mechanisms
+ * (commands, Activity Bar launchers, custom-editor viewTypes). Activity Bar
+ * entries navigate; they do not host surface content. Surfaces are
+ * disposable: closing or reopening a tab never changes Core execution
+ * (see `./surfaces.js`).
  */
 
 export {
@@ -75,6 +82,28 @@ export {
   type WelcomeModelInput,
   type WelcomeRecentProject,
 } from "./welcome.js";
+export {
+  ACTIVITY_BAR_CONTAINER_ID,
+  SURFACE_ACTIVITY_BAR_VIEWS,
+  SURFACE_COMMANDS,
+  SURFACE_COMMAND_CATEGORY,
+  SURFACE_DEFINITIONS,
+  SURFACE_EDITOR_VIEW_TYPES,
+  SURFACE_LIFECYCLE,
+  buildSurfaceAvailability,
+  resolveSurfaceOpenRefresh,
+  surfaceById,
+  surfaceForActivityBarView,
+  surfaceForCommand,
+  surfaceForEditorViewType,
+  type SurfaceAvailability,
+  type SurfaceAvailabilityInput,
+  type SurfaceArea,
+  type SurfaceConnectionState,
+  type SurfaceDefinition,
+  type SurfaceId,
+  type SurfaceOpenRefresh,
+} from "./surfaces.js";
 
 export const EXTENSION_ID = "densa-labs.densa-ade" as const;
 
