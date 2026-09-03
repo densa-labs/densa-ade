@@ -163,10 +163,19 @@ test("built-in extension is a protocol-only Core client scaffold", async () => {
   );
   assert.throws(() => extension.assertCompatibleProtocol("0.0.0"), /protocol mismatch/iu);
 
-  const combined =
-    readText("apps/ide-extension/src/index.ts") + readText("apps/ide-extension/src/connection.ts");
+  const combined = [
+    "apps/ide-extension/src/index.ts",
+    "apps/ide-extension/src/connection.ts",
+    "apps/ide-extension/src/runtime-paths.ts",
+    "apps/ide-extension/src/ide-transport.ts",
+    "apps/ide-extension/src/event-cache.ts",
+    "apps/ide-extension/src/ide-connection.ts",
+  ]
+    .map((relative) => readText(relative))
+    .join("\n");
   const forbiddenImports = [
     /(?:from\s+|import\s*\(\s*|require\s*\(\s*)["']@densa-ade\/core(?:\/[^"']*)?["']/u,
+    /(?:from\s+|import\s*\(\s*|require\s*\(\s*)["']@densa-ade\/cli(?:\/[^"']*)?["']/u,
     /(?:from\s+|import\s*\(\s*|require\s*\(\s*)["'][^"']*vs\/workbench[^"']*["']/u,
     /(?:from\s+|import\s*\(\s*|require\s*\(\s*)["']vscode["']/u,
     /(?:from\s+|import\s*\(\s*|require\s*\(\s*)["'][^"']*sqlite[^"']*["']/iu,

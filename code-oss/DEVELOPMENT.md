@@ -1,8 +1,9 @@
 # Densa ADE development workflow (macOS)
 
 Reproducible development loop for the thin Code-OSS downstream on macOS.
-This milestone establishes identity, inventory, and verification — the full
-upstream build comes online incrementally from Phase 10 Milestone 1.
+Phase 10 Milestone 0 established identity, inventory, and verification;
+Phase 10 Milestone 1 connects the IDE to the existing Core daemon over the
+frozen v1 protocol. The full upstream build comes online incrementally.
 
 ## Prerequisites
 
@@ -33,7 +34,7 @@ npm run ide:check
 npm run check
 ```
 
-## Upstream checkout (optional at M0, required from M1)
+## Upstream checkout (optional at M0, present from M1)
 
 ```sh
 git clone https://github.com/microsoft/vscode.git code-oss/upstream
@@ -42,17 +43,23 @@ git -C code-oss/upstream remote add upstream https://github.com/microsoft/vscode
 npm run ide:check   # additionally validates the present checkout
 ```
 
+The M1 checkout is a single-branch `main` clone pinned in
+`code-oss/upstream.json` (see `UPSTREAM.md`). No overlay is applied yet and no
+workbench patch is introduced at M1; the IDE/Core boundary is exercised through
+the built-in extension's protocol-only client (`scripts/ide-core-connection.test.mjs`).
+
 `code-oss/upstream/` is git-ignored. Never commit it, never import from it in
 Densa ADE Core/CLI/protocol packages.
 
 ## Building and launching
 
-| Goal                                                 | Command              | Notes                                                        |
-| ---------------------------------------------------- | -------------------- | ------------------------------------------------------------ |
-| Verify overlay only                                  | `npm run ide:doctor` | No upstream checkout required                                |
-| Verify overlay + inventory (+ checkout when present) | `npm run ide:check`  | Used by CI and the M0 acceptance test                        |
-| Build Densa ADE Core/CLI/extension                   | `npm run build`      | TypeScript project references, includes `apps/ide-extension` |
-| Launch upstream-based app                            | see below            | Requires `code-oss/upstream/` checkout (from M1)             |
+| Goal                                                 | Command              | Notes                                                                           |
+| ---------------------------------------------------- | -------------------- | ------------------------------------------------------------------------------- |
+| Verify overlay only                                  | `npm run ide:doctor` | No upstream checkout required                                                   |
+| Verify overlay + inventory (+ checkout when present) | `npm run ide:check`  | Used by CI and the downstream acceptance tests                                  |
+| Build Densa ADE Core/CLI/extension                   | `npm run build`      | TypeScript project references, includes `apps/ide-extension`                    |
+| Verify IDE↔Core connection                           | `npm test`           | Runs `ide-core-connection.test.mjs`: open/close/reopen, replay, mismatch, dedup |
+| Launch upstream-based app                            | see below            | Requires `code-oss/upstream/` checkout (present from M1)                        |
 
 From Phase 10 Milestone 1, launching the downstream app follows the upstream build
 with the Densa ADE overlay applied:

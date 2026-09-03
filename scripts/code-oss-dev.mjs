@@ -297,7 +297,14 @@ function validateExtension() {
       String(manifest.engines?.vscode ?? "missing"),
     ),
   );
-  const sources = ["index.ts", "connection.ts"].map((file) => join(EXTENSION_DIR, "src", file));
+  const sources = [
+    "index.ts",
+    "connection.ts",
+    "runtime-paths.ts",
+    "ide-transport.ts",
+    "event-cache.ts",
+    "ide-connection.ts",
+  ].map((file) => join(EXTENSION_DIR, "src", file));
   for (const source of sources) {
     results.push(
       check(
@@ -315,6 +322,10 @@ function validateExtension() {
     {
       label: "@densa-ade/core import",
       pattern: /(?:from\s+|import\s*\(\s*|require\s*\(\s*)["']@densa-ade\/core(?:\/[^"']*)?["']/u,
+    },
+    {
+      label: "@densa-ade/cli import",
+      pattern: /(?:from\s+|import\s*\(\s*|require\s*\(\s*)["']@densa-ade\/cli(?:\/[^"']*)?["']/u,
     },
     {
       label: "vs/workbench import",
