@@ -304,6 +304,7 @@ function validateExtension() {
     "ide-transport.ts",
     "event-cache.ts",
     "ide-connection.ts",
+    "welcome.ts",
   ].map((file) => join(EXTENSION_DIR, "src", file));
   for (const source of sources) {
     results.push(

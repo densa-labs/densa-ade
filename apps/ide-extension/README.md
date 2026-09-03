@@ -2,7 +2,8 @@
 
 Protocol-only IDE client for the thin Code-OSS downstream. Phase 10 Milestone 0
 established the package boundary; Phase 10 Milestone 1 connects the IDE to the
-existing Core daemon. Dashboard/Roadmap/Master surfaces arrive in later
+existing Core daemon; Phase 10 Milestone 2 adds the Home/Welcome actions.
+Dashboard/Roadmap/Master surfaces arrive in later
 milestones.
 
 ## Boundary (AGENTS.md §1.1–§1.2)
@@ -36,12 +37,18 @@ milestones.
 - `disconnect()` closes the IDE window only. Core keeps running while project
   policy allows it; connection loss never changes project truth.
 
-## Contributions (M0 scaffold)
+## Contributions (M0 scaffold, M2 welcome)
 
 - Command palette group `densa-ade`: Open Dashboard / Roadmap / Master Agent,
   Start Project, Resume Project.
 - Activity Bar container `densa-ade` with placeholder Dashboard / Roadmap /
   Master Agent views (full editor-area tabs arrive in Phase 10 Milestone 3).
+- Welcome/Home (M2): familiar `Open Folder` / `Open File` / `New Window`
+  workbench commands stay usable without Core; Densa ADE entries resolve to the
+  existing Core v1 operations (`projects.create`, `dashboard.get`,
+  `roadmaps.get`, `master.send`, `projects.resume`, `projects.list`) via
+  `src/welcome.ts`. Unavailable project actions explain what is needed; the IDE
+  never invents project state. See `docs/densa-welcome-home.md`.
 - No binary icons. The container uses the `$(placeholder)` codicon until product
   polish.
 
@@ -57,7 +64,8 @@ apps/ide-extension/
     ├── runtime-paths.ts # shared socket/pid/token layout, no Core import (M1)
     ├── ide-transport.ts # authenticated IPC transport, reconnectable (M1)
     ├── event-cache.ts   # replay dedup + gap detection per project (M1)
-    └── ide-connection.ts # discovery/start, handshake, replay/subscribe (M1)
+    ├── ide-connection.ts # discovery/start, handshake, replay/subscribe (M1)
+    └── welcome.ts       # Home/Welcome catalog over Core truth, no invented state (M2)
 ```
 
 ## Verification

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * Built-in Densa ADE extension (Phase 10 Milestone 1).
+ * Built-in Densa ADE extension (Phase 10 Milestone 2).
  *
  * Protocol-only IDE client boundary: this package may import
  * `@densa-ade/protocol` and nothing else from Densa ADE Core. It never imports
@@ -12,6 +12,10 @@
  *
  * The IDE socket is disposable; Core is durable. `disconnect()` closes the
  * IDE window's connection only and never stops Core.
+ *
+ * Welcome/Home actions (M2) keep familiar Code-OSS `Open Folder` / `Open File`
+ * / `New Window` flows usable without Core and resolve every Densa ADE action
+ * to an existing Core v1 operation (see `./welcome.js`).
  */
 
 export {
@@ -50,6 +54,27 @@ export {
   type IdeCoreStarter,
   type IdeCoreSessionOptions,
 } from "./ide-connection.js";
+export {
+  WELCOME_ACTIONS,
+  WELCOME_DENSA_COMMANDS,
+  WELCOME_EDITOR_COMMANDS,
+  WELCOME_MAX_RECENT_PROJECTS,
+  buildWelcomeModel,
+  resolveWelcomeCoreAction,
+  toWelcomeRecentProject,
+  toWelcomeRecentProjects,
+  welcomeActionById,
+  type WelcomeActionAvailability,
+  type WelcomeActionDefinition,
+  type WelcomeActionKind,
+  type WelcomeConnectionState,
+  type WelcomeCoreResolution,
+  type WelcomeDensaCommand,
+  type WelcomeEditorCommand,
+  type WelcomeModel,
+  type WelcomeModelInput,
+  type WelcomeRecentProject,
+} from "./welcome.js";
 
 export const EXTENSION_ID = "densa-labs.densa-ade" as const;
 
