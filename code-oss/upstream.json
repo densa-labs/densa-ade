@@ -3,7 +3,7 @@
   "upstreamRepository": "https://github.com/microsoft/vscode.git",
   "trackingBranch": "main",
   "checkoutDirectory": "code-oss/upstream",
-  "pinnedRef": null,
-  "lastSync": null,
-  "syncNotes": "Phase 10 Milestone 0: upstream tracking strategy established; no upstream checkout certified yet. Set pinnedRef to the exact upstream commit SHA on the first real sync."
+  "pinnedRef": "d2078dc3910648fb44c043d2454b1dce71d0fcef",
+  "lastSync": "2026-09-03T04:38:41Z",
+  "syncNotes": "First sync for Phase 10 Milestone 1 prep: full single-branch main clone at code-oss/upstream/, remote 'upstream' registered, HEAD verified against ls-remote main. No Densa ADE overlay applied yet; patch inventory remains empty."
 }
