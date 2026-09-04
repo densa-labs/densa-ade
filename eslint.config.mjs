@@ -3,13 +3,7 @@ import typescriptEslint from "typescript-eslint";
 
 export default typescriptEslint.config(
   {
-    ignores: [
-      "**/dist/**",
-      "**/node_modules/**",
-      "**/coverage/**",
-      "**/*.tsbuildinfo",
-      "code-oss/upstream/**",
-    ],
+    ignores: ["**/dist/**", "**/node_modules/**", "**/coverage/**", "**/*.tsbuildinfo"],
   },
   eslint.configs.recommended,
   typescriptEslint.configs.recommended,

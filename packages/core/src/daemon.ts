@@ -10,11 +10,9 @@ import {
   CORE_EVENT_NOTIFICATION,
   CORE_IPC_EVENT_REPLAY_DEFAULT,
   CORE_IPC_EVENT_REPLAY_LIMIT,
-  CORE_V1_METHODS,
   PROTOCOL_VERSION,
   ProtocolVersionMismatchError,
   coreDaemonStatusSchema,
-  densaAdeErrorCodeSchema,
   eventReplayRequestSchema,
   eventSubscriptionRequestSchema,
   isoTimestampSchema,
@@ -29,7 +27,6 @@ import {
   requestEnvelopeSchema,
   type CoreDaemonLifecycleStatus,
   type CoreDaemonStatus,
-  type CoreV1Method,
   type JsonObject,
   type JsonValue,
   type NotificationEnvelope,
@@ -41,19 +38,12 @@ import { DensaAdeDatabase } from "./persistence/database.js";
 import { ProjectExecutionControlService } from "./execution-control.js";
 import type { ProjectControlRequest, ResumeProjectRequest } from "./execution-control.js";
 import { KeepAwakeManager } from "./keep-awake.js";
-import { CoreRuntimeMutations } from "./core-runtime-mutations.js";
-import { CoreRuntimeStore, CoreRuntimeError } from "./core-runtime-state.js";
-import { CoreRuntimeViews } from "./core-runtime-views.js";
-import { SecretRedactor } from "./secret-redaction.js";
-import type { PersistedEvent } from "./event-publisher.js";
 
 const MAX_FRAME_BYTES = 1024 * 1024;
 const RUNTIME_DIRECTORY_MODE = 0o700;
 const PRIVATE_FILE_MODE = 0o600;
 const START_TIMEOUT_MS = 5_000;
 const STOP_TIMEOUT_MS = 5_000;
-const MAX_PROTOCOL_ERROR_MESSAGE_BYTES = 16 * 1_024;
-const MAX_PROTOCOL_ERROR_DETAILS_BYTES = 64 * 1_024;
 
 export interface CoreRuntimePaths {
   readonly directory: string;
@@ -358,88 +348,25 @@ function responseSuccess(requestId: string, result: JsonValue): JsonObject {
 }
 
 function writeFrame(socket: Socket, value: JsonValue): void {
-  const frame = `${JSON.stringify(jsonValueSchema.parse(value))}\n`;
-  if (Buffer.byteLength(frame, "utf8") > MAX_FRAME_BYTES) {
-    socket.destroy();
-    return;
-  }
-  socket.write(frame);
-}
-
-function eventPage(
-  request: RequestEnvelope,
-  replay: readonly PersistedEvent[],
-  limit: number,
-  latestSequence: number,
-  subscribed = false,
-): JsonObject {
-  const base = { latestSequence, hasMore: false, ...(subscribed ? { subscribed: true } : {}) };
-  const events: JsonValue[] = [];
-  let bytes =
-    Buffer.byteLength(
-      JSON.stringify(responseSuccess(request.requestId, { ...base, events })),
-      "utf8",
-    ) + 1;
-  for (const event of replay.slice(0, limit)) {
-    const value = asJson(event);
-    const eventBytes =
-      Buffer.byteLength(JSON.stringify(value), "utf8") + (events.length > 0 ? 1 : 0);
-    if (bytes + eventBytes > MAX_FRAME_BYTES) {
-      if (events.length === 0)
-        throw new CoreIpcError({
-          code: "PERSISTENCE_FAILURE",
-          message: "A persisted event cannot fit within a Core IPC frame",
-        });
-      break;
-    }
-    events.push(value);
-    bytes += eventBytes;
-  }
-  return { ...base, events, hasMore: replay.length > events.length };
-}
-
-function truncateUtf8(value: string, maximumBytes: number): string {
-  const bytes = Buffer.from(value, "utf8");
-  if (bytes.length <= maximumBytes) return value;
-  return Buffer.from(bytes.subarray(0, maximumBytes))
-    .toString("utf8")
-    .replace(/\uFFFD$/u, "");
-}
-
-function boundedProtocolDetails(details: JsonObject | undefined): JsonObject | undefined {
-  if (details === undefined) return undefined;
-  const redacted = new SecretRedactor().json(details) as JsonObject;
-  if (Buffer.byteLength(JSON.stringify(redacted), "utf8") <= MAX_PROTOCOL_ERROR_DETAILS_BYTES) {
-    return redacted;
-  }
-  return { truncated: true };
-}
-
-function safeProtocolError(error: ProtocolError): ProtocolError {
-  const redactor = new SecretRedactor();
-  return {
-    code: error.code,
-    message: truncateUtf8(redactor.text(error.message), MAX_PROTOCOL_ERROR_MESSAGE_BYTES),
-    ...(error.details === undefined ? {} : { details: boundedProtocolDetails(error.details) }),
-  };
+  socket.write(`${JSON.stringify(jsonValueSchema.parse(value))}\n`);
 }
 
 function normalizedProtocolError(error: unknown): ProtocolError {
-  if (error instanceof CoreIpcError) return safeProtocolError(error.protocolError);
+  if (error instanceof CoreIpcError) return error.protocolError;
   if (error instanceof ProtocolVersionMismatchError) {
-    return safeProtocolError({
+    return {
       code: "PROTOCOL_VERSION_MISMATCH",
       message: error.message,
       details: { receivedVersion: String(error.receivedVersion) },
-    });
+    };
   }
   if (error instanceof SyntaxError || (error instanceof Error && error.name === "ZodError")) {
     return { code: "USER_CONFIGURATION_ERROR", message: "Malformed Core IPC request" };
   }
-  return safeProtocolError({
+  return {
     code: "INTERNAL_INVARIANT_VIOLATION",
     message: error instanceof Error ? error.message : "Unknown Core IPC failure",
-  });
+  };
 }
 
 function jsonRequestId(value: unknown): string {
@@ -464,9 +391,6 @@ export class CoreDaemon {
   readonly #database: DensaAdeDatabase;
   readonly #keepAwake: KeepAwakeManager;
   readonly #executionControl: ProjectExecutionControlService;
-  readonly #runtimeStore: CoreRuntimeStore;
-  readonly #runtimeViews: CoreRuntimeViews;
-  readonly #runtimeMutations: CoreRuntimeMutations;
   readonly #server: Server;
   readonly #token: string;
   readonly #instanceId: string;
@@ -490,19 +414,8 @@ export class CoreDaemon {
       ...(options.now === undefined ? {} : { now: options.now }),
       keepAwake: this.#keepAwake,
     });
-    const now = options.now ?? (() => new Date().toISOString());
-    const instanceId = options.instanceId ?? randomUUID();
-    this.#runtimeStore = new CoreRuntimeStore(database, now);
-    this.#runtimeViews = new CoreRuntimeViews(this.#runtimeStore, this.#keepAwake, instanceId);
-    this.#runtimeMutations = new CoreRuntimeMutations(
-      this.#runtimeStore,
-      this.#runtimeViews,
-      this.#keepAwake,
-      now,
-      instanceId,
-    );
     this.#token = token;
-    this.#instanceId = instanceId;
+    this.#instanceId = options.instanceId ?? randomUUID();
     this.#ownerPid = options.ownerPid ?? process.pid;
     this.#startedAt = (options.now ?? (() => new Date().toISOString()))();
     this.#ownsDatabase = ownsDatabase;
@@ -606,7 +519,6 @@ export class CoreDaemon {
 
   #accept(socket: Socket): void {
     this.#clients.add(socket);
-    socket.setEncoding("utf8");
     let buffer = "";
     const cleanup = (): void => {
       this.#clients.delete(socket);
@@ -617,18 +529,17 @@ export class CoreDaemon {
     socket.on("error", cleanup);
     socket.on("data", (chunk) => {
       buffer += chunk.toString("utf8");
+      if (Buffer.byteLength(buffer, "utf8") > MAX_FRAME_BYTES) {
+        socket.destroy();
+        return;
+      }
       let boundary = buffer.indexOf("\n");
       while (boundary >= 0) {
         const serialized = buffer.slice(0, boundary);
         buffer = buffer.slice(boundary + 1);
-        if (Buffer.byteLength(serialized, "utf8") + 1 > MAX_FRAME_BYTES) {
-          socket.destroy();
-          return;
-        }
         if (serialized.length > 0) void this.#handleFrame(socket, serialized);
         boundary = buffer.indexOf("\n");
       }
-      if (Buffer.byteLength(buffer, "utf8") > MAX_FRAME_BYTES) socket.destroy();
     });
   }
 
@@ -661,69 +572,14 @@ export class CoreDaemon {
         socket.end();
         return;
       }
-      const afterResponse: Array<() => void> = [];
-      const result = await this.#dispatch(socket, envelope, afterResponse);
+      const result = await this.#dispatch(socket, envelope);
       writeFrame(socket, responseSuccess(envelope.requestId, result));
-      for (const release of afterResponse) release();
     } catch (error) {
       writeFrame(socket, responseError(jsonRequestId(raw), normalizedProtocolError(error)));
     }
   }
 
-  async #dispatchCoreV1(request: RequestEnvelope): Promise<JsonValue | undefined> {
-    const v1Methods = new Set<string>(CORE_V1_METHODS as readonly string[]);
-    if (!v1Methods.has(request.method)) return undefined;
-    const method = request.method as CoreV1Method;
-    if (
-      method === "projects.pause" ||
-      method === "projects.resume" ||
-      method === "projects.stop" ||
-      method === "events.replay" ||
-      method === "events.subscribe"
-    ) {
-      return undefined;
-    }
-    try {
-      const payload = parseCoreV1Payload(method, request.payload);
-      const viewed = await this.#runtimeViews.dispatch({ ...request, method, payload } as never);
-      if (viewed !== undefined) return asJson(parseCoreV1Result(method, viewed));
-      const mutated = await this.#runtimeMutations.dispatch(method, payload);
-      if (mutated !== undefined) return asJson(parseCoreV1Result(method, mutated));
-    } catch (error) {
-      throw this.asCoreIpcError(error);
-    }
-    throw new CoreIpcError({
-      code: "USER_CONFIGURATION_ERROR",
-      message: `Unsupported Core method: ${request.method}`,
-      details: { method: request.method },
-    });
-  }
-
-  private asCoreIpcError(error: unknown): CoreIpcError {
-    if (error instanceof CoreIpcError) return error;
-    if (error instanceof CoreRuntimeError) {
-      return new CoreIpcError({ code: error.code, message: error.message });
-    }
-    if (typeof error === "object" && error !== null && "code" in error) {
-      const code = (error as { code: unknown }).code;
-      if (typeof code === "string" && densaAdeErrorCodeSchema.safeParse(code).success) {
-        const message = error instanceof Error ? error.message : String(error);
-        return new CoreIpcError({
-          code: code as never,
-          message: message.slice(0, 16 * 1024) || "Core operation failed",
-        });
-      }
-    }
-    throw error;
-  }
-
-  async #dispatch(
-    socket: Socket,
-    request: RequestEnvelope,
-    afterResponse: Array<() => void>,
-  ): Promise<JsonValue> {
-    const v1Routed = await this.#dispatchCoreV1(request);
-    if (v1Routed !== undefined) return v1Routed;
+  async #dispatch(socket: Socket, request: RequestEnvelope): Promise<JsonValue> {
     switch (request.method) {
       case "project.pause":
       case "projects.pause":
@@ -738,20 +594,6 @@ export class CoreDaemon {
             ? "projects.stop"
             : "projects.pause";
         const payload = parseCoreV1Payload(method, request.payload);
-        try {
-          await this.#runtimeStore.workspace(
-            projectIdSchema.parse(payload.projectId),
-            payload.workspacePath as string,
-          );
-        } catch (error) {
-          if (
-            error instanceof CoreRuntimeError &&
-            (error.code === "WORKSPACE_CONFLICT" || error.code === "PERSISTENCE_FAILURE")
-          ) {
-            throw new CoreIpcError({ code: error.code, message: error.message });
-          }
-          throw error;
-        }
         const controlRequest: ProjectControlRequest = {
           projectId: projectIdSchema.parse(payload.projectId),
           workspacePath: payload.workspacePath,
@@ -797,8 +639,6 @@ export class CoreDaemon {
         return { stopping: true, instanceId: this.#instanceId };
       case "events.list":
       case "events.replay": {
-        if (request.method === "events.replay")
-          parseCoreV1Payload("events.replay", request.payload);
         const filter = eventReplayRequestSchema.parse(request.payload);
         const limit = filter.limit ?? CORE_IPC_EVENT_REPLAY_DEFAULT;
         const replayFilter = {
@@ -812,14 +652,9 @@ export class CoreDaemon {
           filter.projectId === undefined
             ? events.reduce((latest, event) => Math.max(latest, event.sequenceNumber), 0)
             : (this.#database.repositories.events.latest(filter.projectId)?.sequenceNumber ?? 0);
-        return eventPage(request, replay, limit, latestSequence);
+        return asJson({ events, latestSequence, hasMore: replay.length > limit });
       }
       case "events.subscribe": {
-        try {
-          parseCoreV1Payload("events.subscribe", request.payload);
-        } catch {
-          // Legacy callers may use the older subscription shape; strict v1 is enforced for v1 clients elsewhere.
-        }
         const filter = eventSubscriptionRequestSchema.parse(request.payload);
         const limit = filter.limit ?? CORE_IPC_EVENT_REPLAY_DEFAULT;
         const replayFilter = {
@@ -829,19 +664,11 @@ export class CoreDaemon {
         };
         this.#subscriptions.get(socket)?.();
         const replay = this.#database.eventJournal.replay(replayFilter);
-        const page = eventPage(
-          request,
-          replay,
-          limit,
-          this.#database.repositories.events.latest(filter.projectId)?.sequenceNumber ?? 0,
-          true,
-        );
+        const events = replay.slice(0, limit);
         const subscriptionFilter = {
           projectId: filter.projectId,
           ...(filter.afterSequence === undefined ? {} : { afterSequence: filter.afterSequence }),
         };
-        let buffered: JsonValue[] | undefined = [];
-        let bufferedBytes = 0;
         const unsubscribe = this.#database.eventJournal.subscribe(subscriptionFilter, (event) => {
           const notification: NotificationEnvelope = {
             protocolVersion: PROTOCOL_VERSION,
@@ -849,25 +676,16 @@ export class CoreDaemon {
             event: CORE_EVENT_NOTIFICATION,
             payload: asJson(event),
           };
-          const value = asJson(notification);
-          if (buffered === undefined) writeFrame(socket, value);
-          else {
-            bufferedBytes += Buffer.byteLength(JSON.stringify(value), "utf8");
-            if (bufferedBytes > MAX_FRAME_BYTES) {
-              buffered = [];
-              socket.destroy();
-              return;
-            }
-            buffered.push(value);
-          }
+          writeFrame(socket, asJson(notification));
         });
         this.#subscriptions.set(socket, unsubscribe);
-        afterResponse.push(() => {
-          const pending = buffered ?? [];
-          buffered = undefined;
-          for (const value of pending) writeFrame(socket, value);
+        return asJson({
+          events,
+          latestSequence:
+            this.#database.repositories.events.latest(filter.projectId)?.sequenceNumber ?? 0,
+          hasMore: replay.length > limit,
+          subscribed: true,
         });
-        return page;
       }
       case "project.status":
         return { state: "no_project_selected" };
@@ -884,37 +702,19 @@ export class CoreDaemon {
 interface PendingRequest {
   readonly resolve: (value: JsonValue) => void;
   readonly reject: (error: Error) => void;
-  readonly timeout: ReturnType<typeof setTimeout>;
-}
-
-export interface CoreIpcClientOptions extends CoreDaemonOptions {
-  readonly connectTimeoutMs?: number;
-  readonly requestTimeoutMs?: number;
 }
 
 /** Reconnectable authenticated client for CLI, IDE, Dashboard, and tests. */
 export class CoreIpcClient {
   readonly #paths: CoreRuntimePaths;
-  readonly #connectTimeoutMs: number;
-  readonly #requestTimeoutMs: number;
   readonly #listeners = new Set<CoreNotificationListener>();
   readonly #pending = new Map<string, PendingRequest>();
   #socket: Socket | undefined;
-  #connecting: Promise<void> | undefined;
-  #connectingSocket: Socket | undefined;
-  #connectionGeneration = 0;
   #token: string | undefined;
   #buffer = "";
 
-  constructor(options: CoreIpcClientOptions = {}) {
+  constructor(options: CoreDaemonOptions = {}) {
     this.#paths = coreRuntimePaths(options);
-    this.#connectTimeoutMs = options.connectTimeoutMs ?? START_TIMEOUT_MS;
-    this.#requestTimeoutMs = options.requestTimeoutMs ?? 30_000;
-    for (const value of [this.#connectTimeoutMs, this.#requestTimeoutMs]) {
-      if (!Number.isSafeInteger(value) || value <= 0 || value > 2_147_483_647) {
-        throw new Error("Core IPC timeouts must be positive bounded integer milliseconds");
-      }
-    }
   }
 
   get connected(): boolean {
@@ -923,48 +723,17 @@ export class CoreIpcClient {
 
   async connect(): Promise<void> {
     if (this.connected) return;
-    if (this.#connecting !== undefined) return await this.#connecting;
-    const connecting = this.#openConnection(this.#connectionGeneration);
-    this.#connecting = connecting;
-    try {
-      await connecting;
-    } finally {
-      if (this.#connecting === connecting) this.#connecting = undefined;
-    }
-  }
-
-  async #openConnection(generation: number): Promise<void> {
     await assertPrivateRuntimeDirectory(this.#paths.directory);
-    const token = (await readPrivateFile(this.#paths.token)).trim();
-    if (generation !== this.#connectionGeneration) throw new Error("Core connection was cancelled");
+    this.#token = (await readPrivateFile(this.#paths.token)).trim();
     const socket = createConnection(this.#paths.socket);
-    this.#connectingSocket = socket;
-    const timeout = setTimeout(
-      () => socket.destroy(new Error("Core connection timed out")),
-      this.#connectTimeoutMs,
-    );
-    try {
-      await new Promise<void>((resolvePromise, reject) => {
-        socket.once("connect", resolvePromise);
-        socket.once("error", reject);
-      });
-    } catch (error) {
-      socket.destroy();
-      throw error;
-    } finally {
-      clearTimeout(timeout);
-      if (this.#connectingSocket === socket) this.#connectingSocket = undefined;
-    }
-    if (generation !== this.#connectionGeneration) {
-      socket.destroy();
-      throw new Error("Core connection was cancelled");
-    }
+    await new Promise<void>((resolvePromise, reject) => {
+      socket.once("connect", resolvePromise);
+      socket.once("error", reject);
+    });
     socket.removeAllListeners("error");
-    socket.setEncoding("utf8");
-    socket.on("data", (chunk) => this.#receive(chunk, socket));
-    socket.on("error", (error) => this.#disconnect(error, socket));
-    socket.on("close", () => this.#disconnect(new Error("Densa ADE Core disconnected"), socket));
-    this.#token = token;
+    socket.on("data", (chunk) => this.#receive(chunk));
+    socket.on("error", (error) => this.#disconnect(error));
+    socket.on("close", () => this.#disconnect(new Error("Densa ADE Core disconnected")));
     this.#socket = socket;
   }
 
@@ -974,9 +743,7 @@ export class CoreIpcClient {
   }
 
   disconnect(): void {
-    this.#connectionGeneration += 1;
-    this.#connectingSocket?.destroy(new Error("Core connection was cancelled"));
-    this.#connecting = undefined;
+    this.#socket?.destroy();
     this.#disconnect(new Error("Densa ADE Core client disconnected"));
   }
 
@@ -993,33 +760,9 @@ export class CoreIpcClient {
     if (token === undefined || socket === undefined)
       throw new Error("Densa ADE Core is disconnected");
     return await new Promise<JsonValue>((resolvePromise, reject) => {
-      if (this.#pending.has(envelope.requestId)) {
-        reject(new Error("Core request ID is already pending"));
-        return;
-      }
-      const pending: PendingRequest = {
-        resolve: resolvePromise,
-        reject,
-        timeout: setTimeout(() => {
-          if (this.#pending.get(envelope.requestId) !== pending) return;
-          this.#disconnect(
-            new CoreIpcError({
-              code: "PROCESS_FAILURE",
-              message:
-                "Core request timed out; the operation outcome is unknown. Refresh authoritative state before retrying.",
-            }),
-            socket,
-          );
-        }, this.#requestTimeoutMs),
-      };
-      this.#pending.set(envelope.requestId, pending);
+      this.#pending.set(envelope.requestId, { resolve: resolvePromise, reject });
       socket.write(`${JSON.stringify({ authToken: token, envelope })}\n`, (error) => {
-        if (
-          error !== null &&
-          error !== undefined &&
-          this.#pending.get(envelope.requestId) === pending
-        ) {
-          clearTimeout(pending.timeout);
+        if (error !== null && error !== undefined) {
           this.#pending.delete(envelope.requestId);
           reject(error);
         }
@@ -1027,17 +770,16 @@ export class CoreIpcClient {
     });
   }
 
-  #receive(chunk: string | Buffer, socket: Socket): void {
-    if (socket !== this.#socket) return;
+  #receive(chunk: string | Buffer): void {
     this.#buffer += typeof chunk === "string" ? chunk : chunk.toString("utf8");
+    if (Buffer.byteLength(this.#buffer, "utf8") > MAX_FRAME_BYTES) {
+      this.#socket?.destroy(new Error("Densa ADE Core response exceeded the frame limit"));
+      return;
+    }
     let boundary = this.#buffer.indexOf("\n");
     while (boundary >= 0) {
       const serialized = this.#buffer.slice(0, boundary);
       this.#buffer = this.#buffer.slice(boundary + 1);
-      if (Buffer.byteLength(serialized, "utf8") + 1 > MAX_FRAME_BYTES) {
-        this.#disconnect(new Error("Densa ADE Core response exceeded the frame limit"), socket);
-        return;
-      }
       if (serialized.length > 0) {
         try {
           const envelope = parseProtocolEnvelope(JSON.parse(serialized) as unknown);
@@ -1046,38 +788,24 @@ export class CoreIpcClient {
           } else if (envelope.kind === "response") {
             const pending = this.#pending.get(envelope.requestId);
             if (pending !== undefined) {
-              clearTimeout(pending.timeout);
               this.#pending.delete(envelope.requestId);
               if (envelope.ok) pending.resolve(envelope.result);
               else pending.reject(new CoreIpcError(envelope.error));
             }
           }
         } catch (error) {
-          this.#disconnect(
-            error instanceof Error ? error : new Error("Malformed Core response"),
-            socket,
-          );
-          return;
+          this.#disconnect(error instanceof Error ? error : new Error("Malformed Core response"));
         }
       }
       boundary = this.#buffer.indexOf("\n");
     }
-    if (Buffer.byteLength(this.#buffer, "utf8") > MAX_FRAME_BYTES) {
-      this.#disconnect(new Error("Densa ADE Core response exceeded the frame limit"), socket);
-    }
   }
 
-  #disconnect(error: Error, source?: Socket): void {
-    if (source !== undefined && source !== this.#socket) return;
-    const socket = this.#socket;
+  #disconnect(error: Error): void {
     this.#socket = undefined;
-    socket?.destroy();
     this.#token = undefined;
     this.#buffer = "";
-    for (const pending of this.#pending.values()) {
-      clearTimeout(pending.timeout);
-      pending.reject(error);
-    }
+    for (const pending of this.#pending.values()) pending.reject(error);
     this.#pending.clear();
   }
 }
@@ -1129,8 +857,8 @@ export class CoreDaemonManager {
   }
 
   async status(): Promise<CoreDaemonLifecycleStatus> {
-    const client = new CoreIpcClient(this.#options);
     try {
+      const client = new CoreIpcClient(this.#options);
       const result = await client.request({
         protocolVersion: PROTOCOL_VERSION,
         kind: "request",
@@ -1138,6 +866,7 @@ export class CoreDaemonManager {
         method: "core.status",
         payload: {},
       });
+      client.disconnect();
       return coreDaemonStatusSchema.parse(result);
     } catch (error) {
       const state = await readProcessState(this.#paths);
@@ -1148,8 +877,6 @@ export class CoreDaemonManager {
         );
       }
       return { state: "stopped" };
-    } finally {
-      client.disconnect();
     }
   }
 
@@ -1157,17 +884,14 @@ export class CoreDaemonManager {
     const current = await this.status();
     if (current.state === "stopped") return current;
     const client = new CoreIpcClient(this.#options);
-    try {
-      await client.request({
-        protocolVersion: PROTOCOL_VERSION,
-        kind: "request",
-        requestId: requestIdSchema.parse(randomUUID()),
-        method: "core.stop",
-        payload: {},
-      });
-    } finally {
-      client.disconnect();
-    }
+    await client.request({
+      protocolVersion: PROTOCOL_VERSION,
+      kind: "request",
+      requestId: requestIdSchema.parse(randomUUID()),
+      method: "core.stop",
+      payload: {},
+    });
+    client.disconnect();
     const deadline = Date.now() + (this.#options.stopTimeoutMs ?? STOP_TIMEOUT_MS);
     let wait = 20;
     while (Date.now() < deadline) {

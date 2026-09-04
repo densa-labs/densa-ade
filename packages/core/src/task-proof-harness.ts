@@ -33,7 +33,6 @@ const COMMAND_ENV = {
   LC_ALL: "C",
   GIT_CONFIG_NOSYSTEM: "1",
   GIT_CONFIG_GLOBAL: "/dev/null",
-  GIT_TERMINAL_PROMPT: "0",
 };
 
 export interface ValidationCommand {
@@ -517,7 +516,7 @@ async function collectAgentEvents(input: {
   };
 }
 
-export async function runProofCommand(
+async function runCommand(
   command: string,
   args: string[],
   cwd: string,
@@ -611,7 +610,7 @@ async function requireSuccessfulCommand(
   args: string[],
   cwd: string,
 ): Promise<CommandDiagnostic> {
-  const result = await runProofCommand(command, args, cwd);
+  const result = await runCommand(command, args, cwd);
   if (result.exitCode !== 0) {
     throw new Error(`Fixture command failed: ${command} ${args.join(" ")}\n${result.stderr}`);
   }
@@ -939,7 +938,7 @@ export async function runTemporaryRepoTaskProof(
       gitControlChanges.length === 0;
     const observe = async (command: string, args: string[]): Promise<CommandDiagnostic> =>
       safeToExecute
-        ? await runProofCommand(command, args, fixture.workspacePath)
+        ? await runCommand(command, args, fixture.workspacePath)
         : skippedCommandDiagnostic(
             command,
             args,

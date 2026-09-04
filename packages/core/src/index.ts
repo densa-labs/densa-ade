@@ -32,6 +32,3 @@ export * from "./task-proof-harness.js";
 export * from "./usage-auto-resume.js";
 export * from "./validation-pipeline.js";
 export * from "./workspace-preflight.js";
-export * from "./core-runtime-state.js";
-export * from "./core-runtime-views.js";
-export * from "./core-runtime-mutations.js";

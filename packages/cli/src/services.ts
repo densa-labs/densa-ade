@@ -55,26 +55,14 @@ interface DisconnectableCoreClient {
 
 export class LocalPhaseOneProofService implements PhaseOneProofService {
   async run(): Promise<JsonValue> {
-    const [{ CodexAdapter }, core] = await Promise.all([
+    const [{ CodexAdapter }, { runHeadlessOnePhaseProof }] = await Promise.all([
       import("@densa-ade/agent-sdk"),
       import("@densa-ade/core"),
     ]);
-    let result;
-    try {
-      result = await core.runHeadlessOnePhaseProof({
-        adapter: new CodexAdapter(),
-        retainArtifacts: true,
-      });
-    } catch (error) {
-      if (error instanceof core.HeadlessOnePhaseProofExecutionError) {
-        throw new CliCommandError("PROCESS_FAILURE", error.message, EXIT_FAILURE, {
-          diagnosticsPath: error.diagnosticsPath,
-          workspacePath: error.workspacePath,
-          databasePath: error.databasePath,
-        });
-      }
-      throw error;
-    }
+    const result = await runHeadlessOnePhaseProof({
+      adapter: new CodexAdapter(),
+      retainArtifacts: true,
+    });
     if (result.verdict === "FAIL") {
       throw new CliCommandError("PROCESS_FAILURE", result.failureReasons.join(" "), EXIT_FAILURE, {
         diagnosticsPath: result.diagnosticsPath,

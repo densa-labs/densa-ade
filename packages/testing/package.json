@@ -4,7 +4,6 @@
   "private": true,
   "description": "Reusable fakes, fixtures, and helpers for deterministic Densa ADE tests.",
   "author": "Densa Labs",
-  "license": "Apache-2.0",
   "type": "module",
   "exports": {
     ".": {

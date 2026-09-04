@@ -4,7 +4,6 @@
   "private": true,
   "description": "Editor-independent authoritative runtime for Densa ADE projects.",
   "author": "Densa Labs",
-  "license": "Apache-2.0",
   "type": "module",
   "exports": {
     ".": {
