@@ -77,6 +77,16 @@ upstream (`densa-ade` vs `code-oss`/`code`), and verified by
 yet. Normal editor/file/terminal behavior is preserved by construction (zero
 workbench patches; see `PATCHES.md`).
 
+## Extension gallery (Phase 12 Milestone 1)
+
+The downstream gallery is pinned to the Open VSX Registry in
+`product.overlay.json` (`identity.extensionsGallery`). `npm run ide:check`
+fails when any endpoint drifts from Open VSX or mentions the proprietary
+Microsoft Marketplace. The Extensions view source reads **Open VSX Registry**;
+Marketplace-only extensions are reported as unavailable, never as compatible.
+Manual search/install/enable/remove verification and the automated contract
+live in `docs/open-vsx-gallery.md` and `scripts/open-vsx-gallery.test.mjs`.
+
 ## Troubleshooting
 
 - `ide:doctor` reports Node/Git problems: install the pinned toolchain above.

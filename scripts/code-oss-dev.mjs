@@ -176,6 +176,46 @@ function validateProductOverlay() {
       JSON.stringify(branding),
     ),
   );
+  const gallery = identity.extensionsGallery ?? overlay.extensionsGallery ?? {};
+  results.push(
+    check(
+      "extensionsGallery serviceUrl is Open VSX",
+      gallery.serviceUrl === "https://open-vsx.org/vscode/gallery",
+      String(gallery.serviceUrl),
+    ),
+  );
+  results.push(
+    check(
+      "extensionsGallery itemUrl is Open VSX",
+      gallery.itemUrl === "https://open-vsx.org/vscode/item",
+      String(gallery.itemUrl),
+    ),
+  );
+  results.push(
+    check(
+      "extensionsGallery resourceUrlTemplate is Open VSX unpkg",
+      gallery.resourceUrlTemplate ===
+        "https://open-vsx.org/vscode/unpkg/{publisher}/{name}/{version}/{path}",
+      String(gallery.resourceUrlTemplate),
+    ),
+  );
+  results.push(
+    check(
+      "extensionsGallery extensionUrlTemplate is Open VSX latest",
+      gallery.extensionUrlTemplate ===
+        "https://open-vsx.org/vscode/gallery/{publisher}/{name}/latest",
+      String(gallery.extensionUrlTemplate),
+    ),
+  );
+  const galleryText = JSON.stringify(gallery);
+  results.push(
+    check(
+      "extensionsGallery does not claim Microsoft Marketplace",
+      !galleryText.includes("marketplace.visualstudio.com") &&
+        !galleryText.includes("marketplace.microsoft.com"),
+      "no Marketplace URL",
+    ),
+  );
   return results;
 }
 
@@ -349,6 +389,7 @@ function validateExtension() {
     "phase-completion.ts",
     "live-run.ts",
     "onboarding.ts",
+    "extensions-gallery.ts",
   ].map((file) => join(EXTENSION_DIR, "src", file));
   for (const source of sources) {
     results.push(

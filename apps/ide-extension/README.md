@@ -8,6 +8,7 @@ Phase 11 Milestone 0 adds the Roadmap content model, Milestone 1 the
 Dashboard command center, Milestone 2 the Master Agent UI, Milestone 3 the
 phase-completion rundown, and Milestone 4 the pause/intervene/live-run UX.
 Phase 12 Milestone 0 adds first-launch onboarding and the resize transition.
+Phase 12 Milestone 1 adds the Open VSX extension gallery experience.
 
 ## Boundary (AGENTS.md §1.1–§1.2)
 
@@ -84,6 +85,13 @@ Phase 12 Milestone 0 adds first-launch onboarding and the resize transition.
   creating a second authoritative state (see `docs/onboarding.md` and
   `src/onboarding.ts`). Missing Codex gives install/setup guidance without
   blocking basic editing.
+- Extension gallery (Phase 12 M1): Open VSX Registry endpoints from
+  `code-oss/product.overlay.json` with settings/about labeling, pure
+  search/install/enable/remove/update gating, and understandable
+  Marketplace-only/offline explanations that never claim Microsoft
+  Marketplace compatibility (see `docs/open-vsx-gallery.md` and
+  `src/extensions-gallery.ts`). The built-in extension works without
+  registry access.
 - No binary icons. The container uses the `$(placeholder)` codicon until product
   polish.
 
@@ -107,7 +115,8 @@ apps/ide-extension/
     ├── master.ts        # Master Agent UI over Core truth, no worker-log dumping (P11M2)
     ├── phase-completion.ts # Phase-completion rundown over Core truth (P11M3)
     ├── live-run.ts      # Pause/intervene/live-run UX over Core truth (P11M4)
-    └── onboarding.ts    # First-launch onboarding + resize transition (P12M0)
+    ├── onboarding.ts    # First-launch onboarding + resize transition (P12M0)
+    └── extensions-gallery.ts # Open VSX registry model, labeling, gating (P12M1)
 ```
 
 ## Verification

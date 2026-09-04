@@ -43,6 +43,11 @@
  * defaults (Phase-by-phase, Standard, keep-awake on, telemetry off) in a
  * compact window, then resizes to the full workspace without creating a
  * second authoritative state (see `./onboarding.js`).
+ * Extension gallery experience (Phase 12 M1) pins the downstream to the
+ * Open VSX Registry, labels the source in settings/about copy, gates
+ * search/install/enable/remove/update, and explains Marketplace-only and
+ * offline outcomes without claiming Microsoft Marketplace compatibility
+ * (see `./extensions-gallery.js`).
  */
 
 export {
@@ -329,6 +334,39 @@ export {
   type OnboardingTransition,
   type OnboardingWindowMode,
 } from "./onboarding.js";
+export {
+  EXTENSIONS_GALLERY_EXTENSION_URL_TEMPLATE,
+  EXTENSIONS_GALLERY_ITEM_URL,
+  EXTENSIONS_GALLERY_LIFECYCLE,
+  EXTENSIONS_GALLERY_REGISTRY_HOME_URL,
+  EXTENSIONS_GALLERY_REGISTRY_ID,
+  EXTENSIONS_GALLERY_REGISTRY_LABEL,
+  EXTENSIONS_GALLERY_RESOURCE_URL_TEMPLATE,
+  EXTENSIONS_GALLERY_SERVICE_URL,
+  EXTENSIONS_GALLERY_VERSION,
+  buildGalleryModel,
+  classifyGalleryFailure,
+  describeMarketplaceOnlyUnavailable,
+  getExtensionsGalleryConfig,
+  getGalleryAboutCopy,
+  getGalleryRegistryLabel,
+  getGallerySettingsCopy,
+  parseGalleryExtensionId,
+  resolveGalleryItemUrl,
+  resolveGalleryLatestUrl,
+  resolveGalleryOperation,
+  resolveGalleryResourceUrl,
+  type GalleryConfig,
+  type GalleryExtensionRef,
+  type GalleryExtensionState,
+  type GalleryFailure,
+  type GalleryFailureKind,
+  type GalleryModel,
+  type GalleryModelInput,
+  type GalleryOperationId,
+  type GalleryOperationResolution,
+  type GalleryRegistryReachability,
+} from "./extensions-gallery.js";
 
 export const EXTENSION_ID = "densa-labs.densa-ade" as const;
 

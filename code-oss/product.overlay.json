@@ -11,9 +11,11 @@
     "linuxIconName": "densa-ade",
     "version": "0.0.0",
     "extensionsGallery": {
-      "comment": "Pinned in Phase 12 Milestone 1 (Open VSX). Placeholder keeps upstream defaults until then; do not claim Microsoft Marketplace compatibility.",
-      "serviceUrl": null,
-      "itemUrl": null
+      "comment": "Pinned in Phase 12 Milestone 1 to Open VSX. Code-OSS ships no gallery by default; the proprietary Microsoft Marketplace must not be claimed. See docs/open-vsx-gallery.md.",
+      "serviceUrl": "https://open-vsx.org/vscode/gallery",
+      "itemUrl": "https://open-vsx.org/vscode/item",
+      "resourceUrlTemplate": "https://open-vsx.org/vscode/unpkg/{publisher}/{name}/{version}/{path}",
+      "extensionUrlTemplate": "https://open-vsx.org/vscode/gallery/{publisher}/{name}/latest"
     }
   },
   "branding": {
