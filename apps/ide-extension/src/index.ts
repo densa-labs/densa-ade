@@ -48,6 +48,14 @@
  * search/install/enable/remove/update, and explains Marketplace-only and
  * offline outcomes without claiming Microsoft Marketplace compatibility
  * (see `./extensions-gallery.js`).
+ * Settings and policy UI (Phase 12 M2) exposes default execution mode,
+ * permission preset, retry default, auto-continue, keep-awake, battery
+ * threshold, preferred agent, validation preferences, optional diagnostics,
+ * and per-project overrides over the frozen Core v1 `settings.get` /
+ * `settings.update` catalog with safe boundaries, dangerous-change
+ * explanations, and auditability (see `./settings.js`). Core-covered fields
+ * persist through Core; values with no frozen field stay explicitly
+ * local-only and never pretend to be Core-honored.
  */
 
 export {
@@ -368,6 +376,59 @@ export {
   type GalleryRegistryReachability,
 } from "./extensions-gallery.js";
 
+export {
+  SETTINGS_CAPABILITY_METHODS,
+  SETTINGS_COMMAND,
+  SETTINGS_DEFAULT_AUTO_CONTINUE_AFTER_USAGE,
+  SETTINGS_DEFAULT_EXECUTION_MODE,
+  SETTINGS_DEFAULT_KEEP_AWAKE_ENABLED,
+  SETTINGS_DEFAULT_KEEP_AWAKE_MINIMUM_BATTERY_PERCENT,
+  SETTINGS_DEFAULT_PERMISSION_PRESET,
+  SETTINGS_DEFAULT_PREFERRED_AGENT,
+  SETTINGS_DEFAULT_RETRY_COUNT,
+  SETTINGS_DEFAULT_TELEMETRY_ENABLED,
+  SETTINGS_EDITOR_VIEW_TYPE,
+  SETTINGS_FIXED_RETRY_COUNT,
+  SETTINGS_LIFECYCLE,
+  SETTINGS_AUDIT,
+  SETTINGS_OPEN_REFRESH_METHODS,
+  SETTINGS_PROJECT_OVERRIDES_STORAGE_KEY,
+  SETTINGS_STORAGE_KEY,
+  SETTINGS_SUPPORTED_AGENTS,
+  SETTINGS_VERSION,
+  buildSettingsModel,
+  describeLocalOnlySetting,
+  describePermissionPreset,
+  getDefaultValidationPreferences,
+  getSettingsAppliesVia,
+  getSettingsDefaults,
+  getSettingsPrivacyCopy,
+  getSettingsSections,
+  parseSettingsCoreSnapshot,
+  parseSettingsProjectOverrides,
+  parseSettingsUserDefaults,
+  parseStoredSettingsProjectOverrides,
+  parseStoredSettingsUserDefaults,
+  resolveSettingsAudit,
+  resolveSettingsEffectiveBoundary,
+  resolveSettingsUpdatePayload,
+  serializeSettingsProjectOverrides,
+  serializeSettingsUserDefaults,
+  type SettingsConnectionState,
+  type SettingsCoreSnapshot,
+  type SettingsEffectiveBoundary,
+  type SettingsEffectiveValue,
+  type SettingsFieldDescriptor,
+  type SettingsModel,
+  type SettingsModelInput,
+  type SettingsPreferredAgent,
+  type SettingsProjectOverrides,
+  type SettingsSettingId,
+  type SettingsUserDefaults,
+  type SettingsValidationPreferences,
+  type SettingsValueSource,
+} from "./settings.js";
+
 export const EXTENSION_ID = "densa-labs.densa-ade" as const;
 
 export const PRODUCT_BINDING = {
@@ -386,6 +447,7 @@ export const IDE_COMMANDS = [
   "densa-ade.startProject",
   "densa-ade.resumeProject",
   "densa-ade.showOnboarding",
+  "densa-ade.showSettings",
 ] as const;
 
 export type IdeCommand = (typeof IDE_COMMANDS)[number];

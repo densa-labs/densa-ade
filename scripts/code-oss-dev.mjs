@@ -390,6 +390,7 @@ function validateExtension() {
     "live-run.ts",
     "onboarding.ts",
     "extensions-gallery.ts",
+    "settings.ts",
   ].map((file) => join(EXTENSION_DIR, "src", file));
   for (const source of sources) {
     results.push(
