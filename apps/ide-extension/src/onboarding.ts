@@ -25,9 +25,9 @@
  * - execution-affecting defaults (`executionMode`, `permissionPreset`,
  *   keep-awake battery policy) apply later through the versioned Core v1
  *   operations (`projects.create` / `settings.update`). Telemetry stays off
- *   by default; the "Share optional diagnostics" toggle is IDE-local until
- *   the Phase 12 Milestone 4 telemetry implementation lands (Core v1
- *   `settings` currently pins `telemetryEnabled: false`);
+ *   by default; the "Share optional diagnostics" toggle is IDE-local
+ *   local-only (Core v1 `settings` stay `telemetryEnabled: false`, frozen)
+ *   and gates the centralized telemetry model (`./telemetry.js`);
  * - Densa ADE remains usable as an editor even when Codex is unavailable.
  *   Every step reports `blocksEditor: false`; a missing Codex produces
  *   install/setup guidance, never a hard block.
@@ -108,9 +108,10 @@ export interface OnboardingPreferences {
   readonly keepAwakeMinimumBatteryPercent: number;
   /**
    * IDE-local "Share optional diagnostics" toggle. Off by default. Core v1
-   * `settings` pins `telemetryEnabled: false` until the Phase 12 Milestone 4
-   * telemetry implementation lands, so `true` is recorded locally only and
-   * never presented as Core-honored.
+   * `settings` stay `telemetryEnabled: false` (frozen catalog), so the gate
+   * is IDE-local local-only and never presented as Core-honored. When on,
+   * only allowlisted optional events are uploaded through the centralized
+   * telemetry model.
    */
   readonly telemetryEnabled: boolean;
 }
@@ -211,8 +212,8 @@ export interface OnboardingProjectDefaults {
   readonly telemetryEnabled: boolean;
   /**
    * Where each default applies. Execution-affecting defaults flow through
-   * the frozen Core v1 catalog; telemetry is local-only until the P12M4
-   * telemetry implementation lands.
+   * the frozen Core v1 catalog; telemetry is IDE-local local-only and gates
+   * the centralized telemetry model.
    */
   readonly appliesVia: Readonly<Record<string, CoreV1Method | "local-only">>;
   readonly reason: string;
@@ -630,12 +631,12 @@ function telemetryStep(preferences: OnboardingPreferences): OnboardingStep {
   }
   return Object.freeze({
     id: "telemetry",
-    title: "Share optional diagnostics: on (local-only until telemetry lands)",
-    status: "unknown",
+    title: "Share optional diagnostics: on",
+    status: "ready",
     detail:
-      "Optional diagnostics was toggled on locally, but Core v1 settings pin telemetryEnabled to false until the Phase 12 Milestone 4 telemetry implementation lands. Nothing is uploaded by this milestone; the toggle is recorded locally only.",
+      "Optional diagnostics sharing is on (IDE-local local-only toggle; Core v1 settings stay telemetryEnabled false, frozen). When on, Densa ADE uploads only allowlisted optional events with no free-form text, no identifiers, and no output; unknown or forbidden fields are rejected before anything is queued.",
     guidance:
-      "Leave this off unless testing the future telemetry milestone. Disabling stops local recording immediately.",
+      "Disabling stops optional transmission immediately, including queued batches even after restart. Uploads are bounded and failures never block execution.",
     skippable: true,
     blocksEditor: false,
     blocksCompletion: false,
@@ -758,8 +759,8 @@ export function resetOnboarding(): OnboardingStoredState {
  * honor them. Execution-affecting defaults flow through the frozen Core v1
  * catalog (`projects.create` for the new-project execution mode,
  * `settings.update` for permission/keep-awake policy); telemetry is
- * local-only until the P12M4 telemetry implementation lands. The IDE never
- * fabricates IDs: callers supply the persisted projectId at apply time.
+ * IDE-local local-only and gates the centralized telemetry model. The IDE
+ * never fabricates IDs: callers supply the persisted projectId at apply time.
  */
 export function resolveOnboardingProjectDefaults(
   preferencesInput: Partial<OnboardingPreferences> = {},
@@ -783,6 +784,6 @@ export function resolveOnboardingProjectDefaults(
       telemetry: "local-only",
     }) as Readonly<Record<string, CoreV1Method | "local-only">>,
     reason:
-      "Apply executionMode at projects.create time and permission/keep-awake policy through settings.update for the persisted project. Telemetry stays local-only until the Phase 12 Milestone 4 telemetry implementation lands (Core v1 settings pin telemetryEnabled to false).",
+      "Apply executionMode at projects.create time and permission/keep-awake policy through settings.update for the persisted project. Telemetry is IDE-local local-only (Core v1 settings stay telemetryEnabled false, frozen) and, when on, uploads only allowlisted optional events through the centralized telemetry model.",
   });
 }

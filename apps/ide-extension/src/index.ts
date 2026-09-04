@@ -63,6 +63,12 @@
  * permission/user-decision cards with persisted evidence, next actions, and
  * drill-downs but no fake countdowns (see `./recovery.js`). The surface
  * reuses the Dashboard tab with zero workbench patches.
+ * Privacy-conscious telemetry and diagnostics (Phase 12 M4) uploads only
+ * allowlisted optional events when the IDE-local "Share optional
+ * diagnostics" toggle is on (off by default) through a centralized,
+ * bounded, fail-open model with deterministic fakes (see `./telemetry.js`).
+ * Core v1 `settings` stay `telemetryEnabled: false` (frozen); essential
+ * update traffic is classified separately and never described as optional.
  */
 
 export {
@@ -478,6 +484,63 @@ export {
   type RecoveryTone,
   type RecoveryUsageObservation,
 } from "./recovery.js";
+export {
+  TELEMETRY_EVENT_CATALOG,
+  TELEMETRY_EVENT_NAMES,
+  TELEMETRY_ESSENTIAL_TRAFFIC,
+  TELEMETRY_INSTALLATION_ID_STORAGE_KEY,
+  TELEMETRY_LIFECYCLE,
+  TELEMETRY_MAX_BATCH_EVENTS,
+  TELEMETRY_MAX_EVENT_BYTES,
+  TELEMETRY_MAX_QUEUED_EVENTS,
+  TELEMETRY_STORAGE_KEY,
+  TELEMETRY_UPLOAD_TIMEOUT_MS,
+  TELEMETRY_VERSION,
+  TELEMETRY_DEFAULT_ENABLED,
+  buildTelemetryContext,
+  buildTelemetryEvent,
+  clearTelemetryQueue,
+  createFakeTelemetryUploader,
+  createTelemetryInstallationId,
+  createTelemetryQueue,
+  describeTelemetryEvent,
+  enqueueTelemetryEvent,
+  flushTelemetryQueue,
+  getTelemetryDefaults,
+  getTelemetryEssentialTraffic,
+  getTelemetryEventCatalog,
+  getTelemetryPrivacyCopy,
+  isTelemetryEnabled,
+  parseStoredTelemetryInstallationId,
+  parseTelemetryGate,
+  parseTelemetryInstallationId,
+  parseTelemetryProperties,
+  parseTelemetryQueue,
+  serializeTelemetryInstallationId,
+  serializeTelemetryQueue,
+  type FakeTelemetryUploader,
+  type TelemetryAdapterId,
+  type TelemetryAgentOutcome,
+  type TelemetryArch,
+  type TelemetryCatalogEntry,
+  type TelemetryContext,
+  type TelemetryEnqueueOutcome,
+  type TelemetryEssentialTraffic,
+  type TelemetryEvent,
+  type TelemetryEventName,
+  type TelemetryFlushOutcome,
+  type TelemetryGate,
+  type TelemetryPlatform,
+  type TelemetryProperties,
+  type TelemetryQueue,
+  type TelemetryRecoveryOutcome,
+  type TelemetrySurface,
+  type TelemetryUpdaterCheckOutcome,
+  type TelemetryUpdaterUpdateOutcome,
+  type TelemetryUploader,
+  type TelemetryValidationOutcome,
+  type TelemetryValidatorCategory,
+} from "./telemetry.js";
 
 export const EXTENSION_ID = "densa-labs.densa-ade" as const;
 

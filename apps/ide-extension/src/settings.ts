@@ -26,9 +26,10 @@
  *   a field requires a new protocol major. This module never pretends a
  *   local-only value is Core-honored. In v1 Core enforces a fixed retry
  *   budget of 4 (`MAX_TASK_ATTEMPTS`), supports Codex only (`codex` adapter
- *   id), keeps task-aware validation authoritative, and pins
- *   `telemetryEnabled` to `false` until the Phase 12 Milestone 4 telemetry
- *   implementation lands;
+ *   id), keeps task-aware validation authoritative, and keeps Core v1
+ *   `settings` `telemetryEnabled` at `false` (frozen catalog). Optional
+ *   telemetry is gated by the IDE-local toggle through the centralized
+ *   telemetry model (`./telemetry.js`);
  * - the UI never marks settings applied optimistically. Resolvers return Core
  *   request payloads to send; only Core outcomes and `core.event`
  *   notifications change what is shown (`SETTINGS_LIFECYCLE` below);
@@ -735,12 +736,12 @@ export function describePermissionPreset(preset: PermissionPolicyPreset): {
   }
 }
 
-/** Privacy copy rendered verbatim by the settings surface. */
+/** Privacy copy rendered verbatim by the settings surface. Matches the telemetry model. */
 export function getSettingsPrivacyCopy(): string {
   return [
-    "Share optional diagnostics is off by default. Optional telemetry (when implemented in Phase 12 Milestone 4) uploads only allowlisted fields such as app/Core version, execution mode, phase/milestone outcomes, retry occurrence, validator category results, adapter identifier, structured error codes, and recovery outcomes.",
-    "Densa ADE never uploads source code, file contents, project/specification/roadmap content, filenames, absolute paths, Git remote URLs, repository or project names, prompts, Master conversations, worker transcripts, environment variables, secrets, credentials, or Codex authentication data as ordinary telemetry.",
-    "Essential operational traffic required for update delivery, compatibility, or local reliability is minimized and documented separately; Sparkle update traffic is not described as optional telemetry.",
+    "Share optional diagnostics is off by default. When on, Densa ADE uploads only allowlisted optional events (app/Core version with coarse macOS and CPU architecture, execution mode, project run started and phase/milestone completed or failed, retry occurrence with attempt number, validator category with pass/fail/advisory, adapter identifier with structured error code, recovery outcome, updater check/update outcome, and high-level Dashboard/Roadmap/Master surface usage).",
+    "Densa ADE never uploads source code, file contents, project/specification/roadmap content, filenames, absolute paths, Git remote URLs, repository or project names, prompts, Master conversations, worker transcripts, environment variables, secrets, credentials, or Codex authentication data as ordinary telemetry. Optional events carry no free-form text, no identifiers, and no output; unknown or forbidden fields are rejected before anything is queued.",
+    "Disabling stops optional transmission immediately, including queued batches even after restart. Uploads are bounded (at most 100 queued events, 25 per batch, 5 second timeout) and failures never block Densa ADE execution. The anonymous installation identifier is an optional random value with no user tracking; clearing it rotates the identity. Essential operational traffic required for update delivery, compatibility, or local reliability is minimized and documented separately; Sparkle update traffic is not described as optional telemetry.",
   ].join(" ");
 }
 
@@ -824,7 +825,7 @@ export function getSettingsSections(): readonly SettingsFieldDescriptor[] {
     Object.freeze({
       id: "telemetry",
       title: "Share optional diagnostics",
-      detail: `${getSettingsPrivacyCopy()} Core v1 settings pin telemetryEnabled to false until the Phase 12 Milestone 4 telemetry implementation lands; toggling on is recorded locally only and uploads nothing in this milestone.`,
+      detail: `${getSettingsPrivacyCopy()} Core v1 settings stay false (frozen catalog, no settings.update field); the toggle is IDE-local local-only and, when on, uploads only allowlisted optional events through the centralized telemetry model.`,
       appliesVia: appliesVia["telemetry"],
       boundary: "immediate",
       requiresActorReason: false,
@@ -854,7 +855,7 @@ function displayForSetting(id: SettingsSettingId, value: unknown): string {
       return "Task-aware defaults (deterministic first, browser when relevant, review for risky/phase-final)";
     case "telemetry":
       return value === true
-        ? "On (local-only until telemetry lands; uploads nothing in this milestone)"
+        ? "On (IDE-local local-only gate; uploads only allowlisted optional events)"
         : "Off (default)";
   }
 }
@@ -1127,7 +1128,7 @@ export function describeLocalOnlySetting(settingId: SettingsSettingId): string {
     case "validation-preferences":
       return "Validation preferences are task-aware Core behavior in v1 with no frozen settings field; the surface displays the authoritative defaults and never sends a weakened preference to Core.";
     case "telemetry":
-      return "Share optional diagnostics stays local-only in this milestone; Core v1 settings pin telemetryEnabled to false until the Phase 12 Milestone 4 telemetry implementation lands, so toggling on uploads nothing.";
+      return "Share optional diagnostics stays IDE-local local-only (no frozen settings.update field; Core v1 settings stay false). When on, only allowlisted optional events are uploaded through the centralized telemetry model; disabling stops transmission immediately, including queued batches even after restart, and failures never block execution.";
     case "execution-mode":
     case "permission-preset":
     case "battery-threshold":

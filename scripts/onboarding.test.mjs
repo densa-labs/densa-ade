@@ -263,8 +263,9 @@ test("telemetry toggle defaults off and stays local-only", () => {
 
   const on = buildOnboardingModel(healthyInput({ preferences: { telemetryEnabled: true } }));
   const telemetry = on.steps.find((step) => step.id === "telemetry");
-  assert.equal(telemetry.status, "unknown");
-  assert.match(telemetry.detail, /local-only|pin telemetryEnabled/iu);
+  assert.equal(telemetry.status, "ready");
+  assert.match(telemetry.detail, /local-only/iu);
+  assert.match(telemetry.detail, /allowlisted optional events/iu);
   assert.equal(on.blocksEditor, false);
   assert.equal(on.canComplete, true);
 });
