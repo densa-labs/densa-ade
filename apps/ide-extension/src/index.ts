@@ -56,6 +56,13 @@
  * explanations, and auditability (see `./settings.js`). Core-covered fields
  * persist through Core; values with no frozen field stay explicitly
  * local-only and never pretend to be Core-honored.
+ * Recovery and waiting UX (Phase 12 M3) makes crashes, usage waits, and
+ * blocked states feel like normal recoverable product states: offline,
+ * interrupted-recovered, divergence, waiting-for-usage (known/unknown
+ * reset), blocked-after-retries, Codex-auth-required, and
+ * permission/user-decision cards with persisted evidence, next actions, and
+ * drill-downs but no fake countdowns (see `./recovery.js`). The surface
+ * reuses the Dashboard tab with zero workbench patches.
  */
 
 export {
@@ -428,6 +435,49 @@ export {
   type SettingsValidationPreferences,
   type SettingsValueSource,
 } from "./settings.js";
+export {
+  RECOVERY_CANONICAL_PROJECT_STATES,
+  RECOVERY_CANONICAL_TASK_STATES,
+  RECOVERY_CAPABILITY_METHODS,
+  RECOVERY_HOST_COMMAND,
+  RECOVERY_HOST_VIEW_TYPE,
+  RECOVERY_KINDS,
+  RECOVERY_LIFECYCLE,
+  RECOVERY_OPEN_REFRESH_METHODS,
+  RECOVERY_VERSION,
+  applyRecoveryControlOutcome,
+  buildRecoveryModel,
+  recoveryEventIsRefreshHint,
+  resolveRecoveryAutoResumeIntent,
+  resolveRecoveryDrilldown,
+  resolveRecoveryPhaseApproval,
+  resolveRecoveryPermissionResolve,
+  resolveRecoveryReconnect,
+  resolveRecoveryReopenRefresh,
+  resolveRecoveryResume,
+  resolveRecoveryTaskApproval,
+  type RecoveryAutoResumeIntent,
+  type RecoveryCard,
+  type RecoveryCodexAuthCheck,
+  type RecoveryCodexAuthStatus,
+  type RecoveryConnectionState,
+  type RecoveryControlEffect,
+  type RecoveryControlOutcome,
+  type RecoveryDrilldown,
+  type RecoveryGitStatus,
+  type RecoveryKind,
+  type RecoveryModel,
+  type RecoveryModelInput,
+  type RecoveryPhaseApprovalResolution,
+  type RecoveryPermissionResolution,
+  type RecoveryReconnectRecipe,
+  type RecoveryReopenRefresh,
+  type RecoveryResumeResolution,
+  type RecoverySummary,
+  type RecoveryTaskApprovalResolution,
+  type RecoveryTone,
+  type RecoveryUsageObservation,
+} from "./recovery.js";
 
 export const EXTENSION_ID = "densa-labs.densa-ade" as const;
 
