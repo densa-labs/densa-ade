@@ -10,7 +10,11 @@ import {
   sameState,
   sameWorktree,
 } from "./workspace-path-evidence.js";
-import { PermissionPolicyService } from "./permission-policy.js";
+import {
+  assertAuthorizedOperation,
+  PermissionPolicyService,
+  type AuthorizedOperationContext,
+} from "./permission-policy.js";
 import { WorkspacePreflight } from "./workspace-preflight.js";
 
 /** Git's guarded fast-forward owns source checkout/index updates; never reset or force a ref. */
@@ -24,6 +28,7 @@ export async function publishTaskCommit(
     intendedPaths: readonly string[];
     occurredAt: string;
     actor: string;
+    gitAuthorization?: AuthorizedOperationContext;
   },
 ): Promise<readonly string[]> {
   const { run } = request;
@@ -72,18 +77,22 @@ export async function publishTaskCommit(
       createdAt: request.occurredAt,
     });
   if (head === request.expectedHead) {
-    const permission = new PermissionPolicyService(database).authorize({
-      projectId: run.projectId,
-      operation: "git_mutation",
-      actor: request.actor,
-      occurredAt: request.occurredAt,
-      reason:
-        "Publish the verified task commit with a guarded fast-forward into its unchanged source paths",
-    });
+    const permission =
+      request.gitAuthorization === undefined
+        ? new PermissionPolicyService(database).authorize({
+            projectId: run.projectId,
+            operation: "git_mutation",
+            actor: request.actor,
+            occurredAt: request.occurredAt,
+            reason:
+              "Publish the verified task commit with a guarded fast-forward into its unchanged source paths",
+          })
+        : { authorization: request.gitAuthorization };
     if (permission.authorization === undefined)
       throw new Error(
         `Publication policy ${permission.decision.disposition}: ${permission.decision.reason}`,
       );
+    assertAuthorizedOperation(permission.authorization, run.projectId, "git_mutation");
     await guardedPublication({
       source,
       sourceBranch: run.sourceBranch,

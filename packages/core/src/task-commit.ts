@@ -75,6 +75,7 @@ export interface CommitPassingTaskRequest {
   readonly commitRecordedEventId: EventId;
   readonly completionEventId: EventId;
   readonly attemptCompletedEventId?: EventId;
+  readonly gitAuthorization?: AuthorizedOperationContext;
 }
 
 export interface CommittedPassingTask {
@@ -569,13 +570,16 @@ export class TaskCommitService {
 
     let preservedChangedPaths: readonly string[] = [];
     if (commitSha === undefined) {
-      const permission = new PermissionPolicyService(this.database).authorize({
-        projectId: request.projectId,
-        operation: "git_mutation",
-        actor: request.actor,
-        reason: `Create the validated atomic task commit for ${request.taskId}`,
-        occurredAt: request.committedAt,
-      });
+      const permission =
+        request.gitAuthorization === undefined
+          ? new PermissionPolicyService(this.database).authorize({
+              projectId: request.projectId,
+              operation: "git_mutation",
+              actor: request.actor,
+              reason: `Create the validated atomic task commit for ${request.taskId}`,
+              occurredAt: request.committedAt,
+            })
+          : { authorization: request.gitAuthorization };
       if (permission.authorization === undefined) {
         return stopped(
           permission.decision.disposition === "deny" ? "POLICY_DENIED" : "POLICY_ASK_USER",
@@ -708,6 +712,9 @@ export class TaskCommitService {
         intendedPaths,
         occurredAt: request.committedAt,
         actor: request.actor,
+        ...(request.gitAuthorization === undefined
+          ? {}
+          : { gitAuthorization: request.gitAuthorization }),
       });
       preservedChangedPaths = immutableStrings(
         new Set([...preservedChangedPaths, ...sourcePreserved]),

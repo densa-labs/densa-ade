@@ -537,7 +537,7 @@ test("cancellation cannot strand Core when a reviewer stream never settles", asy
   }
 });
 
-test("review requests reject missing diff, deterministic evidence, or architecture constraints", async () => {
+test("review requests reject incomplete evidence and malformed constraints but allow none", async () => {
   const database = DensaAdeDatabase.openInMemory();
   try {
     const fixture = seed(database, "complete-inputs");
@@ -545,7 +545,7 @@ test("review requests reject missing diff, deterministic evidence, or architectu
     for (const override of [
       { relevantDiff: "" },
       { deterministicResults: [] },
-      { architectureConstraints: [] },
+      { architectureConstraints: [""] },
     ]) {
       await assert.rejects(() =>
         reviewService(database).execute({
@@ -555,6 +555,11 @@ test("review requests reject missing diff, deterministic evidence, or architectu
       );
     }
     assert.equal(database.repositories.independentReviews.listByTaskId(fixture.task.id).length, 0);
+    const review = await reviewService(database).execute({
+      ...request(fixture, adapter, "no-constraints"),
+      architectureConstraints: [],
+    });
+    assert.equal(review.output.verdict, "pass");
   } finally {
     database.close();
   }

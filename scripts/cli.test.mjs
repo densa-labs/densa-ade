@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { test } from "node:test";
-import { URL } from "node:url";
+import { URL, fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
 import {
@@ -182,13 +182,13 @@ test("JSON mode has a stable versioned shape", async () => {
 
 test("help and version do not eagerly load Core or emit runtime warnings", async () => {
   const execute = promisify(execFile);
-  const cliPath = new URL("../packages/cli/dist/bin.js", import.meta.url);
+  const cliPath = fileURLToPath(new URL("../packages/cli/dist/bin.js", import.meta.url));
 
-  const help = await execute(process.execPath, [cliPath.pathname, "--help"]);
+  const help = await execute(process.execPath, [cliPath, "--help"]);
   assert.equal(help.stderr, "");
   assert.match(help.stdout, /Headless client shell for Densa ADE Core/u);
 
-  const version = await execute(process.execPath, [cliPath.pathname, "version", "--json"]);
+  const version = await execute(process.execPath, [cliPath, "version", "--json"]);
   assert.equal(version.stderr, "");
   assert.equal(JSON.parse(version.stdout).data.protocolVersion, PROTOCOL_VERSION);
 });

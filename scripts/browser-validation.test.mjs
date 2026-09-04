@@ -288,7 +288,7 @@ test("a real Playwright fixture starts, validates, stops, and satisfies acceptan
       },
     });
 
-    assert.equal(outcome.passed, true);
+    assert.equal(outcome.passed, true, JSON.stringify(outcome));
     assert.equal(outcome.canComplete, true);
     assert.equal(outcome.acceptanceReport.criteria[0].state, "satisfied");
     assert.equal(outcome.acceptanceReport.criteria[0].evidence[0].source, "browser_test");
@@ -337,10 +337,11 @@ test("a failing browser check records bounded logs, screenshot, and trace artifa
   assert.equal(result.config.serverLogsTruncated, true);
   assert.ok(result.diagnostics.some((candidate) => candidate.code === "BROWSER_CHECK_FAILED"));
   assert.ok(result.diagnostics.every((candidate) => !candidate.message.includes("fixture-secret")));
-  assert.deepEqual(result.config.artifacts.map((artifact) => artifact.kind).sort(), [
-    "screenshot",
-    "trace",
-  ]);
+  assert.deepEqual(
+    result.config.artifacts.map((artifact) => artifact.kind).sort(),
+    ["screenshot", "trace"],
+    JSON.stringify(result),
+  );
   for (const artifact of result.config.artifacts) {
     assert.equal(existsSync(artifact.path), true);
   }

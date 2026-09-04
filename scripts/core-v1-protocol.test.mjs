@@ -311,6 +311,14 @@ const payloads = {
     sessionId: "session-v1",
     message: "What is happening?",
   },
+  "tasks.approve": {
+    projectId: project.id,
+    phaseId: phase.id,
+    taskId: task.id,
+    decision: "approve",
+    actor: "user",
+    reason: "The completed guided task is accepted",
+  },
   "phases.approve": {
     projectId: project.id,
     phaseId: phase.id,
@@ -328,6 +336,13 @@ const payloads = {
     actor: "user",
     reason: "Choose phase mode",
     executionMode: "phase",
+  },
+  "permissions.resolve": {
+    projectId: project.id,
+    decisionId: "permission-decision-v1",
+    resolution: "approve",
+    actor: "user",
+    reason: "Allow this exact operation",
   },
   "usage.get": { projectId: project.id },
   "events.replay": { projectId: project.id, afterSequence: 0 },
@@ -387,6 +402,7 @@ const results = {
       action: { kind: "respond" },
     },
   },
+  "tasks.approve": { projectId: project.id, phaseId: phase.id, task, outcome: "APPROVED" },
   "phases.approve": { projectId: project.id, phase, outcome: "APPROVED" },
   "phases.report.get": phaseReport,
   "projects.pause": { projectId: project.id, status: "PAUSED", reason: "Paused" },
@@ -394,6 +410,11 @@ const results = {
   "projects.stop": { projectId: project.id, status: "STOPPED", reason: "Stopped safely" },
   "settings.get": settings,
   "settings.update": settings,
+  "permissions.resolve": {
+    projectId: project.id,
+    decisionId: "permission-decision-v1",
+    outcome: "APPROVED",
+  },
   "usage.get": { projectId: project.id, usage: { status: "available" }, observedAt: timestamp },
   "events.replay": { events: [persistedEvent], latestSequence: 1, hasMore: false },
   "events.subscribe": {
@@ -427,7 +448,7 @@ const results = {
   "validation.get": { run: validationRun, results: [validationResult] },
 };
 
-test("the fake IDE client completes every frozen v1 interaction without Core or DB imports", async () => {
+test("the fake IDE client round-trips every v1 schema without Core or DB imports", async () => {
   assert.equal(PROTOCOL_VERSION, "1.0.0");
   assert.deepEqual(Object.keys(coreV1OperationContracts), [...CORE_V1_METHODS]);
 
@@ -446,6 +467,74 @@ test("the fake IDE client completes every frozen v1 interaction without Core or 
     assert.deepEqual(await client.request(method, payloads[method]), results[method]);
   }
   assert.deepEqual([...seen], [...CORE_V1_METHODS]);
+});
+
+test("the v1 client rejects schema-valid responses from another project", async () => {
+  const transport = {
+    async request() {
+      return {
+        events: [{ ...persistedEvent, projectId: "project-other" }],
+        latestSequence: 1,
+        hasMore: false,
+      };
+    },
+  };
+  const client = new CoreV1Client(transport, () => "request-cross-project");
+  await assert.rejects(
+    client.request("events.replay", { projectId: project.id, afterSequence: 0 }),
+    /projectId boundary/u,
+  );
+});
+
+test("request binding permits opaque historical IDs, canonical workspace paths, and abbreviated SHAs", async () => {
+  const client = new CoreV1Client(
+    {
+      async request(envelope) {
+        if (envelope.method === "events.replay") {
+          return {
+            ...results["events.replay"],
+            events: [{ ...persistedEvent, payload: { projectId: "historical-reference" } }],
+          };
+        }
+        if (envelope.method === "projects.create") {
+          return { ...results["projects.create"], workspacePath: "/private/tmp/canonical-project" };
+        }
+        return results[envelope.method];
+      },
+    },
+    () => "request-valid-identities",
+  );
+  assert.equal((await client.request("events.replay", payloads["events.replay"])).events.length, 1);
+  assert.equal(
+    (await client.request("git.commit.get", { projectId: project.id, sha: "a".repeat(7) })).sha,
+    "a".repeat(40),
+  );
+  assert.equal(
+    (await client.request("projects.create", payloads["projects.create"])).workspacePath,
+    "/private/tmp/canonical-project",
+  );
+});
+
+test("request binding rejects substituted task, validation, and commit identities", async () => {
+  const substitutions = [
+    ["tasks.approve", { ...results["tasks.approve"], task: { ...task, id: "task-other" } }],
+    [
+      "validation.get",
+      { ...results["validation.get"], run: { ...validationRun, id: "run-other" } },
+    ],
+    ["git.commit.get", { ...results["git.commit.get"], sha: "b".repeat(40) }],
+  ];
+  for (const [method, substituted] of substitutions) {
+    const client = new CoreV1Client(
+      {
+        async request() {
+          return substituted;
+        },
+      },
+      () => "request-substitution",
+    );
+    await assert.rejects(client.request(method, payloads[method]), /different requested/u);
+  }
 });
 
 test("large histories are bounded and strict payloads reject UI-only fields", () => {
@@ -467,6 +556,14 @@ test("large histories are bounded and strict payloads reject UI-only fields", ()
     coreV1OperationContracts["projects.pause"].payload.safeParse({
       ...payloads["projects.pause"],
       optimisticState: "PAUSED",
+    }).success,
+    false,
+  );
+  assert.equal(
+    coreV1OperationContracts["tasks.approve"].payload.safeParse({
+      ...payloads["tasks.approve"],
+      taskId: "task-from-another-project",
+      optimisticState: "COMPLETED",
     }).success,
     false,
   );

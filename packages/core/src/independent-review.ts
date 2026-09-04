@@ -337,7 +337,6 @@ export class IndependentReviewService {
       request.deterministicResults.some(
         (result) => result.validatorId.trim().length === 0 || result.summary.trim().length === 0,
       ) ||
-      request.architectureConstraints.length === 0 ||
       request.architectureConstraints.some((constraint) => constraint.trim().length === 0) ||
       request.reviewerRunId.trim().length === 0 ||
       request.reviewerRunId === request.implementingWorkerRunId

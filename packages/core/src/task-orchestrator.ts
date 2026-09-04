@@ -41,6 +41,7 @@ import { NodeProcessProbe } from "./recovery-inspector.js";
 import { stateTransitionService } from "./state-transitions.js";
 import { TaskCommitService, type TaskCommitStopCode } from "./task-commit.js";
 import { claimExecutionSlot } from "./execution-slot.js";
+import type { AuthorizedOperationContext } from "./permission-policy.js";
 
 export const MAX_TASK_ATTEMPTS = 4;
 const RETRY_DIAGNOSTICS_LIMIT_BYTES = 16 * 1024;
@@ -81,6 +82,7 @@ export interface ExecuteTaskLifecycleRequest {
   /** Project-level pause uses interruption so the task can be revalidated and retried on resume. */
   readonly cancellationDisposition?: "cancel" | "interrupt";
   readonly onAgentEvent?: (event: AgentEvent) => void | Promise<void>;
+  readonly gitAuthorization?: AuthorizedOperationContext;
 }
 
 export type TaskLifecycleStopCode =
@@ -457,6 +459,9 @@ export class SingleTaskOrchestrator {
       workspacePath: request.workspacePath,
       createdAt: checkpointAt,
       actor: request.actor,
+      ...(request.gitAuthorization === undefined
+        ? {}
+        : { gitAuthorization: request.gitAuthorization }),
     });
     if (checkpoint.status === "STOPPED") {
       return await this.#finishBlocked(
@@ -559,6 +564,7 @@ export class SingleTaskOrchestrator {
         runId: agentRunId,
         cwd: request.workspacePath,
         prompt,
+        accessMode: "workspace-write",
       })) {
         if (event.runId !== agentRunId) throw new Error("Agent event belongs to another run");
         if (event.type === "run.started" && event.processId !== undefined) {
@@ -951,6 +957,9 @@ export class SingleTaskOrchestrator {
         commitRecordedEventId: lifecycleId(key, "task-committed"),
         completionEventId: lifecycleId(key, "task-completed"),
         attemptCompletedEventId: lifecycleId(key, "attempt-completed"),
+        ...(request.gitAuthorization === undefined
+          ? {}
+          : { gitAuthorization: request.gitAuthorization }),
       });
       if (committed.status === "STOPPED") {
         // Git may already have committed. Preserve VALIDATING and the unfinished attempt so

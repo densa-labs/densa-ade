@@ -1,9 +1,7 @@
-import { execFile } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { promisify } from "node:util";
 
 import type { AgentAdapter } from "@densa-ade/agent-sdk";
 import {
@@ -26,8 +24,9 @@ import { ProjectExecutionOrchestrator } from "./execution-modes.js";
 import { SingleTaskPhaseExecutor } from "./phase-orchestrator.js";
 import { stateTransitionService } from "./state-transitions.js";
 import { SingleTaskOrchestrator } from "./task-orchestrator.js";
+import { redactSensitiveText } from "./secret-redaction.js";
+import { runProofCommand } from "./task-proof-harness.js";
 
-const executeFile = promisify(execFile);
 const ACTOR = "densa:p9m0-proof";
 const PROJECT_ID = projectIdSchema.parse("p9m0-normalize-name");
 const PHASE_ID = phaseIdSchema.parse("phase.implementation");
@@ -102,6 +101,22 @@ export interface HeadlessOnePhaseProofOptions {
   readonly adapter: AgentAdapter;
   readonly temporaryBaseDirectory?: string;
   readonly retainArtifacts?: boolean;
+  readonly now?: () => string;
+  readonly validationTimeoutMs?: number;
+}
+
+export class HeadlessOnePhaseProofExecutionError extends Error {
+  readonly code = "PROCESS_FAILURE" as const;
+
+  constructor(
+    message: string,
+    readonly workspacePath: string,
+    readonly databasePath: string,
+    readonly diagnosticsPath: string,
+  ) {
+    super(message);
+    this.name = "HeadlessOnePhaseProofExecutionError";
+  }
 }
 
 export interface HeadlessOnePhaseProofResult {
@@ -131,29 +146,20 @@ async function command(
   cwd: string,
   executable: string,
   args: readonly string[],
+  timeoutMs?: number,
 ): Promise<CommandResult> {
-  try {
-    const result = await executeFile(executable, [...args], {
-      cwd,
-      encoding: "utf8",
-      env: {
-        PATH: process.env["PATH"] ?? "/usr/bin:/bin",
-        LC_ALL: "C",
-        GIT_CONFIG_NOSYSTEM: "1",
-        GIT_CONFIG_GLOBAL: "/dev/null",
-        GIT_TERMINAL_PROMPT: "0",
-      },
-      maxBuffer: 1024 * 1024,
-    });
-    return { exitCode: 0, stdout: result.stdout, stderr: result.stderr };
-  } catch (error) {
-    const failure = error as Error & { code?: number; stdout?: string; stderr?: string };
-    return {
-      exitCode: typeof failure.code === "number" ? failure.code : 1,
-      stdout: failure.stdout ?? "",
-      stderr: failure.stderr ?? failure.message,
-    };
-  }
+  const result = await runProofCommand(executable, [...args], cwd, timeoutMs);
+  return {
+    exitCode: result.timedOut || result.error !== undefined ? 1 : (result.exitCode ?? 1),
+    stdout: result.stdout,
+    stderr: [
+      result.stderr,
+      result.error?.message,
+      result.timedOut ? "Command timed out; process tree terminated." : undefined,
+    ]
+      .filter(Boolean)
+      .join("\n"),
+  };
 }
 
 function clock(): () => string {
@@ -342,11 +348,11 @@ async function commitBaseline(workspacePath: string): Promise<string> {
   return head.stdout.trim();
 }
 
-function deterministicTaskValidator() {
+function deterministicTaskValidator(timeoutMs: number) {
   return {
     validatorId: "p9m0-node-test",
     async validate(request: { workspacePath: string }) {
-      const result = await command(request.workspacePath, process.execPath, ["--test"]);
+      const result = await command(request.workspacePath, process.execPath, ["--test"], timeoutMs);
       return {
         passed: result.exitCode === 0,
         diagnostics: {
@@ -360,11 +366,11 @@ function deterministicTaskValidator() {
   };
 }
 
-function deterministicPhaseValidator() {
+function deterministicPhaseValidator(timeoutMs: number) {
   return {
     validatorId: "p9m0-phase-node-test",
     async validate(request: { workspacePath: string }) {
-      const result = await command(request.workspacePath, process.execPath, ["--test"]);
+      const result = await command(request.workspacePath, process.execPath, ["--test"], timeoutMs);
       const passed = result.exitCode === 0;
       return {
         passed,
@@ -385,10 +391,7 @@ function deterministicPhaseValidator() {
   };
 }
 
-async function writeDiagnostics(
-  path: string,
-  result: Omit<HeadlessOnePhaseProofResult, "diagnosticsPath">,
-): Promise<void> {
+async function writeDiagnostics(path: string, result: unknown): Promise<void> {
   await writeFile(path, `${JSON.stringify(result, undefined, 2)}\n`, { mode: 0o600 });
 }
 
@@ -396,6 +399,14 @@ async function writeDiagnostics(
 export async function runHeadlessOnePhaseProof(
   options: HeadlessOnePhaseProofOptions,
 ): Promise<HeadlessOnePhaseProofResult> {
+  const validationTimeoutMs = options.validationTimeoutMs ?? 15_000;
+  if (
+    !Number.isSafeInteger(validationTimeoutMs) ||
+    validationTimeoutMs < 1 ||
+    validationTimeoutMs > 2_147_483_647
+  ) {
+    throw new Error("validationTimeoutMs must be a positive, bounded integer");
+  }
   const temporaryRoot = await mkdtemp(
     join(options.temporaryBaseDirectory ?? tmpdir(), "densa-p9m0-"),
   );
@@ -403,6 +414,7 @@ export async function runHeadlessOnePhaseProof(
   const databasePath = join(temporaryRoot, "state.sqlite");
   const diagnosticsPath = join(temporaryRoot, "proof-result.json");
   const failureReasons: string[] = [];
+  let restartCount = 0;
   let database: DensaAdeDatabase | undefined;
   try {
     await mkdir(workspacePath);
@@ -416,7 +428,7 @@ export async function runHeadlessOnePhaseProof(
       throw new Error("Proof roadmap must contain exactly one phase and one task");
     }
 
-    const now = clock();
+    const now = options.now ?? clock();
     database = DensaAdeDatabase.open(databasePath);
     seedProject(database, generated.roadmap, now);
     const initialSync = await new PortableProjectSynchronizer(database.repositories).synchronize(
@@ -429,6 +441,7 @@ export async function runHeadlessOnePhaseProof(
 
     database.close();
     database = DensaAdeDatabase.open(databasePath);
+    restartCount += 1;
     if (
       database.repositories.specifications.findByProjectId(PROJECT_ID)?.specification
         .projectGoal !== specification.projectGoal ||
@@ -461,13 +474,13 @@ export async function runHeadlessOnePhaseProof(
           ownedPaths: [SOURCE_PATH],
           intendedPaths: [SOURCE_PATH],
           adapter: options.adapter,
-          validator: deterministicTaskValidator(),
+          validator: deterministicTaskValidator(validationTimeoutMs),
         };
       },
     });
     const reviewService = new IndependentReviewService(database, { now });
     const phaseValidator = new FreshContextPhaseValidator({
-      deterministic: deterministicPhaseValidator(),
+      deterministic: deterministicPhaseValidator(validationTimeoutMs),
       service: reviewService,
       adapter: options.adapter,
       buildReviewInput: () => ({
@@ -508,17 +521,17 @@ export async function runHeadlessOnePhaseProof(
 
     database.close();
     database = DensaAdeDatabase.open(databasePath);
+    restartCount += 1;
     const finalProject = database.repositories.projects.findById(PROJECT_ID);
     const finalPhase = database.repositories.phases.findById(PHASE_ID);
     const finalTask = database.repositories.tasks.findById(TASK_ID);
     const persistedReport = database.repositories.phaseReports.findByPhaseId(PHASE_ID);
     const events = database.eventJournal.replay({ projectId: PROJECT_ID, limit: 1_000 });
     const gitLog = await command(workspacePath, "git", ["log", "--format=%H%x09%s"]);
-    const gitSubjects = gitLog.stdout
-      .trim()
-      .split("\n")
-      .filter(Boolean)
-      .map((line) => line.split("\t").slice(1).join("\t"));
+    if (gitLog.exitCode !== 0)
+      failureReasons.push("Git history inspection did not complete successfully.");
+    const gitLines = gitLog.stdout.trim().split("\n").filter(Boolean);
+    const gitSubjects = gitLines.map((line) => line.split("\t").slice(1).join("\t"));
     if (finalProject?.state !== "RUNNING")
       failureReasons.push("Project did not remain RUNNING at the approval boundary.");
     if (finalPhase?.state !== "AWAITING_APPROVAL")
@@ -526,24 +539,35 @@ export async function runHeadlessOnePhaseProof(
     if (finalTask?.state !== "COMPLETED") failureReasons.push("Task did not persist COMPLETED.");
     if (persistedReport?.outcome !== "awaiting_approval")
       failureReasons.push("Phase report did not survive restart accurately.");
-    if (!gitSubjects.some((subject) => subject.startsWith(`densa-ade: ${TASK_ID} `)))
-      failureReasons.push("Git history does not map the task ID to its commit.");
     if (!events.some((event) => event.type === "VALIDATION_PASSED" && event.taskId === TASK_ID))
       failureReasons.push("No authoritative passing task-validation fact was persisted.");
     if (taskCommitSha === undefined) failureReasons.push("Task has no verified commit.");
-    else if (
-      !phaseReport.commits.some(
-        (commit) => commit.taskId === TASK_ID && commit.sha === taskCommitSha,
-      )
-    )
-      failureReasons.push("Phase report commit does not match the verified task commit.");
+    else {
+      const exactCommitSubject = gitLines
+        .find((line) => line.startsWith(`${taskCommitSha}\t`))
+        ?.split("\t")
+        .slice(1)
+        .join("\t");
+      if (exactCommitSubject?.startsWith(`densa-ade: ${TASK_ID} `) !== true) {
+        failureReasons.push(
+          "The verified task commit is not reachable with its task-mapped subject.",
+        );
+      }
+      if (
+        !phaseReport.commits.some(
+          (commit) => commit.taskId === TASK_ID && commit.sha === taskCommitSha,
+        )
+      ) {
+        failureReasons.push("Phase report commit does not match the verified task commit.");
+      }
+    }
 
     const resultWithoutPath: Omit<HeadlessOnePhaseProofResult, "diagnosticsPath"> = {
       verdict: failureReasons.length === 0 ? "PASS" : "FAIL",
       projectId: PROJECT_ID,
       workspacePath,
       databasePath,
-      restartCount: 2,
+      restartCount,
       finalProjectState: finalProject?.state ?? "missing",
       finalPhaseState: finalPhase?.state ?? "missing",
       finalTaskState: finalTask?.state ?? "missing",
@@ -556,8 +580,22 @@ export async function runHeadlessOnePhaseProof(
     await writeDiagnostics(diagnosticsPath, resultWithoutPath);
     return Object.freeze({ ...resultWithoutPath, diagnosticsPath });
   } catch (error) {
-    failureReasons.push(error instanceof Error ? error.message : String(error));
-    throw error;
+    const message = redactSensitiveText(error instanceof Error ? error.message : String(error));
+    failureReasons.push(message);
+    await writeDiagnostics(diagnosticsPath, {
+      verdict: "FAIL",
+      projectId: PROJECT_ID,
+      workspacePath,
+      databasePath,
+      restartCount,
+      failureReasons,
+    });
+    throw new HeadlessOnePhaseProofExecutionError(
+      message,
+      workspacePath,
+      databasePath,
+      diagnosticsPath,
+    );
   } finally {
     database?.close();
     if (options.retainArtifacts === false)

@@ -65,6 +65,7 @@ export interface PrepareTaskCheckpointRequest {
   readonly createdAt: string;
   readonly actor: string;
   readonly description?: string;
+  readonly gitAuthorization?: AuthorizedOperationContext;
 }
 
 export interface PreparedTaskCheckpoint {
@@ -400,13 +401,16 @@ export class RunCheckpointService {
       );
     }
 
-    const permission = new PermissionPolicyService(this.database).authorize({
-      projectId: request.projectId,
-      operation: "git_mutation",
-      actor: request.actor,
-      reason: `Prepare the owned run branch and checkpoint for task ${request.taskId}`,
-      occurredAt: request.createdAt,
-    });
+    const permission =
+      request.gitAuthorization === undefined
+        ? new PermissionPolicyService(this.database).authorize({
+            projectId: request.projectId,
+            operation: "git_mutation",
+            actor: request.actor,
+            reason: `Prepare the owned run branch and checkpoint for task ${request.taskId}`,
+            occurredAt: request.createdAt,
+          })
+        : { authorization: request.gitAuthorization };
     if (permission.authorization === undefined) {
       return stopped(
         permission.decision.disposition === "deny" ? "POLICY_DENIED" : "POLICY_ASK_USER",

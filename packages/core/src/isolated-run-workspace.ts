@@ -7,6 +7,7 @@ import type { ProjectId } from "@densa-ade/protocol";
 import type { DensaAdeDatabase } from "./persistence/database.js";
 import type { DensaAdeRunBranchRecord } from "./persistence/repositories.js";
 import { PermissionPolicyService } from "./permission-policy.js";
+import { assertAuthorizedOperation, type AuthorizedOperationContext } from "./permission-policy.js";
 import { WorkspacePreflight } from "./workspace-preflight.js";
 
 const exec = promisify(execFile);
@@ -83,6 +84,7 @@ export async function ensureIsolatedRunWorkspace(
     branchName: string;
     createdAt: string;
     actor: string;
+    gitAuthorization?: AuthorizedOperationContext;
   },
 ): Promise<{ run: DensaAdeRunBranchRecord; created: boolean }> {
   let run = database.repositories.densaAdeRunBranches.findByProjectId(request.projectId);
@@ -106,17 +108,21 @@ export async function ensureIsolatedRunWorkspace(
     preflight.head.commit === undefined
   )
     throw new Error(`Source preflight stopped: ${preflight.decision.reason}`);
-  const permission = new PermissionPolicyService(database).authorize({
-    projectId: request.projectId,
-    operation: "git_mutation",
-    actor: request.actor,
-    occurredAt: request.createdAt,
-    reason: "Create or verify the Core-owned isolated execution worktree",
-  });
+  const permission =
+    request.gitAuthorization === undefined
+      ? new PermissionPolicyService(database).authorize({
+          projectId: request.projectId,
+          operation: "git_mutation",
+          actor: request.actor,
+          occurredAt: request.createdAt,
+          reason: "Create or verify the Core-owned isolated execution worktree",
+        })
+      : { authorization: request.gitAuthorization };
   if (permission.authorization === undefined)
     throw new Error(
       `Run workspace policy ${permission.decision.disposition}: ${permission.decision.reason}`,
     );
+  assertAuthorizedOperation(permission.authorization, request.projectId, "git_mutation");
   let created = false;
   if (run === undefined) {
     const common = await realpath(

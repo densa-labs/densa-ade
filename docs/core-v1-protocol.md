@@ -4,27 +4,64 @@ Protocol `1.0.0` is the frozen editor-neutral boundary for the first Densa ADE I
 The operation and view schemas live in `@densa-ade/protocol`; an IDE client imports that package and
 uses `CoreV1Client`, never `@densa-ade/core`, SQLite repositories, or workbench/webview types.
 
+## Current runtime composition
+
+The daemon composes every catalog operation through authoritative Core services. Reads derive
+from persisted facts via `CoreRuntimeViews`; mutations go through `CoreRuntimeMutations` with
+centralized state transitions, domain authorization, canonical workspace binding, and audit
+events. Adaptive interview and roadmap planning use separate read-only Master-role
+`AgentAdapter` runs and strict structured outputs. Master responses use a separate read-only
+session plus the Core-owned rundown and validated command gateway.
+
+`projects.start` durably records execution intent, then the daemon runs the dependency-driven
+project/phase/task lifecycle in the background. The task path performs read-only exact-scope
+planning, builds a bounded Task Packet, creates an isolated checkpoint, runs one workspace-write
+worker, executes deterministic validation plus fresh-context review, creates and guardedly
+publishes the atomic task commit, validates the phase, persists its report, and stops at the
+configured approval boundary. The response reports the durable state reached synchronously;
+clients observe later progress through snapshots and events.
+
+Production execution evaluates the current permission preset before dispatch. Cautious or
+overridden `write_workspace` and `git_mutation` decisions move the project to
+`WAITING_FOR_USER` or `BLOCKED`; exact approvals are durable and their issued Git
+authorization is propagated through checkpoint, commit, and guarded publication. Graceful
+interruption leaves an auditable `INTERRUPTED` attempt. A later explicit start retries it only
+when attempt completion and scoped rollback are both durable.
+
+`npm run proof:p9m2` checks read-operation routing against a real disposable daemon. The
+workflow suite `scripts/core-v1-runtime-workflow.test.mjs` exercises the complete
+idea-to-start path, revision approval, guided/phase approvals, exact cautious-policy approvals,
+settings, a file-backed restart, and an interrupted-worker restart through a real daemon. The
+fake-client schema suite proves contracts only.
+
 ## Planned UI coverage
 
-| UI interaction        | Protocol operations                                                                                                 |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| Home and project list | `system.bootstrap`, `projects.list`, `projects.get`                                                                 |
-| Start Project         | `projects.create`, `projects.interview.answer`, `projects.specification.get`, `roadmaps.generate`, `projects.start` |
-| Dashboard             | `dashboard.get`, `phases.report.get`, `attempts.list`, `decisions.list`, `usage.get`, `events.subscribe`            |
-| Roadmap               | `roadmaps.get`, `roadmaps.revisions.list`, `roadmaps.revisions.propose`, `roadmaps.revisions.resolve`               |
-| Master Agent          | `master.send`                                                                                                       |
-| Phase approval        | `phases.approve`                                                                                                    |
-| Execution controls    | `projects.pause`, `projects.resume`, `projects.stop`                                                                |
-| Settings and policy   | `settings.get`, `settings.update`                                                                                   |
-| Event history         | `events.replay`, `events.subscribe`                                                                                 |
-| Run logs              | `logs.list` and `run.log.appended` notifications                                                                    |
-| Git drill-down        | `git.status`, `git.commit.get`                                                                                      |
-| Validation drill-down | `validation.list`, `validation.get`                                                                                 |
+| UI interaction        | Protocol operations                                                                                                       |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Home and project list | `system.bootstrap`, `projects.list`, `projects.get`                                                                       |
+| Start Project         | `projects.create`, `projects.interview.answer`, `projects.specification.get`, `roadmaps.generate`, `projects.start`       |
+| Dashboard             | `dashboard.get`, `tasks.approve`, `phases.report.get`, `attempts.list`, `decisions.list`, `usage.get`, `events.subscribe` |
+| Roadmap               | `roadmaps.get`, `roadmaps.revisions.list`, `roadmaps.revisions.propose`, `roadmaps.revisions.resolve`                     |
+| Master Agent          | `master.send`                                                                                                             |
+| Phase approval        | `phases.approve`                                                                                                          |
+| Guided task approval  | `tasks.approve`                                                                                                           |
+| Execution controls    | `projects.pause`, `projects.resume`, `projects.stop`                                                                      |
+| Settings and policy   | `settings.get`, `settings.update`, `permissions.resolve`                                                                  |
+| Permission approval   | `permissions.resolve`                                                                                                     |
+| Event history         | `events.replay`, `events.subscribe`                                                                                       |
+| Run logs              | `logs.list` and `run.log.appended` notifications                                                                          |
+| Git drill-down        | `git.status`, `git.commit.get`                                                                                            |
+| Validation drill-down | `validation.list`, `validation.get`                                                                                       |
 
 `CORE_V1_METHODS` is the normative operation catalog. Every method has one strict request-payload
 schema and one strict result schema in `coreV1OperationContracts`. Unknown object fields are
 rejected. The `CoreV1Client` facade validates both directions and constructs the versioned request
 envelope.
+
+The facade also rejects typed result identities inconsistent with the requested project, task,
+phase, validation run, approval decision, proposal, or commit. Opaque historical payloads remain
+data, not ownership declarations. Server-side authorization and canonical workspace ownership
+checks remain mandatory; client response checks do not replace them.
 
 Core returns authoritative snapshots or mutation outcomes. Clients may cache them for rendering,
 but must not infer a successful state transition from a button click, a Master response, or worker
@@ -36,6 +73,11 @@ Event and log requests accept at most 200 entries. The default page size is 50. 
 exclusive, per-project integer `afterSequence`; log and project-list pagination use opaque cursors.
 An opaque cursor has no client-visible ordering semantics and must not be fabricated or modified.
 `hasMore: true` always includes a next cursor for cursor-based pages.
+
+Implemented event replay/subscription pages also stop at the transport's 1 MiB encoded frame
+limit. A page can therefore contain fewer than the requested number of entries with `hasMore`
+still true. Continue from its last applied event, not by adding the requested page size. A single
+persisted event too large for a frame fails explicitly with `PERSISTENCE_FAILURE`.
 
 Run-log content is bounded to 16 KiB per entry and includes a `redacted` fact. Large domain snapshots
 are bounded to 5,000 phase/task/detail records. A future need beyond that bound requires an additive
@@ -61,6 +103,18 @@ The subscription response installs the live listener at the same synchronous Cor
 replay snapshot. Notifications are hints to refresh or apply committed facts; they are not a second
 source of truth. Run-log cursors are independent of durable event sequence numbers, so log views
 resume through `logs.list` with their last opaque cursor.
+
+The daemon writes subscription replay before live notifications. If the response has `hasMore`,
+continue replay before applying newer notifications; a detected gap always requires recovery.
+The reconnect recipe above is implementable: bootstrap, replay, subscribe, and snapshot refresh
+are all production-routed.
+
+`CoreIpcClient` shares one connection among concurrent first requests and rejects duplicate pending
+request IDs. Connection setup defaults to a 5-second timeout and requests to 30 seconds; callers can
+configure positive bounded millisecond values. A request timeout disconnects the client and reports
+an unknown operation outcome. It does not cancel an authoritative mutation or retry it. Refresh
+authoritative state before deciding whether a mutation can safely be retried. Disconnect/reconnect
+clears pending requests without allowing an old socket's close event to invalidate the new socket.
 
 ## Compatibility policy
 

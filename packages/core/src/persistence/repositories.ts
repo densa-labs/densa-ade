@@ -86,6 +86,7 @@ export interface ProjectSettingsRecord {
 export interface ProjectRepository {
   create(project: Project): Project;
   findById(id: Project["id"]): Project | undefined;
+  list(): readonly Project[];
 }
 
 export interface SpecificationRepository {
@@ -407,6 +408,14 @@ function validateSettings(settings: ProjectSettingsRecord): ProjectSettingsRecor
 
 class SqliteProjectRepository implements ProjectRepository {
   constructor(private readonly connection: SqliteConnection) {}
+
+  list(): readonly Project[] {
+    return this.connection.all("SELECT id FROM projects ORDER BY created_at, id").map((row) => {
+      const project = this.findById(requiredString(row, "id") as Project["id"]);
+      if (project === undefined) throw new PersistenceError("Listed project disappeared");
+      return project;
+    });
+  }
 
   create(input: Project): Project {
     const project = projectSchema.parse(input);

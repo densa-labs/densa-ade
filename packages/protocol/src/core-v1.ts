@@ -283,7 +283,13 @@ const projectStartResultSchema = z
 const roadmapProposalResultSchema = z
   .strictObject({
     proposal: roadmapRevisionProposalSchema,
-    outcome: z.enum(["APPLIED", "AWAITING_USER_APPROVAL", "WAITING_FOR_SAFE_BOUNDARY", "STALE"]),
+    outcome: z.enum([
+      "APPLIED",
+      "AWAITING_USER_APPROVAL",
+      "WAITING_FOR_SAFE_BOUNDARY",
+      "REJECTED",
+      "STALE",
+    ]),
   })
   .readonly();
 
@@ -325,6 +331,7 @@ export const CORE_V1_METHODS = [
   "roadmaps.revisions.propose",
   "roadmaps.revisions.resolve",
   "master.send",
+  "tasks.approve",
   "phases.approve",
   "phases.report.get",
   "projects.pause",
@@ -332,6 +339,7 @@ export const CORE_V1_METHODS = [
   "projects.stop",
   "settings.get",
   "settings.update",
+  "permissions.resolve",
   "usage.get",
   "events.replay",
   "events.subscribe",
@@ -492,6 +500,26 @@ export const coreV1OperationContracts = {
       })
       .readonly(),
   },
+  "tasks.approve": {
+    payload: z
+      .strictObject({
+        projectId: projectIdSchema,
+        phaseId: phaseIdSchema,
+        taskId: taskIdSchema,
+        decision: z.enum(["approve", "reject"]),
+        actor: actorSchema,
+        reason: nonEmptyTextSchema,
+      })
+      .readonly(),
+    result: z
+      .strictObject({
+        projectId: projectIdSchema,
+        phaseId: phaseIdSchema,
+        task: taskSchema,
+        outcome: z.enum(["APPROVED", "REJECTED", "UNCHANGED"]),
+      })
+      .readonly(),
+  },
   "phases.approve": {
     payload: z
       .strictObject({
@@ -535,6 +563,24 @@ export const coreV1OperationContracts = {
   },
   "settings.get": { payload: projectReferenceSchema, result: coreV1SettingsSchema },
   "settings.update": { payload: settingsUpdatePayloadSchema, result: coreV1SettingsSchema },
+  "permissions.resolve": {
+    payload: z
+      .strictObject({
+        projectId: projectIdSchema,
+        decisionId: z.string().trim().min(1).max(256),
+        resolution: z.enum(["approve", "reject"]),
+        actor: actorSchema,
+        reason: nonEmptyTextSchema,
+      })
+      .readonly(),
+    result: z
+      .strictObject({
+        projectId: projectIdSchema,
+        decisionId: z.string().trim().min(1).max(256),
+        outcome: z.enum(["APPROVED", "REJECTED", "UNCHANGED", "STALE"]),
+      })
+      .readonly(),
+  },
   "usage.get": {
     payload: projectReferenceSchema,
     result: z
@@ -676,6 +722,126 @@ export interface CoreV1Transport {
   request(envelope: RequestEnvelope): Promise<JsonValue>;
 }
 
+function assertCoreV1ResultMatchesRequest(
+  method: CoreV1Method,
+  payload: unknown,
+  result: unknown,
+): void {
+  const request = payload as Readonly<Record<string, unknown>>;
+  const response = result as Readonly<Record<string, unknown>>;
+  // Inspect only typed record identity fields. Event payloads, log details, historical before/after
+  // values and Master command details are opaque data, not ownership declarations.
+  const records: unknown[] = [response];
+  const addArray = (key: string): void => {
+    const values = response[key];
+    if (Array.isArray(values)) records.push(...values);
+  };
+  switch (method) {
+    case "projects.get":
+      addArray("phases");
+      addArray("tasks");
+      addArray("pendingApprovals");
+      records.push(response["roadmap"]);
+      break;
+    case "dashboard.get":
+      addArray("pendingApprovals");
+      records.push(response["currentPhase"], response["currentTask"]);
+      break;
+    case "decisions.list":
+      addArray("decisions");
+      break;
+    case "roadmaps.revisions.list":
+      addArray("revisions");
+      break;
+    case "roadmaps.revisions.propose":
+    case "roadmaps.revisions.resolve":
+      records.push(response["proposal"]);
+      break;
+    case "tasks.approve":
+      records.push(response["task"]);
+      break;
+    case "phases.approve":
+      records.push(response["phase"], response["nextPhase"]);
+      break;
+    case "events.replay":
+    case "events.subscribe":
+      addArray("events");
+      break;
+    case "logs.list":
+      addArray("entries");
+      break;
+    case "attempts.list":
+      addArray("attempts");
+      break;
+    case "validation.list":
+      addArray("runs");
+      break;
+    case "validation.get":
+      records.push(response["run"]);
+      addArray("results");
+      break;
+  }
+  for (const value of records) {
+    if (value === null || typeof value !== "object") continue;
+    const record = value as Readonly<Record<string, unknown>>;
+    for (const key of ["projectId", "phaseId", "taskId", "attemptId", "validationRunId"] as const) {
+      if (request[key] !== undefined && key in record && record[key] !== request[key]) {
+        throw new Error(`Core v1 response crossed the requested ${key} boundary`);
+      }
+    }
+  }
+
+  const expectedProjectId = request["projectId"];
+  if (method === "projects.get" && expectedProjectId !== undefined) {
+    const summary = response["summary"] as Readonly<Record<string, unknown>> | undefined;
+    const project = summary?.["project"] as Readonly<Record<string, unknown>> | undefined;
+    if (project?.["id"] !== expectedProjectId) {
+      throw new Error("Core v1 project snapshot crossed the requested project boundary");
+    }
+  }
+  if (method === "dashboard.get" && expectedProjectId !== undefined) {
+    const summary = response["project"] as Readonly<Record<string, unknown>> | undefined;
+    const project = summary?.["project"] as Readonly<Record<string, unknown>> | undefined;
+    if (project?.["id"] !== expectedProjectId) {
+      throw new Error("Core v1 dashboard crossed the requested project boundary");
+    }
+  }
+  // Workspace canonicalization and abbreviated-SHA uniqueness are authoritative server duties.
+  if (
+    method === "git.commit.get" &&
+    !(response["sha"] as string).startsWith(request["sha"] as string)
+  ) {
+    throw new Error("Core v1 Git detail returned a different requested commit");
+  }
+  if (method === "permissions.resolve" && response["decisionId"] !== request["decisionId"]) {
+    throw new Error("Core v1 permission resolution returned a different requested decision");
+  }
+  if (method === "roadmaps.revisions.resolve") {
+    const proposal = response["proposal"] as Readonly<Record<string, unknown>>;
+    if (proposal["proposalEventId"] !== request["proposalEventId"]) {
+      throw new Error("Core v1 roadmap resolution returned a different requested proposal");
+    }
+  }
+  if (method === "validation.get") {
+    const run = response["run"] as Readonly<Record<string, unknown>> | undefined;
+    if (run?.["id"] !== request["validationRunId"]) {
+      throw new Error("Core v1 validation detail returned a different requested run");
+    }
+  }
+  if (method === "tasks.approve") {
+    const task = response["task"] as Readonly<Record<string, unknown>> | undefined;
+    if (task?.["id"] !== request["taskId"]) {
+      throw new Error("Core v1 task approval returned a different requested task");
+    }
+  }
+  if (method === "phases.approve") {
+    const phase = response["phase"] as Readonly<Record<string, unknown>> | undefined;
+    if (phase?.["id"] !== request["phaseId"]) {
+      throw new Error("Core v1 phase approval returned a different requested phase");
+    }
+  }
+}
+
 /** Schema-validating client facade suitable for the IDE, CLI, Dashboard, and tests. */
 export class CoreV1Client {
   readonly #transport: CoreV1Transport;
@@ -690,13 +856,16 @@ export class CoreV1Client {
     method: Method,
     payload: CoreV1Payload<Method>,
   ): Promise<CoreV1Result<Method>> {
+    const parsedPayload = parseCoreV1Payload(method, payload);
     const envelope = requestEnvelopeSchema.parse({
       protocolVersion: PROTOCOL_VERSION,
       kind: "request",
       requestId: requestIdSchema.parse(this.#createRequestId()),
       method,
-      payload: parseCoreV1Payload(method, payload),
+      payload: parsedPayload,
     });
-    return parseCoreV1Result(method, await this.#transport.request(envelope));
+    const result = parseCoreV1Result(method, await this.#transport.request(envelope));
+    assertCoreV1ResultMatchesRequest(method, parsedPayload, result);
+    return result;
   }
 }

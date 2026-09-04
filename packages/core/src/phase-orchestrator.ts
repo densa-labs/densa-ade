@@ -69,6 +69,7 @@ export type PhaseTaskExecutionDetails = Pick<
   | "adapter"
   | "validator"
   | "onAgentEvent"
+  | "gitAuthorization"
 > &
   Readonly<{ recontextualizationAppliedAt?: string }>;
 

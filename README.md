@@ -1,11 +1,12 @@
 ![Densa ADE Logo](assets/Densa-ADE-Logo.png)
+
 # Densa ADE
 
 Densa ADE is an agentic development environment developed by Densa Labs where coding agents can plan, build, test, and iterate on software autonomously.
 
 ## Installation
 
-*TODO: fill in when initial development is finished*
+_TODO: fill in when initial development is finished_
 
 ## Why Densa?
 
@@ -19,7 +20,7 @@ Densa ADE **understands your project**, creates a **development roadmap**, calls
 
 ## Disclaimer
 
-Densa ADE is an experimental project *currently under development*.
+Densa ADE is an experimental project _currently under development_.
 AI agents can make mistakes, including modifying or deleting code. We recommend using version control/backups and reviewing important changes.
 
 Densa ADE has validation and recovery systems, but users **should not rely on them** as a guarantee of safety. These systems **do not make autonomous execution perfectly safe**. Authenticated third-party coding agents are subject to their own terms, policies, and limits.
