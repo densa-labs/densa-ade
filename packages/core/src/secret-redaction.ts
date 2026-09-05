@@ -67,7 +67,12 @@ export class SecretRedactor {
     if (value !== null && typeof value === "object") {
       const result: JsonObject = {};
       for (const [childKey, childValue] of Object.entries(value)) {
-        result[childKey] = this.json(childValue, childKey);
+        Object.defineProperty(result, childKey, {
+          value: this.json(childValue, childKey),
+          enumerable: true,
+          writable: true,
+          configurable: true,
+        });
       }
       return result;
     }

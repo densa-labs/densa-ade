@@ -4,6 +4,38 @@
 
 Densa ADE is an agentic development environment developed by Densa Labs where coding agents can plan, build, test, and iterate on software autonomously.
 
+## Architecture and repository boundaries
+
+Densa ADE keeps authoritative lifecycle state in an editor-independent local Core process. Clients
+communicate with Core through a versioned local protocol; Core reaches coding agents through a
+replaceable adapter boundary and applies approved work to the user's workspace.
+
+```text
+Densa ADE clients (CLI / IDE / future tools)
+                  |
+          versioned local IPC
+                  v
+            Densa ADE Core
+                  |
+           AgentAdapter boundary
+                  v
+       authenticated agent tool
+                  |
+                  v
+             user workspace
+```
+
+- `packages/protocol` owns editor- and agent-neutral domain and wire contracts.
+- `packages/agent-sdk` owns the replaceable agent adapter boundary.
+- `packages/core` owns authoritative state, orchestration, validation, persistence, and recovery.
+- `packages/cli` is a non-authoritative Core client.
+- `packages/testing` owns reusable fakes and test helpers.
+- `apps` contains client applications such as the IDE extension.
+
+Core remains independent of Code - OSS and VS Code APIs. See the
+[protocol contract](packages/protocol/README.md), [Core v1 protocol](docs/core-v1-protocol.md), and
+[Core daemon boundary](docs/core-daemon-and-ipc.md) for the current integration details.
+
 ## Installation
 
 _TODO: fill in when initial development is finished_

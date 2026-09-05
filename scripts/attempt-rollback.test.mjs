@@ -292,9 +292,16 @@ test("failure diagnostics redact explicit secret markers before persistence", as
   );
   const result = await new AttemptRollbackService(database).recordFailedAttempt({
     ...failureRequest(graph),
-    diagnostics: { message: "<secret>rollback-canary-sensitive</secret>" },
+    diagnostics: JSON.parse(
+      '{"__proto__":{"auditValue":7,"password":"rollback-canary-sensitive"},"message":"<secret>rollback-canary-sensitive</secret>"}',
+    ),
   });
   assert.equal(result.status, "RECORDED");
+  assert.deepEqual(
+    database.repositories.attemptRollbackPlans.findByAttemptId(graph.attempt.id).diagnostics
+      .__proto__,
+    { auditValue: 7, password: "[REDACTED]" },
+  );
   assert.doesNotMatch(
     JSON.stringify(database.repositories.attemptRollbackPlans.findByAttemptId(graph.attempt.id)),
     /rollback-canary-sensitive/u,

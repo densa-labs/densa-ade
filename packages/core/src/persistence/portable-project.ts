@@ -134,7 +134,12 @@ class SecretRedactor {
       for (const childKey of Object.keys(value).sort()) {
         const child = value[childKey];
         if (child !== undefined) {
-          result[childKey] = this.json(child, childKey);
+          Object.defineProperty(result, childKey, {
+            value: this.json(child, childKey),
+            enumerable: true,
+            writable: true,
+            configurable: true,
+          });
         }
       }
       return result;

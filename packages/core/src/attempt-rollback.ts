@@ -234,7 +234,12 @@ function redactDiagnosticValue(value: JsonValue, key?: string): JsonValue {
     const redacted: JsonObject = {};
     for (const [childKey, childValue] of Object.entries(value)) {
       if (childValue !== undefined) {
-        redacted[childKey] = redactDiagnosticValue(childValue, childKey);
+        Object.defineProperty(redacted, childKey, {
+          value: redactDiagnosticValue(childValue, childKey),
+          enumerable: true,
+          writable: true,
+          configurable: true,
+        });
       }
     }
     return redacted;

@@ -11,6 +11,9 @@ is validated before use.
 - Notifications carry a stable event name and may use a correlation ID.
 - Payloads are JSON values only. Dates cross the wire as ISO-8601 strings with an explicit offset;
   `Date`, `bigint`, `undefined`, non-finite numbers, and class instances are invalid.
+- JSON objects preserve every own string key, including `__proto__`, as ordinary data; parsing
+  clones nested values without changing object prototypes. Redaction may replace sensitive values,
+  but must preserve non-sensitive keys through persistence and replay.
 - Unknown object fields are rejected for domain records and protocol envelopes.
 - Core transport frames carry a per-instance authentication token around a versioned request.
 - Event replay uses an exclusive per-project sequence cursor and a bounded page size; live committed
