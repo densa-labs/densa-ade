@@ -1,8 +1,0 @@
-node_modules
-dist
-coverage
-*.tsbuildinfo
-package-lock.json
-AGENTS.md
-MASTER_ROADMAP.md
-MODEL_POLICY.md
