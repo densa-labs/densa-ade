@@ -1,0 +1,3967 @@
+{
+  "schemaVersion": 1,
+  "kind": "development-evidence-only",
+  "roadmapSha256": "8053f010bf1ebf52fabc954961b7b50773533ed22e35029a147078a20c335b07",
+  "contracts": [
+    {
+      "id": "R0",
+      "title": "Authority, identity, transactions and delivery",
+      "source": "MASTER_ROADMAP.md R0",
+      "implementationOwners": [
+        "P0M1, P1M0–P1M3, P2M3, P3M0–P3M2"
+      ],
+      "verificationOwners": [
+        "P1M7, P11M3–P11M4"
+      ],
+      "status": "PENDING",
+      "currentClaim": "Normative contract located; no runtime implementation or acceptance claimed by P0M0."
+    },
+    {
+      "id": "R1",
+      "title": "Deterministic lifecycle",
+      "source": "MASTER_ROADMAP.md R1",
+      "implementationOwners": [
+        "P0M2, P1M1, P9M0–P9M8"
+      ],
+      "verificationOwners": [
+        "P11M2–P11M4"
+      ],
+      "status": "PENDING",
+      "currentClaim": "Normative contract located; no runtime implementation or acceptance claimed by P0M0."
+    },
+    {
+      "id": "R1a",
+      "title": "Core-owned client departure and background policy (AR05)",
+      "source": "MASTER_ROADMAP.md R1a",
+      "implementationOwners": [
+        "P0M2, P0M4, P1M1, P1M4, P10M4, P12M2"
+      ],
+      "verificationOwners": [
+        "P11M3–P11M4, P13M10"
+      ],
+      "status": "PENDING",
+      "currentClaim": "Normative contract located; no runtime implementation or acceptance claimed by P0M0."
+    },
+    {
+      "id": "R1b",
+      "title": "Reopen creates a new execution revision (AR06)",
+      "source": "MASTER_ROADMAP.md R1b",
+      "implementationOwners": [
+        "P0M2, P0M4, P1M2, P1M5, P9M8"
+      ],
+      "verificationOwners": [
+        "P11M3–P11M4, P13M10"
+      ],
+      "status": "PENDING",
+      "currentClaim": "Normative contract located; no runtime implementation or acceptance claimed by P0M0."
+    },
+    {
+      "id": "R2",
+      "title": "Authorization and execution containment",
+      "source": "MASTER_ROADMAP.md R2",
+      "implementationOwners": [
+        "P0M3, P2M0–P2M3, P4M0–P4M2"
+      ],
+      "verificationOwners": [
+        "P9M4, P11M3, P13M10, P16M2–P16M4"
+      ],
+      "status": "PENDING",
+      "currentClaim": "Normative contract located; no runtime implementation or acceptance claimed by P0M0."
+    },
+    {
+      "id": "R3",
+      "title": "Evidence, workspace ownership and Git settlement",
+      "source": "MASTER_ROADMAP.md R3",
+      "implementationOwners": [
+        "P0M4, P5M0–P5M2, P7M0–P7M5, P8M0–P8M2"
+      ],
+      "verificationOwners": [
+        "P9M2, P9M7, P11M2–P11M4, P16M4"
+      ],
+      "status": "PENDING",
+      "currentClaim": "Normative contract located; no runtime implementation or acceptance claimed by P0M0."
+    },
+    {
+      "id": "R3a",
+      "title": "Cancellation and the accepted result lineage (AR03)",
+      "source": "MASTER_ROADMAP.md R3a",
+      "implementationOwners": [
+        "P0M2, P0M4, P8M1–P8M2"
+      ],
+      "verificationOwners": [
+        "P11M3, P13M4, P16M3"
+      ],
+      "status": "PENDING",
+      "currentClaim": "Normative contract located; no runtime implementation or acceptance claimed by P0M0."
+    },
+    {
+      "id": "R3b",
+      "title": "Cumulative coverage renewal and historical-phase repair (AR02)",
+      "source": "MASTER_ROADMAP.md R3b",
+      "implementationOwners": [
+        "P0M2, P0M4, P6M4, P7M5–P7M6, P9M0, P9M7"
+      ],
+      "verificationOwners": [
+        "P11M3–P11M4"
+      ],
+      "status": "PENDING",
+      "currentClaim": "Normative contract located; no runtime implementation or acceptance claimed by P0M0."
+    },
+    {
+      "id": "R4",
+      "title": "Product runtime models",
+      "source": "MASTER_ROADMAP.md R4",
+      "implementationOwners": [
+        "P0M3, P4M0–P4M2, P10M0"
+      ],
+      "verificationOwners": [
+        "P6M1, P7M3, P11M0, P11M2, P16M2"
+      ],
+      "status": "PENDING",
+      "currentClaim": "Normative contract located; no runtime implementation or acceptance claimed by P0M0."
+    },
+    {
+      "id": "R5",
+      "title": "Planning, entry and configuration",
+      "source": "MASTER_ROADMAP.md R5",
+      "implementationOwners": [
+        "P0M4, P1M2–P1M5, P5M0, P6M0–P6M4"
+      ],
+      "verificationOwners": [
+        "P9M1, P9M5–P9M6, P11M4, P13M0, P13M5"
+      ],
+      "status": "PENDING",
+      "currentClaim": "Normative contract located; no runtime implementation or acceptance claimed by P0M0."
+    },
+    {
+      "id": "R5a",
+      "title": "Corrective settings for a held role (AR01)",
+      "source": "MASTER_ROADMAP.md R5a",
+      "implementationOwners": [
+        "P1M4, P4M1, P7M4, P9M6"
+      ],
+      "verificationOwners": [
+        "P11M3–P11M4"
+      ],
+      "status": "PENDING",
+      "currentClaim": "Normative contract located; no runtime implementation or acceptance claimed by P0M0."
+    },
+    {
+      "id": "R6",
+      "title": "Diagnostics, retention and privacy",
+      "source": "MASTER_ROADMAP.md R6",
+      "implementationOwners": [
+        "P1M6, P2M1–P2M2, P10M3"
+      ],
+      "verificationOwners": [
+        "P11M3, P13M9, P14M1, P14M3, P16M4"
+      ],
+      "status": "PENDING",
+      "currentClaim": "Normative contract located; no runtime implementation or acceptance claimed by P0M0."
+    },
+    {
+      "id": "R7",
+      "title": "Integration and evidence validity for this implementation roadmap",
+      "source": "MASTER_ROADMAP.md R7",
+      "implementationOwners": [
+        "P0M0, every milestone"
+      ],
+      "verificationOwners": [
+        "every milestone, P11M4, P13M10, P16M4"
+      ],
+      "status": "PENDING",
+      "currentClaim": "P0M0 establishes development tooling/process only; runtime and later-gate guarantees remain pending."
+    },
+    {
+      "id": "R7a",
+      "title": "Mandatory change-triggered development evidence assessment (AR08)",
+      "source": "MASTER_ROADMAP.md R7a",
+      "implementationOwners": [
+        "P0M0, every behavior-affecting milestone"
+      ],
+      "verificationOwners": [
+        "every milestone final diff, P11M4, P16M4"
+      ],
+      "status": "PENDING",
+      "currentClaim": "P0M0 establishes development tooling/process only; runtime and later-gate guarantees remain pending."
+    },
+    {
+      "id": "R8",
+      "title": "Release and support decisions",
+      "source": "MASTER_ROADMAP.md R8",
+      "implementationOwners": [
+        "P0M0, P12M0–P12M1, P15M0–P15M4, P16M0–P16M5"
+      ],
+      "verificationOwners": [
+        "P14M0, P16M2–P16M5"
+      ],
+      "status": "PENDING",
+      "currentClaim": "P0M0 establishes development tooling/process only; runtime and later-gate guarantees remain pending."
+    },
+    {
+      "id": "R9",
+      "title": "Staging and audit gates",
+      "source": "MASTER_ROADMAP.md R9",
+      "implementationOwners": [
+        "P0M0, every milestone prerequisite boundary"
+      ],
+      "verificationOwners": [
+        "P1M7, P4M2, P8M2, P11M4, P13M10, P14M3, P15M4, P16M4"
+      ],
+      "status": "PENDING",
+      "currentClaim": "P0M0 establishes development tooling/process only; runtime and later-gate guarantees remain pending."
+    },
+    {
+      "id": "R9a",
+      "title": "Versioned catalog partitions (AR07)",
+      "source": "MASTER_ROADMAP.md R9a",
+      "implementationOwners": [
+        "P0M1, P12–P13, P14M0–P14M1, P15M0–P15M4, P16"
+      ],
+      "verificationOwners": [
+        "P11M4 (H), P13M10 (I), P15M4 (U), P16M4 (all)"
+      ],
+      "status": "PENDING",
+      "currentClaim": "Normative contract located; no runtime implementation or acceptance claimed by P0M0."
+    }
+  ],
+  "milestones": [
+    {
+      "id": "P0M0",
+      "title": "Establish the v2 development foundation",
+      "prerequisites": []
+    },
+    {
+      "id": "P0M1",
+      "title": "Define identity, command and operation schemas",
+      "prerequisites": [
+        "P0M0"
+      ]
+    },
+    {
+      "id": "P0M2",
+      "title": "Encode lifecycle and planning decision tables",
+      "prerequisites": [
+        "P0M1"
+      ]
+    },
+    {
+      "id": "P0M3",
+      "title": "Define authority and runtime capability contracts",
+      "prerequisites": [
+        "P0M1",
+        "P0M2"
+      ]
+    },
+    {
+      "id": "P0M4",
+      "title": "Define evidence, workspace and configuration contracts",
+      "prerequisites": [
+        "P0M1",
+        "P0M2",
+        "P0M3"
+      ]
+    },
+    {
+      "id": "P1M0",
+      "title": "Create migration-backed durable storage",
+      "prerequisites": [
+        "P0M4"
+      ]
+    },
+    {
+      "id": "P1M1",
+      "title": "Persist transitions, commands and operation intent",
+      "prerequisites": [
+        "P1M0",
+        "P0M2"
+      ]
+    },
+    {
+      "id": "P1M2",
+      "title": "Implement project creation, binding and relinking",
+      "prerequisites": [
+        "P1M1"
+      ]
+    },
+    {
+      "id": "P1M3",
+      "title": "Implement event queries and portable projection repair",
+      "prerequisites": [
+        "P1M1",
+        "P1M2"
+      ]
+    },
+    {
+      "id": "P1M4",
+      "title": "Implement effective settings and held-role snapshot intents",
+      "prerequisites": [
+        "P1M1",
+        "P1M3",
+        "P0M3",
+        "P0M4"
+      ]
+    },
+    {
+      "id": "P1M5",
+      "title": "Implement durable decisions and supersession",
+      "prerequisites": [
+        "P1M4",
+        "P1M1"
+      ]
+    },
+    {
+      "id": "P1M6",
+      "title": "Implement retention, storage holds and explicit purge",
+      "prerequisites": [
+        "P1M5",
+        "P1M3",
+        "P1M0"
+      ]
+    },
+    {
+      "id": "P1M7",
+      "title": "Audit the durable foundation (Gate A)",
+      "prerequisites": [
+        "P1M0",
+        "P1M1",
+        "P1M2",
+        "P1M3",
+        "P1M4",
+        "P1M5",
+        "P1M6"
+      ]
+    },
+    {
+      "id": "P2M0",
+      "title": "Implement policy grants and trust revocation",
+      "prerequisites": [
+        "P1M7",
+        "P0M3"
+      ]
+    },
+    {
+      "id": "P2M1",
+      "title": "Implement scoped credentials and executable provenance",
+      "prerequisites": [
+        "P2M0"
+      ]
+    },
+    {
+      "id": "P2M2",
+      "title": "Implement contained process execution",
+      "prerequisites": [
+        "P2M0",
+        "P2M1"
+      ]
+    },
+    {
+      "id": "P2M3",
+      "title": "Implement cancellation and process cleanup (authority gate)",
+      "prerequisites": [
+        "P2M2",
+        "P1M1"
+      ]
+    },
+    {
+      "id": "P3M0",
+      "title": "Implement singleton Core ownership",
+      "prerequisites": [
+        "P2M3",
+        "P1M7"
+      ]
+    },
+    {
+      "id": "P3M1",
+      "title": "Implement authenticated versioned IPC",
+      "prerequisites": [
+        "P3M0",
+        "P1M3",
+        "P2M0"
+      ]
+    },
+    {
+      "id": "P3M2",
+      "title": "Implement the headless CLI client",
+      "prerequisites": [
+        "P3M1"
+      ]
+    },
+    {
+      "id": "P4M0",
+      "title": "Verify the supported Codex capability contract",
+      "prerequisites": [
+        "P3M2",
+        "P2M3"
+      ]
+    },
+    {
+      "id": "P4M1",
+      "title": "Implement role-aware adapter and runtime selection",
+      "prerequisites": [
+        "P4M0",
+        "P1M4"
+      ]
+    },
+    {
+      "id": "P4M2",
+      "title": "Prove the real adapter boundary (Gate B)",
+      "prerequisites": [
+        "P4M1",
+        "P2M3"
+      ]
+    },
+    {
+      "id": "P5M0",
+      "title": "Implement adoption and execution preflight",
+      "prerequisites": [
+        "P4M2",
+        "P1M2",
+        "P2M0"
+      ]
+    },
+    {
+      "id": "P5M1",
+      "title": "Implement owned execution checkpoints",
+      "prerequisites": [
+        "P5M0",
+        "P2M2",
+        "P1M1"
+      ]
+    },
+    {
+      "id": "P5M2",
+      "title": "Capture immutable candidate and actual review material",
+      "prerequisites": [
+        "P5M1",
+        "P2M3",
+        "P0M4"
+      ]
+    },
+    {
+      "id": "P6M0",
+      "title": "Implement specification and draft entry workflows",
+      "prerequisites": [
+        "P5M0",
+        "P1M5",
+        "P4M1"
+      ]
+    },
+    {
+      "id": "P6M1",
+      "title": "Implement adaptive interview and structured planning calls",
+      "prerequisites": [
+        "P6M0",
+        "P4M1",
+        "P1M3"
+      ]
+    },
+    {
+      "id": "P6M2",
+      "title": "Implement semantic roadmap validation and materialization",
+      "prerequisites": [
+        "P6M1",
+        "P0M2",
+        "P0M4"
+      ]
+    },
+    {
+      "id": "P6M3",
+      "title": "Implement audited mutations and portable imports",
+      "prerequisites": [
+        "P6M2",
+        "P2M0",
+        "P1M3",
+        "P1M5"
+      ]
+    },
+    {
+      "id": "P6M4",
+      "title": "Materialize coverage-repair plans without rewriting completed phases",
+      "prerequisites": [
+        "P6M3",
+        "P1M5",
+        "P0M4"
+      ]
+    },
+    {
+      "id": "P7M0",
+      "title": "Implement trusted validation plans and command discovery",
+      "prerequisites": [
+        "P6M3",
+        "P5M2",
+        "P2M2"
+      ]
+    },
+    {
+      "id": "P7M1",
+      "title": "Execute deterministic validation in containment",
+      "prerequisites": [
+        "P7M0",
+        "P2M3"
+      ]
+    },
+    {
+      "id": "P7M2",
+      "title": "Implement browser production-behavior validation",
+      "prerequisites": [
+        "P7M1"
+      ]
+    },
+    {
+      "id": "P7M3",
+      "title": "Implement independent review with actual material",
+      "prerequisites": [
+        "P7M2",
+        "P4M2"
+      ]
+    },
+    {
+      "id": "P7M4",
+      "title": "Execute corrective configuration on a held validation candidate",
+      "prerequisites": [
+        "P7M3",
+        "P1M4",
+        "P4M1",
+        "P2M0",
+        "P2M3"
+      ]
+    },
+    {
+      "id": "P7M5",
+      "title": "Issue and invalidate completion certificates",
+      "prerequisites": [
+        "P7M4",
+        "P1M1",
+        "P1M6"
+      ]
+    },
+    {
+      "id": "P7M6",
+      "title": "Renew requirement coverage on a current cumulative candidate",
+      "prerequisites": [
+        "P7M5",
+        "P7M4",
+        "P5M2",
+        "P6M4"
+      ]
+    },
+    {
+      "id": "P8M0",
+      "title": "Create verified atomic task commits",
+      "prerequisites": [
+        "P7M5",
+        "P5M2",
+        "P2M0"
+      ]
+    },
+    {
+      "id": "P8M1",
+      "title": "Publish local results and export for user integration",
+      "prerequisites": [
+        "P8M0",
+        "P3M2"
+      ]
+    },
+    {
+      "id": "P8M2",
+      "title": "Reconcile Git effects and bounded rollback (Gate C)",
+      "prerequisites": [
+        "P8M1",
+        "P2M3"
+      ]
+    },
+    {
+      "id": "P9M0",
+      "title": "Schedule cumulative renewal and admit bounded repair work",
+      "prerequisites": [
+        "P8M2",
+        "P7M6",
+        "P6M4",
+        "P3M0",
+        "P1M1"
+      ]
+    },
+    {
+      "id": "P9M1",
+      "title": "Implement eligibility, task packets and dispatch leases",
+      "prerequisites": [
+        "P9M0",
+        "P8M2",
+        "P6M4",
+        "P3M0",
+        "P7M0"
+      ]
+    },
+    {
+      "id": "P9M2",
+      "title": "Compose one task through validation and settlement",
+      "prerequisites": [
+        "P9M1",
+        "P4M2",
+        "P7M5",
+        "P8M2",
+        "P3M2"
+      ]
+    },
+    {
+      "id": "P9M3",
+      "title": "Implement evidence-driven retry and exhaustion",
+      "prerequisites": [
+        "P9M2"
+      ]
+    },
+    {
+      "id": "P9M4",
+      "title": "Compose pause, cancel and trust revocation with settlement safety",
+      "prerequisites": [
+        "P9M3",
+        "P8M2",
+        "P2M3"
+      ]
+    },
+    {
+      "id": "P9M5",
+      "title": "Apply quiesced mutations and dependency repair",
+      "prerequisites": [
+        "P9M4",
+        "P6M4",
+        "P9M0"
+      ]
+    },
+    {
+      "id": "P9M6",
+      "title": "Compose ordinary settings boundaries and held-role correction",
+      "prerequisites": [
+        "P9M5",
+        "P1M4",
+        "P7M4",
+        "P7M5"
+      ]
+    },
+    {
+      "id": "P9M7",
+      "title": "Compose phase/project completion and execution modes",
+      "prerequisites": [
+        "P9M6",
+        "P9M0",
+        "P7M6",
+        "P1M3"
+      ]
+    },
+    {
+      "id": "P9M8",
+      "title": "Create and qualify reopened execution revisions",
+      "prerequisites": [
+        "P9M7",
+        "P6M4",
+        "P8M2",
+        "P5M0",
+        "P1M2"
+      ]
+    },
+    {
+      "id": "P10M0",
+      "title": "Implement role-specific usage waiting and auto-resume",
+      "prerequisites": [
+        "P9M7",
+        "P4M1"
+      ]
+    },
+    {
+      "id": "P10M1",
+      "title": "Compose startup recovery and safe resume",
+      "prerequisites": [
+        "P10M0",
+        "P8M2",
+        "P9M8",
+        "P3M0"
+      ]
+    },
+    {
+      "id": "P10M2",
+      "title": "Implement macOS keep-awake policy",
+      "prerequisites": [
+        "P10M1",
+        "P1M4"
+      ]
+    },
+    {
+      "id": "P10M3",
+      "title": "Implement bounded diagnostics and safe maintenance commands",
+      "prerequisites": [
+        "P10M2",
+        "P1M6",
+        "P3M2"
+      ]
+    },
+    {
+      "id": "P10M4",
+      "title": "Implement lifecycle sponsorship, background settings and Quit",
+      "prerequisites": [
+        "P10M3",
+        "P9M4",
+        "P9M8",
+        "P1M4",
+        "P3M1"
+      ]
+    },
+    {
+      "id": "P11M0",
+      "title": "Implement Master steering and deferred controls",
+      "prerequisites": [
+        "P10M4",
+        "P6M4",
+        "P4M1"
+      ]
+    },
+    {
+      "id": "P11M1",
+      "title": "Implement factual summaries and drillable queries",
+      "prerequisites": [
+        "P11M0",
+        "P1M3",
+        "P9M7"
+      ]
+    },
+    {
+      "id": "P11M2",
+      "title": "Prove a live project through normal commands",
+      "prerequisites": [
+        "P11M1",
+        "P9M7",
+        "P10M1"
+      ]
+    },
+    {
+      "id": "P11M3",
+      "title": "Prove headless failures and multiple-client concurrency",
+      "prerequisites": [
+        "P11M2"
+      ]
+    },
+    {
+      "id": "P11M4",
+      "title": "Audit the complete H Core catalog and freeze integration contract (Gate D)",
+      "prerequisites": [
+        "P11M3",
+        "P11M1",
+        "P10M4",
+        "P9M8",
+        "P3M2"
+      ]
+    },
+    {
+      "id": "P12M0",
+      "title": "Establish pinned downstream provenance and reproducible build",
+      "prerequisites": [
+        "P11M4"
+      ]
+    },
+    {
+      "id": "P12M1",
+      "title": "Establish app identity and bundled runtime/CLI",
+      "prerequisites": [
+        "P12M0",
+        "P10M3"
+      ]
+    },
+    {
+      "id": "P12M2",
+      "title": "Activate the built-in secure Core client",
+      "prerequisites": [
+        "P12M1",
+        "P11M4"
+      ]
+    },
+    {
+      "id": "P12M3",
+      "title": "Build secure navigation and custom-surface foundation",
+      "prerequisites": [
+        "P12M2"
+      ]
+    },
+    {
+      "id": "P13M0",
+      "title": "Implement onboarding, Home and project entry",
+      "prerequisites": [
+        "P12M3",
+        "P6M1",
+        "P5M0",
+        "P11M4"
+      ]
+    },
+    {
+      "id": "P13M1",
+      "title": "Implement Roadmap inspection and controlled edits",
+      "prerequisites": [
+        "P13M0",
+        "P6M3",
+        "P11M1"
+      ]
+    },
+    {
+      "id": "P13M2",
+      "title": "Implement drillable Dashboard",
+      "prerequisites": [
+        "P13M1",
+        "P11M1"
+      ]
+    },
+    {
+      "id": "P13M3",
+      "title": "Implement Master steering UI",
+      "prerequisites": [
+        "P13M2",
+        "P11M0"
+      ]
+    },
+    {
+      "id": "P13M4",
+      "title": "Implement phase reports and result handoff",
+      "prerequisites": [
+        "P13M3",
+        "P9M7",
+        "P8M1"
+      ]
+    },
+    {
+      "id": "P13M5",
+      "title": "Implement settings and current-role correction UI",
+      "prerequisites": [
+        "P13M4",
+        "P9M6",
+        "P10M4"
+      ]
+    },
+    {
+      "id": "P13M6",
+      "title": "Implement waiting and interrupted-execution recovery UI",
+      "prerequisites": [
+        "P13M5",
+        "P10M1",
+        "P9M4",
+        "P9M8"
+      ]
+    },
+    {
+      "id": "P13M7",
+      "title": "Implement project identity and relink recovery UI",
+      "prerequisites": [
+        "P13M6",
+        "P1M2",
+        "P5M0",
+        "P10M1"
+      ]
+    },
+    {
+      "id": "P13M8",
+      "title": "Implement portable-file conflict and projection repair UI",
+      "prerequisites": [
+        "P13M7",
+        "P1M3",
+        "P6M3"
+      ]
+    },
+    {
+      "id": "P13M9",
+      "title": "Implement diagnostics inspection and bounded maintenance UI",
+      "prerequisites": [
+        "P13M8",
+        "P10M3",
+        "P1M6",
+        "P12M1"
+      ]
+    },
+    {
+      "id": "P13M10",
+      "title": "Audit real IDE composition and editor behavior (Gate E)",
+      "prerequisites": [
+        "P13M0",
+        "P13M1",
+        "P13M2",
+        "P13M3",
+        "P13M4",
+        "P13M5",
+        "P13M6",
+        "P13M7",
+        "P13M8",
+        "P13M9"
+      ]
+    },
+    {
+      "id": "P14M0",
+      "title": "Integrate Open VSX and extension provenance",
+      "prerequisites": [
+        "P13M10"
+      ]
+    },
+    {
+      "id": "P14M1",
+      "title": "Implement optional diagnostics boundary",
+      "prerequisites": [
+        "P14M0",
+        "P10M3",
+        "P13M9"
+      ]
+    },
+    {
+      "id": "P14M2",
+      "title": "Establish release-blocking reliability and budget matrix",
+      "prerequisites": [
+        "P14M1",
+        "P13M10"
+      ]
+    },
+    {
+      "id": "P14M3",
+      "title": "Run prepackaging soak and fault audit (Gate F)",
+      "prerequisites": [
+        "P14M2"
+      ]
+    },
+    {
+      "id": "P15M0",
+      "title": "Define version compatibility and upgrade journal",
+      "prerequisites": [
+        "P14M3",
+        "P1M0",
+        "P3M0"
+      ]
+    },
+    {
+      "id": "P15M1",
+      "title": "Implement Sparkle authentication and update controls",
+      "prerequisites": [
+        "P15M0",
+        "P12M1",
+        "P14M1"
+      ]
+    },
+    {
+      "id": "P15M2",
+      "title": "Implement quiescent app/Core/schema upgrade",
+      "prerequisites": [
+        "P15M1",
+        "P10M1",
+        "P10M2"
+      ]
+    },
+    {
+      "id": "P15M3",
+      "title": "Implement and prove migration rescue",
+      "prerequisites": [
+        "P15M2"
+      ]
+    },
+    {
+      "id": "P15M4",
+      "title": "Rehearse update operations and audit upgrade safety (Gate G)",
+      "prerequisites": [
+        "P15M3",
+        "P14M2"
+      ]
+    },
+    {
+      "id": "P16M0",
+      "title": "Build reproducible release candidates and compliance inventory",
+      "prerequisites": [
+        "P15M4",
+        "P12M0",
+        "P14M0"
+      ]
+    },
+    {
+      "id": "P16M1",
+      "title": "Sign, notarize and stage immutable artifacts",
+      "prerequisites": [
+        "P16M0",
+        "P15M1"
+      ]
+    },
+    {
+      "id": "P16M2",
+      "title": "Verify clean-machine packaged product and supported rows",
+      "prerequisites": [
+        "P16M1",
+        "P13M10"
+      ]
+    },
+    {
+      "id": "P16M3",
+      "title": "Verify actual staged update and packaged soak",
+      "prerequisites": [
+        "P16M2",
+        "P15M4"
+      ]
+    },
+    {
+      "id": "P16M4",
+      "title": "Audit the exact release candidate (Gate H)",
+      "prerequisites": [
+        "P16M3",
+        "P14M2",
+        "P16M0"
+      ]
+    },
+    {
+      "id": "P16M5",
+      "title": "Promote the approved candidate and verify publication",
+      "prerequisites": [
+        "P16M4"
+      ]
+    }
+  ],
+  "ownership": [
+    [
+      "Core authority/editor independence; roadmap opening/R0/R7",
+      "P0M0–P1M1, P3M0–P3M1",
+      "P1M7, P11M4, P12M2, P16M2"
+    ],
+    [
+      "C01 authorization: roles/process/filesystem/Git/network/env/credentials/approval/revocation/enforcement refusal; R2; AGENTS §5 (implementation security procedure)",
+      "R2; P0M3, P2M0–P2M3, P4M0–P4M2",
+      "P9M4, P11M3, P13M10, P16M2–P16M4"
+    ],
+    [
+      "C02 criterion/attempt/spec/content/diff/trusted evidence/invalidation/commit binding; R3/R7; AGENTS §6 (verification procedure)",
+      "R3/R7; P0M4, P5M2, P7M0–P7M5, P8M0",
+      "P9M2/P9M7, P11M2–P11M4, P16M4"
+    ],
+    [
+      "C03 human/worker ownership, local publication/no-change/ambiguous effects/rollback; R3/R3a; AGENTS §5 (user-work preservation procedure)",
+      "R3; P5M0–P5M2, P8M0–P8M2",
+      "P9M2, P10M1, P11M3, P13M4, P16M3"
+    ],
+    [
+      "M01 v2 applicability/legacy refusal",
+      "Authority section; P0M0, P1M0/P1M2",
+      "P1M7, P11M4, P16M4"
+    ],
+    [
+      "M02 lifecycle, precedence, four attempts, final phase, supersession/reopen",
+      "R1; P0M2, P1M1, P9M1–P9M7",
+      "P11M2–P11M3, P13M4/P13M10, P16M4"
+    ],
+    [
+      "M03 dependency closure and staged replacement",
+      "Phase architecture/R9; every prerequisite field",
+      "P0M0 ledger; each milestone preflight; P11M4, P16M4"
+    ],
+    [
+      "M04 runtime role/model/provider/context/failure behavior",
+      "R4; P0M3, P4M0–P4M2, P10M0",
+      "P6M1, P7M3, P11M0/P11M2, P16M2"
+    ],
+    [
+      "M05 schedulability/traceability/split/supersession/mutation reconciliation",
+      "R5; P0M2, P6M0–P6M3",
+      "P9M0/P9M1/P9M5/P9M7/P9M8, P11M3, P13M1"
+    ],
+    [
+      "M06 identity/idempotent creation/projection/conflict/repair/copy/move",
+      "R0/R5; P1M2–P1M3, P5M0, P6M3",
+      "P10M1, P11M3, P13M0/P13M7/P13M8, P16M2"
+    ],
+    [
+      "M07 singleton/commands/multi-client/replay/stale callbacks/active cancellation",
+      "R0/R1; P1M1, P2M3, P3M0–P3M2",
+      "P9M4, P11M3–P11M4, P12M2, P13M10"
+    ],
+    [
+      "M08 normal production routes/current candidate evidence",
+      "R7/R9; P0M0, P3M1–P3M2, P9M2",
+      "P11M2–P11M4, P13M10, P14M2, P16M2–P16M4"
+    ],
+    [
+      "M09 new/adopt/non-Git/dirty/drafts/settings/invalid config/validation unavailable",
+      "R3/R5; P1M2/P1M4, P5M0, P6M0–P6M1, P7M0",
+      "P9M1/P9M6/P10M4, P11M4, P13M0/P13M5"
+    ],
+    [
+      "D01 diagnostic retention/inspectability versus “full” capture",
+      "R6; P1M6, P2M1–P2M2, P10M3",
+      "P11M3, P13M9, P14M1/P14M3, P16M4"
+    ],
+    [
+      "D02 development model preflight",
+      "Execution instructions; every milestone preflight",
+      "P0M0 ledger; all implementation handoffs; MODEL_POLICY unchanged"
+    ],
+    [
+      "D03 navigation versus Home cross-reference",
+      "P12M3 owns navigation; P13M0 owns Home",
+      "P13M10 actual activation tests; old contradictory references removed"
+    ],
+    [
+      "D04 reset README artifact references and overbroad promises",
+      "P0M0 future baseline documentation reconciliation; P12M0 notices, P16M4 release docs",
+      "P0M0 link check; P16M4 candidate documentation audit. README remains unchanged in this reconstruction."
+    ],
+    [
+      "README automatic continuation and Mac availability; R4/R5; P10M0/P10M2",
+      "R4/R5; P10M0/P10M2",
+      "P11M3, P13M5, P16M3; opt-in and power limits made explicit"
+    ],
+    [
+      "Master/constraints/audited decisions; R4/R5; P1M5/P6M3/P11M0–P11M1",
+      "P1M5, P6M3, P11M0–P11M1",
+      "P11M2/P11M4, P13M3/P13M10"
+    ],
+    [
+      "Four surfaces, drilldowns, familiar editor, taste-skill; roadmap opening/P12/P13; AGENTS §3 (UI/UX implementation procedure)",
+      "P12M0–P13M9",
+      "P13M10, P16M2"
+    ],
+    [
+      "Open VSX, pinned dependencies/licenses, no cloud infrastructure; roadmap exclusions/R8/P14M0; AGENTS §3 (dependency and fork implementation procedure)",
+      "P0M0, P12M0, P14M0, P16M0",
+      "P14M0, P16M4"
+    ],
+    [
+      "Append-only privacy-conscious events, bounded streams/cancel/cleanup; R0/R2/R6; P1M1/P1M3/P1M6/P2M1–P2M3/P10M3",
+      "P1M1/P1M3/P1M6, P2M1–P2M3, P10M3",
+      "P11M3, P14M1/P14M3, P16M3"
+    ],
+    [
+      "Task-aware/phase independent review, errors, tests, acceptance evidence; R1/R3/R7; AGENTS §§6–7,9 (verification, independent review and completion reporting)",
+      "R1/R3/R7; P0M0–P0M4, P7, P9",
+      "All milestone verification; P11M4, P13M10, P16M4"
+    ],
+    [
+      "Public CLI, self-contained runtime, safe cleanup, secure signed updates",
+      "R8; P12M1, P15M0–P15M4",
+      "P16M1–P16M5"
+    ]
+  ],
+  "staged": [
+    [
+      "P0 contracts/pure tables",
+      "Schemas/reducers only; no durable runtime or live process claim",
+      "P1M1 transactional state proof; P2M3 containment; P4M2 live adapter proof"
+    ],
+    [
+      "P1M2–P1M4 identity/projection/settings before execution",
+      "Durable bindings, exports and effective values; no Git eligibility, imported-plan application or active-run control claim",
+      "P5M0 Git preflight, P6M3 semantic import, P9M4 revocation, P9M5 mutations and P9M6 real active/corrective settings tests"
+    ],
+    [
+      "P3 protocol/CLI before all services",
+      "Supported implemented commands work; later commands return FEATURE_UNAVAILABLE",
+      "P11M4 R9a H-only catalog audit rejects all H placeholders; U is separately reserved/versioned by P15M0 and completed at P15M4"
+    ],
+    [
+      "P3M0–P10M0 startup recovery barrier",
+      "Restart durably preserves commands/counters/timers and blocks dispatch on unresolved runs; no automatic recovery/resume claim",
+      "P10M1 registers complete reconcilers and proves normal restart → reconcile → safe continuation; P11M3 repeats crashes through full composition"
+    ],
+    [
+      "P4 adapter fixtures",
+      "Deterministic provider branches; no user lifecycle proof",
+      "P11M2 actual normal-command live project, P11M3 simulated fault matrix"
+    ],
+    [
+      "P6M2–P6M3 semantic plans before execution",
+      "Declared validation recipes and durable quiescence requests; no proof of installed validator feasibility or interrupting active work",
+      "P7M0 concrete validation plans, P9M1 dispatch feasibility and P9M5 active mutation integration tests"
+    ],
+    [
+      "P1M6 evidence-retention obligations",
+      "Safe pins/refusal and durable invalidation obligations; no certificate subsystem yet",
+      "P7M5 consumes obligations transactionally; P10M3 verifies real deletion/current-claim invalidation"
+    ],
+    [
+      "P6M4 repair materialization",
+      "Typed obligation to schedulable approved graph; no runtime regression source yet",
+      "P7M6 emits genuine failed-evidence obligations; P9M0 admits them and P9M7 verifies full repair/phase progress"
+    ],
+    [
+      "P7M4 corrective-role service",
+      "Real same-candidate runners, snapshot/grant fencing and invalidation obligations; no completion certificate/scheduler claim",
+      "P7M5 consumes obligations; P9M6 normal command → correction → new evidence, no worker rerun"
+    ],
+    [
+      "P7M6/P9M0 renewal service/queue",
+      "Real current-content validation and readiness/admission; no implementation dispatch or phase completion",
+      "P9M2 worker/validation-only composition and P9M7 A/B/C and historical-phase repair; P11M3 full route/restart proof"
+    ],
+    [
+      "P7 validation/P8 Git services",
+      "Actual local component evidence; no autonomous continuation claim",
+      "P9M2–P9M7 normal start/control production composition"
+    ],
+    [
+      "P12–P14 development app tests",
+      "Real launched development app; no signing/update/public support claim",
+      "P16M2–P16M4 exact signed app, update and platform evidence"
+    ],
+    [
+      "P14M2 reliability catalog",
+      "Pre-update service/app matrix; updater and packaged rows explicitly pending",
+      "P15M4 fills update/rescue rows and P16M4 rejects any required pending row"
+    ],
+    [
+      "P15M0–P15M2 upgrade stages before rescue",
+      "Version guards and happy-path upgrade with preserved backup; no automatic rescue claim",
+      "P15M3 proves actual restoration after failed new-Core health, P15M4 audits the assembled coordinator"
+    ],
+    [
+      "U update partition reserved before P15",
+      "H catalog complete; U explicitly unsupported, no assumed operation payloads",
+      "P15M0 versioned U catalog, P15M4 U route completeness, P16M3 packaged update proof"
+    ],
+    [
+      "P15 controlled update feed/fixtures",
+      "Real security/upgrade mechanisms with test distribution; no public host claim",
+      "P16M3 staged operations and P16M5 exact public artifact/feed verification"
+    ]
+  ],
+  "observations": [],
+  "impactAssessments": [
+    {
+      "id": "P0M0-IMPACT-INITIAL",
+      "milestone": "P0M0",
+      "stage": "before implementation evidence reuse",
+      "changes": [
+        "New root toolchain and four source boundaries",
+        "README baseline and conditional behavior corrections",
+        "Development traceability, architecture/link checks and R7a process"
+      ],
+      "dependencyEdges": [
+        {
+          "from": "P0M0",
+          "to": "P0M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P0M1",
+          "to": "P0M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P0M1",
+          "to": "P0M3",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P0M2",
+          "to": "P0M3",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P0M1",
+          "to": "P0M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P0M2",
+          "to": "P0M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P0M3",
+          "to": "P0M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P0M4",
+          "to": "P1M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M0",
+          "to": "P1M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P0M2",
+          "to": "P1M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M1",
+          "to": "P1M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M1",
+          "to": "P1M3",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M2",
+          "to": "P1M3",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M1",
+          "to": "P1M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M3",
+          "to": "P1M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P0M3",
+          "to": "P1M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P0M4",
+          "to": "P1M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M4",
+          "to": "P1M5",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M1",
+          "to": "P1M5",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M5",
+          "to": "P1M6",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M3",
+          "to": "P1M6",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M0",
+          "to": "P1M6",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M0",
+          "to": "P1M7",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M1",
+          "to": "P1M7",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M2",
+          "to": "P1M7",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M3",
+          "to": "P1M7",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M4",
+          "to": "P1M7",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M5",
+          "to": "P1M7",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M6",
+          "to": "P1M7",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M7",
+          "to": "P2M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P0M3",
+          "to": "P2M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P2M0",
+          "to": "P2M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P2M0",
+          "to": "P2M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P2M1",
+          "to": "P2M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P2M2",
+          "to": "P2M3",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M1",
+          "to": "P2M3",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P2M3",
+          "to": "P3M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M7",
+          "to": "P3M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P3M0",
+          "to": "P3M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M3",
+          "to": "P3M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P2M0",
+          "to": "P3M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P3M1",
+          "to": "P3M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P3M2",
+          "to": "P4M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P2M3",
+          "to": "P4M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P4M0",
+          "to": "P4M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M4",
+          "to": "P4M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P4M1",
+          "to": "P4M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P2M3",
+          "to": "P4M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P4M2",
+          "to": "P5M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M2",
+          "to": "P5M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P2M0",
+          "to": "P5M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P5M0",
+          "to": "P5M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P2M2",
+          "to": "P5M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M1",
+          "to": "P5M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P5M1",
+          "to": "P5M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P2M3",
+          "to": "P5M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P0M4",
+          "to": "P5M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P5M0",
+          "to": "P6M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M5",
+          "to": "P6M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P4M1",
+          "to": "P6M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P6M0",
+          "to": "P6M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P4M1",
+          "to": "P6M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M3",
+          "to": "P6M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P6M1",
+          "to": "P6M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P0M2",
+          "to": "P6M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P0M4",
+          "to": "P6M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P6M2",
+          "to": "P6M3",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P2M0",
+          "to": "P6M3",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M3",
+          "to": "P6M3",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M5",
+          "to": "P6M3",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P6M3",
+          "to": "P6M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M5",
+          "to": "P6M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P0M4",
+          "to": "P6M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P6M3",
+          "to": "P7M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P5M2",
+          "to": "P7M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P2M2",
+          "to": "P7M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P7M0",
+          "to": "P7M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P2M3",
+          "to": "P7M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P7M1",
+          "to": "P7M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P7M2",
+          "to": "P7M3",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P4M2",
+          "to": "P7M3",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P7M3",
+          "to": "P7M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M4",
+          "to": "P7M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P4M1",
+          "to": "P7M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P2M0",
+          "to": "P7M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P2M3",
+          "to": "P7M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P7M4",
+          "to": "P7M5",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M1",
+          "to": "P7M5",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M6",
+          "to": "P7M5",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P7M5",
+          "to": "P7M6",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P7M4",
+          "to": "P7M6",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P5M2",
+          "to": "P7M6",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P6M4",
+          "to": "P7M6",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P7M5",
+          "to": "P8M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P5M2",
+          "to": "P8M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P2M0",
+          "to": "P8M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P8M0",
+          "to": "P8M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P3M2",
+          "to": "P8M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P8M1",
+          "to": "P8M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P2M3",
+          "to": "P8M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P8M2",
+          "to": "P9M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P7M6",
+          "to": "P9M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P6M4",
+          "to": "P9M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P3M0",
+          "to": "P9M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M1",
+          "to": "P9M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P9M0",
+          "to": "P9M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P8M2",
+          "to": "P9M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P6M4",
+          "to": "P9M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P3M0",
+          "to": "P9M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P7M0",
+          "to": "P9M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P9M1",
+          "to": "P9M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P4M2",
+          "to": "P9M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P7M5",
+          "to": "P9M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P8M2",
+          "to": "P9M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P3M2",
+          "to": "P9M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P9M2",
+          "to": "P9M3",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P9M3",
+          "to": "P9M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P8M2",
+          "to": "P9M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P2M3",
+          "to": "P9M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P9M4",
+          "to": "P9M5",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P6M4",
+          "to": "P9M5",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P9M0",
+          "to": "P9M5",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P9M5",
+          "to": "P9M6",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M4",
+          "to": "P9M6",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P7M4",
+          "to": "P9M6",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P7M5",
+          "to": "P9M6",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P9M6",
+          "to": "P9M7",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P9M0",
+          "to": "P9M7",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P7M6",
+          "to": "P9M7",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M3",
+          "to": "P9M7",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P9M7",
+          "to": "P9M8",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P6M4",
+          "to": "P9M8",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P8M2",
+          "to": "P9M8",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P5M0",
+          "to": "P9M8",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M2",
+          "to": "P9M8",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P9M7",
+          "to": "P10M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P4M1",
+          "to": "P10M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P10M0",
+          "to": "P10M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P8M2",
+          "to": "P10M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P9M8",
+          "to": "P10M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P3M0",
+          "to": "P10M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P10M1",
+          "to": "P10M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M4",
+          "to": "P10M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P10M2",
+          "to": "P10M3",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M6",
+          "to": "P10M3",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P3M2",
+          "to": "P10M3",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P10M3",
+          "to": "P10M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P9M4",
+          "to": "P10M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P9M8",
+          "to": "P10M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M4",
+          "to": "P10M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P3M1",
+          "to": "P10M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P10M4",
+          "to": "P11M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P6M4",
+          "to": "P11M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P4M1",
+          "to": "P11M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P11M0",
+          "to": "P11M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M3",
+          "to": "P11M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P9M7",
+          "to": "P11M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P11M1",
+          "to": "P11M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P9M7",
+          "to": "P11M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P10M1",
+          "to": "P11M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P11M2",
+          "to": "P11M3",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P11M3",
+          "to": "P11M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P11M1",
+          "to": "P11M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P10M4",
+          "to": "P11M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P9M8",
+          "to": "P11M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P3M2",
+          "to": "P11M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P11M4",
+          "to": "P12M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P12M0",
+          "to": "P12M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P10M3",
+          "to": "P12M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P12M1",
+          "to": "P12M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P11M4",
+          "to": "P12M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P12M2",
+          "to": "P12M3",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P12M3",
+          "to": "P13M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P6M1",
+          "to": "P13M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P5M0",
+          "to": "P13M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P11M4",
+          "to": "P13M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P13M0",
+          "to": "P13M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P6M3",
+          "to": "P13M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P11M1",
+          "to": "P13M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P13M1",
+          "to": "P13M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P11M1",
+          "to": "P13M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P13M2",
+          "to": "P13M3",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P11M0",
+          "to": "P13M3",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P13M3",
+          "to": "P13M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P9M7",
+          "to": "P13M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P8M1",
+          "to": "P13M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P13M4",
+          "to": "P13M5",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P9M6",
+          "to": "P13M5",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P10M4",
+          "to": "P13M5",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P13M5",
+          "to": "P13M6",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P10M1",
+          "to": "P13M6",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P9M4",
+          "to": "P13M6",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P9M8",
+          "to": "P13M6",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P13M6",
+          "to": "P13M7",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M2",
+          "to": "P13M7",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P5M0",
+          "to": "P13M7",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P10M1",
+          "to": "P13M7",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P13M7",
+          "to": "P13M8",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M3",
+          "to": "P13M8",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P6M3",
+          "to": "P13M8",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P13M8",
+          "to": "P13M9",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P10M3",
+          "to": "P13M9",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M6",
+          "to": "P13M9",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P12M1",
+          "to": "P13M9",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P13M0",
+          "to": "P13M10",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P13M1",
+          "to": "P13M10",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P13M2",
+          "to": "P13M10",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P13M3",
+          "to": "P13M10",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P13M4",
+          "to": "P13M10",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P13M5",
+          "to": "P13M10",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P13M6",
+          "to": "P13M10",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P13M7",
+          "to": "P13M10",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P13M8",
+          "to": "P13M10",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P13M9",
+          "to": "P13M10",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P13M10",
+          "to": "P14M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P14M0",
+          "to": "P14M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P10M3",
+          "to": "P14M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P13M9",
+          "to": "P14M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P14M1",
+          "to": "P14M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P13M10",
+          "to": "P14M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P14M2",
+          "to": "P14M3",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P14M3",
+          "to": "P15M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M0",
+          "to": "P15M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P3M0",
+          "to": "P15M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P15M0",
+          "to": "P15M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P12M1",
+          "to": "P15M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P14M1",
+          "to": "P15M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P15M1",
+          "to": "P15M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P10M1",
+          "to": "P15M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P10M2",
+          "to": "P15M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P15M2",
+          "to": "P15M3",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P15M3",
+          "to": "P15M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P14M2",
+          "to": "P15M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P15M4",
+          "to": "P16M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P12M0",
+          "to": "P16M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P14M0",
+          "to": "P16M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P16M0",
+          "to": "P16M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P15M1",
+          "to": "P16M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P16M1",
+          "to": "P16M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P13M10",
+          "to": "P16M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P16M2",
+          "to": "P16M3",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P15M4",
+          "to": "P16M3",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P16M3",
+          "to": "P16M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P14M2",
+          "to": "P16M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P16M0",
+          "to": "P16M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P16M4",
+          "to": "P16M5",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        }
+      ],
+      "transitiveAffectedMilestones": [
+        "P0M0",
+        "P0M1",
+        "P0M2",
+        "P0M3",
+        "P0M4",
+        "P1M0",
+        "P1M1",
+        "P1M2",
+        "P1M3",
+        "P1M4",
+        "P1M5",
+        "P1M6",
+        "P1M7",
+        "P2M0",
+        "P2M1",
+        "P2M2",
+        "P2M3",
+        "P3M0",
+        "P3M1",
+        "P3M2",
+        "P4M0",
+        "P4M1",
+        "P4M2",
+        "P5M0",
+        "P5M1",
+        "P5M2",
+        "P6M0",
+        "P6M1",
+        "P6M2",
+        "P6M3",
+        "P6M4",
+        "P7M0",
+        "P7M1",
+        "P7M2",
+        "P7M3",
+        "P7M4",
+        "P7M5",
+        "P7M6",
+        "P8M0",
+        "P8M1",
+        "P8M2",
+        "P9M0",
+        "P9M1",
+        "P9M2",
+        "P9M3",
+        "P9M4",
+        "P9M5",
+        "P9M6",
+        "P9M7",
+        "P9M8",
+        "P10M0",
+        "P10M1",
+        "P10M2",
+        "P10M3",
+        "P10M4",
+        "P11M0",
+        "P11M1",
+        "P11M2",
+        "P11M3",
+        "P11M4",
+        "P12M0",
+        "P12M1",
+        "P12M2",
+        "P12M3",
+        "P13M0",
+        "P13M1",
+        "P13M2",
+        "P13M3",
+        "P13M4",
+        "P13M5",
+        "P13M6",
+        "P13M7",
+        "P13M8",
+        "P13M9",
+        "P13M10",
+        "P14M0",
+        "P14M1",
+        "P14M2",
+        "P14M3",
+        "P15M0",
+        "P15M1",
+        "P15M2",
+        "P15M3",
+        "P15M4",
+        "P16M0",
+        "P16M1",
+        "P16M2",
+        "P16M3",
+        "P16M4",
+        "P16M5"
+      ],
+      "behaviorEdges": [
+        {
+          "from": "toolchain / dependency checks",
+          "to": "all future source and build evidence",
+          "reason": "All producer/consumer packages depend on the root configuration."
+        },
+        {
+          "from": "README / document-link check",
+          "to": "D04 / P16M4 documentation audit",
+          "reason": "Baseline artifact existence and claims are release-documentation inputs."
+        },
+        {
+          "from": "ledger / R7a process",
+          "to": "all milestones / P11M4 / P16M4",
+          "reason": "Evidence freshness is a required acceptance input."
+        }
+      ],
+      "noImpact": [
+        "No runtime source exists; no persistence, lifecycle, permission, provider or IDE behavior is changed.",
+        "Existing website, assets, audit prompts and authoritative documents are preserved. No prior v2 PASS evidence is reused."
+      ],
+      "staleEvidence": [],
+      "replacementEvidence": [],
+      "pendingGates": [
+        "A:P1M7",
+        "B:P4M2",
+        "C:P8M2",
+        "D:P11M4",
+        "E:P13M10",
+        "F:P14M3",
+        "G:P15M4",
+        "H:P16M4",
+        "publication:P16M5"
+      ]
+    },
+    {
+      "id": "P0M0-IMPACT-FINAL",
+      "milestone": "P0M0",
+      "stage": "final implementation diff; before acceptance verification",
+      "changes": [
+        "New root toolchain and four source boundaries",
+        "README baseline and conditional behavior corrections",
+        "Development traceability, architecture/link checks and R7a process"
+      ],
+      "dependencyEdges": [
+        {
+          "from": "P0M0",
+          "to": "P0M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P0M1",
+          "to": "P0M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P0M1",
+          "to": "P0M3",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P0M2",
+          "to": "P0M3",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P0M1",
+          "to": "P0M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P0M2",
+          "to": "P0M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P0M3",
+          "to": "P0M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P0M4",
+          "to": "P1M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M0",
+          "to": "P1M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P0M2",
+          "to": "P1M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M1",
+          "to": "P1M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M1",
+          "to": "P1M3",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M2",
+          "to": "P1M3",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M1",
+          "to": "P1M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M3",
+          "to": "P1M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P0M3",
+          "to": "P1M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P0M4",
+          "to": "P1M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M4",
+          "to": "P1M5",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M1",
+          "to": "P1M5",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M5",
+          "to": "P1M6",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M3",
+          "to": "P1M6",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M0",
+          "to": "P1M6",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M0",
+          "to": "P1M7",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M1",
+          "to": "P1M7",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M2",
+          "to": "P1M7",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M3",
+          "to": "P1M7",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M4",
+          "to": "P1M7",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M5",
+          "to": "P1M7",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M6",
+          "to": "P1M7",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M7",
+          "to": "P2M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P0M3",
+          "to": "P2M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P2M0",
+          "to": "P2M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P2M0",
+          "to": "P2M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P2M1",
+          "to": "P2M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P2M2",
+          "to": "P2M3",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M1",
+          "to": "P2M3",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P2M3",
+          "to": "P3M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M7",
+          "to": "P3M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P3M0",
+          "to": "P3M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M3",
+          "to": "P3M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P2M0",
+          "to": "P3M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P3M1",
+          "to": "P3M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P3M2",
+          "to": "P4M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P2M3",
+          "to": "P4M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P4M0",
+          "to": "P4M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M4",
+          "to": "P4M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P4M1",
+          "to": "P4M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P2M3",
+          "to": "P4M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P4M2",
+          "to": "P5M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M2",
+          "to": "P5M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P2M0",
+          "to": "P5M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P5M0",
+          "to": "P5M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P2M2",
+          "to": "P5M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M1",
+          "to": "P5M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P5M1",
+          "to": "P5M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P2M3",
+          "to": "P5M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P0M4",
+          "to": "P5M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P5M0",
+          "to": "P6M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M5",
+          "to": "P6M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P4M1",
+          "to": "P6M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P6M0",
+          "to": "P6M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P4M1",
+          "to": "P6M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M3",
+          "to": "P6M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P6M1",
+          "to": "P6M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P0M2",
+          "to": "P6M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P0M4",
+          "to": "P6M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P6M2",
+          "to": "P6M3",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P2M0",
+          "to": "P6M3",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M3",
+          "to": "P6M3",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M5",
+          "to": "P6M3",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P6M3",
+          "to": "P6M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M5",
+          "to": "P6M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P0M4",
+          "to": "P6M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P6M3",
+          "to": "P7M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P5M2",
+          "to": "P7M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P2M2",
+          "to": "P7M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P7M0",
+          "to": "P7M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P2M3",
+          "to": "P7M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P7M1",
+          "to": "P7M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P7M2",
+          "to": "P7M3",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P4M2",
+          "to": "P7M3",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P7M3",
+          "to": "P7M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M4",
+          "to": "P7M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P4M1",
+          "to": "P7M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P2M0",
+          "to": "P7M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P2M3",
+          "to": "P7M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P7M4",
+          "to": "P7M5",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M1",
+          "to": "P7M5",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M6",
+          "to": "P7M5",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P7M5",
+          "to": "P7M6",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P7M4",
+          "to": "P7M6",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P5M2",
+          "to": "P7M6",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P6M4",
+          "to": "P7M6",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P7M5",
+          "to": "P8M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P5M2",
+          "to": "P8M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P2M0",
+          "to": "P8M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P8M0",
+          "to": "P8M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P3M2",
+          "to": "P8M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P8M1",
+          "to": "P8M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P2M3",
+          "to": "P8M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P8M2",
+          "to": "P9M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P7M6",
+          "to": "P9M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P6M4",
+          "to": "P9M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P3M0",
+          "to": "P9M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M1",
+          "to": "P9M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P9M0",
+          "to": "P9M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P8M2",
+          "to": "P9M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P6M4",
+          "to": "P9M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P3M0",
+          "to": "P9M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P7M0",
+          "to": "P9M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P9M1",
+          "to": "P9M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P4M2",
+          "to": "P9M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P7M5",
+          "to": "P9M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P8M2",
+          "to": "P9M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P3M2",
+          "to": "P9M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P9M2",
+          "to": "P9M3",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P9M3",
+          "to": "P9M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P8M2",
+          "to": "P9M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P2M3",
+          "to": "P9M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P9M4",
+          "to": "P9M5",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P6M4",
+          "to": "P9M5",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P9M0",
+          "to": "P9M5",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P9M5",
+          "to": "P9M6",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M4",
+          "to": "P9M6",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P7M4",
+          "to": "P9M6",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P7M5",
+          "to": "P9M6",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P9M6",
+          "to": "P9M7",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P9M0",
+          "to": "P9M7",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P7M6",
+          "to": "P9M7",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M3",
+          "to": "P9M7",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P9M7",
+          "to": "P9M8",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P6M4",
+          "to": "P9M8",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P8M2",
+          "to": "P9M8",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P5M0",
+          "to": "P9M8",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M2",
+          "to": "P9M8",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P9M7",
+          "to": "P10M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P4M1",
+          "to": "P10M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P10M0",
+          "to": "P10M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P8M2",
+          "to": "P10M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P9M8",
+          "to": "P10M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P3M0",
+          "to": "P10M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P10M1",
+          "to": "P10M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M4",
+          "to": "P10M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P10M2",
+          "to": "P10M3",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M6",
+          "to": "P10M3",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P3M2",
+          "to": "P10M3",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P10M3",
+          "to": "P10M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P9M4",
+          "to": "P10M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P9M8",
+          "to": "P10M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M4",
+          "to": "P10M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P3M1",
+          "to": "P10M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P10M4",
+          "to": "P11M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P6M4",
+          "to": "P11M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P4M1",
+          "to": "P11M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P11M0",
+          "to": "P11M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M3",
+          "to": "P11M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P9M7",
+          "to": "P11M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P11M1",
+          "to": "P11M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P9M7",
+          "to": "P11M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P10M1",
+          "to": "P11M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P11M2",
+          "to": "P11M3",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P11M3",
+          "to": "P11M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P11M1",
+          "to": "P11M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P10M4",
+          "to": "P11M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P9M8",
+          "to": "P11M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P3M2",
+          "to": "P11M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P11M4",
+          "to": "P12M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P12M0",
+          "to": "P12M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P10M3",
+          "to": "P12M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P12M1",
+          "to": "P12M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P11M4",
+          "to": "P12M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P12M2",
+          "to": "P12M3",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P12M3",
+          "to": "P13M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P6M1",
+          "to": "P13M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P5M0",
+          "to": "P13M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P11M4",
+          "to": "P13M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P13M0",
+          "to": "P13M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P6M3",
+          "to": "P13M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P11M1",
+          "to": "P13M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P13M1",
+          "to": "P13M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P11M1",
+          "to": "P13M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P13M2",
+          "to": "P13M3",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P11M0",
+          "to": "P13M3",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P13M3",
+          "to": "P13M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P9M7",
+          "to": "P13M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P8M1",
+          "to": "P13M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P13M4",
+          "to": "P13M5",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P9M6",
+          "to": "P13M5",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P10M4",
+          "to": "P13M5",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P13M5",
+          "to": "P13M6",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P10M1",
+          "to": "P13M6",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P9M4",
+          "to": "P13M6",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P9M8",
+          "to": "P13M6",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P13M6",
+          "to": "P13M7",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M2",
+          "to": "P13M7",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P5M0",
+          "to": "P13M7",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P10M1",
+          "to": "P13M7",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P13M7",
+          "to": "P13M8",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M3",
+          "to": "P13M8",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P6M3",
+          "to": "P13M8",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P13M8",
+          "to": "P13M9",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P10M3",
+          "to": "P13M9",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M6",
+          "to": "P13M9",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P12M1",
+          "to": "P13M9",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P13M0",
+          "to": "P13M10",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P13M1",
+          "to": "P13M10",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P13M2",
+          "to": "P13M10",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P13M3",
+          "to": "P13M10",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P13M4",
+          "to": "P13M10",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P13M5",
+          "to": "P13M10",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P13M6",
+          "to": "P13M10",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P13M7",
+          "to": "P13M10",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P13M8",
+          "to": "P13M10",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P13M9",
+          "to": "P13M10",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P13M10",
+          "to": "P14M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P14M0",
+          "to": "P14M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P10M3",
+          "to": "P14M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P13M9",
+          "to": "P14M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P14M1",
+          "to": "P14M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P13M10",
+          "to": "P14M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P14M2",
+          "to": "P14M3",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P14M3",
+          "to": "P15M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P1M0",
+          "to": "P15M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P3M0",
+          "to": "P15M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P15M0",
+          "to": "P15M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P12M1",
+          "to": "P15M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P14M1",
+          "to": "P15M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P15M1",
+          "to": "P15M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P10M1",
+          "to": "P15M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P10M2",
+          "to": "P15M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P15M2",
+          "to": "P15M3",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P15M3",
+          "to": "P15M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P14M2",
+          "to": "P15M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P15M4",
+          "to": "P16M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P12M0",
+          "to": "P16M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P14M0",
+          "to": "P16M0",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P16M0",
+          "to": "P16M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P15M1",
+          "to": "P16M1",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P16M1",
+          "to": "P16M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P13M10",
+          "to": "P16M2",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P16M2",
+          "to": "P16M3",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P15M4",
+          "to": "P16M3",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P16M3",
+          "to": "P16M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P14M2",
+          "to": "P16M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P16M0",
+          "to": "P16M4",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        },
+        {
+          "from": "P16M4",
+          "to": "P16M5",
+          "reason": "Explicit direct prerequisite in MASTER_ROADMAP.md; consumers require current producer evidence."
+        }
+      ],
+      "transitiveAffectedMilestones": [
+        "P0M0",
+        "P0M1",
+        "P0M2",
+        "P0M3",
+        "P0M4",
+        "P1M0",
+        "P1M1",
+        "P1M2",
+        "P1M3",
+        "P1M4",
+        "P1M5",
+        "P1M6",
+        "P1M7",
+        "P2M0",
+        "P2M1",
+        "P2M2",
+        "P2M3",
+        "P3M0",
+        "P3M1",
+        "P3M2",
+        "P4M0",
+        "P4M1",
+        "P4M2",
+        "P5M0",
+        "P5M1",
+        "P5M2",
+        "P6M0",
+        "P6M1",
+        "P6M2",
+        "P6M3",
+        "P6M4",
+        "P7M0",
+        "P7M1",
+        "P7M2",
+        "P7M3",
+        "P7M4",
+        "P7M5",
+        "P7M6",
+        "P8M0",
+        "P8M1",
+        "P8M2",
+        "P9M0",
+        "P9M1",
+        "P9M2",
+        "P9M3",
+        "P9M4",
+        "P9M5",
+        "P9M6",
+        "P9M7",
+        "P9M8",
+        "P10M0",
+        "P10M1",
+        "P10M2",
+        "P10M3",
+        "P10M4",
+        "P11M0",
+        "P11M1",
+        "P11M2",
+        "P11M3",
+        "P11M4",
+        "P12M0",
+        "P12M1",
+        "P12M2",
+        "P12M3",
+        "P13M0",
+        "P13M1",
+        "P13M2",
+        "P13M3",
+        "P13M4",
+        "P13M5",
+        "P13M6",
+        "P13M7",
+        "P13M8",
+        "P13M9",
+        "P13M10",
+        "P14M0",
+        "P14M1",
+        "P14M2",
+        "P14M3",
+        "P15M0",
+        "P15M1",
+        "P15M2",
+        "P15M3",
+        "P15M4",
+        "P16M0",
+        "P16M1",
+        "P16M2",
+        "P16M3",
+        "P16M4",
+        "P16M5"
+      ],
+      "behaviorEdges": [
+        {
+          "from": "toolchain / dependency checks",
+          "to": "all future source and build evidence",
+          "reason": "All producer/consumer packages depend on the root configuration."
+        },
+        {
+          "from": "README / document-link check",
+          "to": "D04 / P16M4 documentation audit",
+          "reason": "Baseline artifact existence and claims are release-documentation inputs."
+        },
+        {
+          "from": "ledger / R7a process",
+          "to": "all milestones / P11M4 / P16M4",
+          "reason": "Evidence freshness is a required acceptance input."
+        }
+      ],
+      "noImpact": [
+        "No runtime source exists; no persistence, lifecycle, permission, provider or IDE behavior is changed.",
+        "Existing website, assets, audit prompts and authoritative documents are preserved. No prior v2 PASS evidence is reused.",
+        "R7a is newly established. No historical v2 gate is accepted, invalidated or revalidated. All 89 downstream milestones remain pending. Later gates must prove their own composed routes."
+      ],
+      "staleEvidence": [],
+      "replacementEvidence": [
+        "P0M0-CLEAN-INSTALL",
+        "P0M0-BUILD",
+        "P0M0-TYPECHECK",
+        "P0M0-LINT",
+        "P0M0-TEST",
+        "P0M0-DIFF"
+      ],
+      "pendingGates": [
+        "A:P1M7",
+        "B:P4M2",
+        "C:P8M2",
+        "D:P11M4",
+        "E:P13M10",
+        "F:P14M3",
+        "G:P15M4",
+        "H:P16M4",
+        "publication:P16M5"
+      ]
+    }
+  ],
+  "statusSource": "Milestone results are recorded separately in acceptance records under docs/evidence/runs. Catalog presence is not evidence of completion."
+}

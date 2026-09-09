@@ -1,0 +1,197 @@
+{
+  "schemaVersion": 1,
+  "id": "P0M0-ACCEPTANCE-001",
+  "milestone": "P0M0",
+  "observedAt": "2026-09-09T11:02:22.092960+00:00",
+  "result": "PASS",
+  "scope": "development foundation only; implementation self-verification, not independent audit or phase gate",
+  "baseCommit": "18bd0dc6a98bc6845cb1ac8e887b39c119da3b84",
+  "candidateManifest": "docs/evidence/runs/P0M0-001/candidate.json",
+  "candidateManifestSha256": "c90caa9b0aaa9e29d9bcae491269472d956b7cc350a736948a545e82db9c219f",
+  "manifestExclusions": [
+    ".git/",
+    "node_modules/",
+    "dist/",
+    "*.tsbuildinfo",
+    "pre-existing audit/",
+    "docs/evidence/runs/ (separately hashed verification outputs)",
+    "docs/evidence/P0M0-report.md (derived acceptance report)"
+  ],
+  "authorityHashes": {
+    "MASTER_ROADMAP.md": "8053f010bf1ebf52fabc954961b7b50773533ed22e35029a147078a20c335b07",
+    "MODEL_POLICY.md": "9f9627435c2975a16a0adddbb8d2dae7e4843331427a51229a2a3ae3aaac6d66",
+    "AGENTS.md": "1ac50e62de832d3328f2aaf6ea76b9a0df1a98cce28eca4e7534588b9580947c"
+  },
+  "prerequisiteEvidenceIds": [],
+  "prerequisiteBasis": "P0M0 has no earlier implementation prerequisite; full R0\u2013R9, ownership/staging ledgers and surviving documents read. No historical PASS reused.",
+  "developmentModel": {
+    "model": "gpt-6-astra",
+    "reasoningEffort": "medium",
+    "source": "current session turn_context",
+    "sessionId": "01a085ca-0a66-7c83-87f8-9ee5646fde4e"
+  },
+  "versions": {
+    "node": "v24.14.0",
+    "npm": "11.9.0",
+    "platform": "Darwin arm64",
+    "macOS": "27.0",
+    "git": "git version 2.54.0 (Apple Git-157)",
+    "dependencies": {
+      "typescript": "5.9.3",
+      "eslint": "10.9.1",
+      "typescript-eslint": "8.68.0"
+    }
+  },
+  "checks": [
+    {
+      "id": "P0M0-CLEAN-INSTALL",
+      "command": [
+        "npm",
+        "ci",
+        "--offline"
+      ],
+      "cwd": "/var/folders/46/_x1cjbss6kd5mkcdvkg00m940000gn/T/densa-p0m0-clean-xwsqss0h",
+      "class": "I",
+      "startedAt": "2026-09-09T11:02:22.108204+00:00",
+      "exitStatus": 0,
+      "result": "PASS",
+      "artifact": "docs/evidence/runs/P0M0-001/P0M0-CLEAN-INSTALL.log",
+      "artifactSha256": "1f4a02c61bee827fbd3664df476184a2c340d56996308883846d14a65178764f"
+    },
+    {
+      "id": "P0M0-BUILD",
+      "command": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "cwd": "/var/folders/46/_x1cjbss6kd5mkcdvkg00m940000gn/T/densa-p0m0-clean-xwsqss0h",
+      "class": "I",
+      "startedAt": "2026-09-09T11:02:22.640892+00:00",
+      "exitStatus": 0,
+      "result": "PASS",
+      "artifact": "docs/evidence/runs/P0M0-001/P0M0-BUILD.log",
+      "artifactSha256": "34de30110862cf3fb2d5b8a971cd10d6e988f53d1e9b4eba1652ad075ceb1f2e"
+    },
+    {
+      "id": "P0M0-TYPECHECK",
+      "command": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "cwd": "/var/folders/46/_x1cjbss6kd5mkcdvkg00m940000gn/T/densa-p0m0-clean-xwsqss0h",
+      "class": "I",
+      "startedAt": "2026-09-09T11:02:23.295470+00:00",
+      "exitStatus": 0,
+      "result": "PASS",
+      "artifact": "docs/evidence/runs/P0M0-001/P0M0-TYPECHECK.log",
+      "artifactSha256": "5b017e85e63f2edb50afc191acc9a310b04f1f6a4b4caf626dcb44d2f8bfe74a"
+    },
+    {
+      "id": "P0M0-LINT",
+      "command": [
+        "npm",
+        "run",
+        "lint"
+      ],
+      "cwd": "/var/folders/46/_x1cjbss6kd5mkcdvkg00m940000gn/T/densa-p0m0-clean-xwsqss0h",
+      "class": "U",
+      "startedAt": "2026-09-09T11:02:23.729304+00:00",
+      "exitStatus": 0,
+      "result": "PASS",
+      "artifact": "docs/evidence/runs/P0M0-001/P0M0-LINT.log",
+      "artifactSha256": "6a4ba9e2ec0895b3f8f007274dd7047fa5ca9b504f97071873ddc53529e43763"
+    },
+    {
+      "id": "P0M0-TEST",
+      "command": [
+        "npm",
+        "test"
+      ],
+      "cwd": "/var/folders/46/_x1cjbss6kd5mkcdvkg00m940000gn/T/densa-p0m0-clean-xwsqss0h",
+      "class": "U",
+      "startedAt": "2026-09-09T11:02:24.510099+00:00",
+      "exitStatus": 0,
+      "result": "PASS",
+      "artifact": "docs/evidence/runs/P0M0-001/P0M0-TEST.log",
+      "artifactSha256": "50f2c50dedf289d4153fe8285fa1e2c29559b904da8bfbfb5d5836d209b0c72c"
+    },
+    {
+      "id": "P0M0-DIFF",
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "cwd": "repository",
+      "class": "I",
+      "exitStatus": 0,
+      "result": "PASS",
+      "artifact": "docs/evidence/runs/P0M0-001/P0M0-DIFF.log",
+      "artifactSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "limitation": "Git diff covers tracked changes; candidate manifest also records untracked milestone files."
+    }
+  ],
+  "criteria": {
+    "P0M0-AC1-all-four-root-checks": [
+      "P0M0-BUILD",
+      "P0M0-TYPECHECK",
+      "P0M0-LINT",
+      "P0M0-TEST"
+    ],
+    "P0M0-AC2-accurate-baseline-links": [
+      "P0M0-LINT",
+      "P0M0-TEST"
+    ],
+    "P0M0-AC3-every-R-contract-ledger-entry": [
+      "P0M0-LINT",
+      "P0M0-TEST"
+    ],
+    "P0M0-V1-clean-lockfile-install": [
+      "P0M0-CLEAN-INSTALL"
+    ],
+    "P0M0-V2-architecture-link-negative-checks": [
+      "P0M0-TEST"
+    ]
+  },
+  "impactAssessmentIds": [
+    "P0M0-IMPACT-INITIAL",
+    "P0M0-IMPACT-FINAL"
+  ],
+  "supersededEvidenceIds": [],
+  "limitations": [
+    "U test fixtures simulate invalid inputs and wrong npm version; no runtime security enforcement proof.",
+    "No provider, database, process recovery, IDE, packaged app, phase gate or public support claim.",
+    "Fresh scratch copy includes exact pre-existing ignored authoritative documents; Git-only clones need these supplied.",
+    "Dependencies installed from local npm cache with lockfile integrity; no live registry-availability claim.",
+    "Test code is implementation-authored supplementary development evidence, not independent runtime assertions."
+  ],
+  "priorDiagnostics": [
+    {
+      "command": "npm install --offline --ignore-scripts (initial pins)",
+      "status": 0,
+      "diagnostic": "ESLint 9.39.4 deprecated warning; replaced with cached ESLint 10.9.1 after checking peer/engine metadata."
+    },
+    {
+      "command": "write tests/foundation.test.mjs (first attempt)",
+      "status": 1,
+      "diagnostic": "tests/ directory absent; created before rewriting tests."
+    },
+    {
+      "command": "npm run lint (first run after incremental dependency update)",
+      "status": 2,
+      "diagnostic": "Cannot find module ./generated/ast-spec in @typescript-eslint/types; clean npm ci --offline restored missing package file."
+    },
+    {
+      "command": "npm test (initial glob script)",
+      "status": 0,
+      "diagnostic": "Zero tests executed because test-file write had failed; explicitly not accepted as evidence. Test command now names the required file."
+    },
+    {
+      "command": "sandboxed exec preflight",
+      "status": "process creation failed",
+      "diagnostic": "Configured writable root contains symlink; approved escalated commands used for repository work."
+    }
+  ]
+}

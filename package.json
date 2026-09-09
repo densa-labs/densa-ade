@@ -1,0 +1,30 @@
+{
+  "name": "densa-ade",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "Apache-2.0",
+  "packageManager": "npm@11.9.0",
+  "engines": {
+    "node": "24.14.0",
+    "npm": "11.9.0"
+  },
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "preinstall": "node scripts/toolchain.mjs",
+    "build": "node scripts/toolchain.mjs && tsc -p tsconfig.json",
+    "typecheck": "node scripts/toolchain.mjs && tsc -p tsconfig.json --noEmit",
+    "lint": "eslint . && node scripts/checks.mjs",
+    "test": "node --test tests/foundation.test.mjs",
+    "check:architecture": "node scripts/checks.mjs architecture",
+    "check:links": "node scripts/checks.mjs links",
+    "check:ledger": "node scripts/checks.mjs ledger"
+  },
+  "devDependencies": {
+    "eslint": "10.9.1",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.68.0"
+  }
+}

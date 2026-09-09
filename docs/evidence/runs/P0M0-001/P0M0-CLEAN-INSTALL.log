@@ -1,0 +1,7 @@
+
+> densa-ade@0.0.0 preinstall
+> node scripts/toolchain.mjs
+
+Toolchain: Node 24.14.0; npm 11.9.0
+
+added 91 packages in 478ms

@@ -1,3 +1,8 @@
 /AGENTS.md
 /MASTER_ROADMAP.md
 /MODEL_POLICY.md
+
+# P0M0 generated development outputs
+node_modules/
+/dist/
+*.tsbuildinfo

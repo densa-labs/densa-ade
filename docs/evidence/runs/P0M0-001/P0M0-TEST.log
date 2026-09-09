@@ -1,0 +1,21 @@
+
+> densa-ade@0.0.0 test
+> node --test tests/foundation.test.mjs
+
+✔ current repository boundaries, documents and authoritative ledger agree (6.730583ms)
+✔ neutral contract imports work while inward and editor imports fail (16.28125ms)
+✔ contracts reject platform modules and dependency declarations cannot hide forbidden edges (3.406583ms)
+✔ unknown packages and source symlinks are not silently skipped (4.770709ms)
+✔ local links resolve relative to docs and reject missing paths, headings and references (4.763625ms)
+✔ ledger rejects lost contracts, stale ownership, absent impact and later prerequisites (13.53375ms)
+✔ wrong npm configuration stops with actionable setup diagnostic (injected environment) (24.288583ms)
+✔ normal architecture CLI returns failure for forbidden imports (133.993ms)
+✔ strict TypeScript build rejects an invalid assignment in a disposable workspace (328.821833ms)
+ℹ tests 9
+ℹ suites 0
+ℹ pass 9
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 672.964875

@@ -1,0 +1,212 @@
+[
+  {
+    "path": ".github/dependabot.yml",
+    "sha256": "d155faa1f834ef4d90c052a9a98af78e1e126d9b0a5703635781d81c91b06cb6",
+    "mode": "100644"
+  },
+  {
+    "path": ".github/workflows/pages.yml",
+    "sha256": "b35829d46eb711f65fa0ebfaebf6b9b2f4c14b4d9b49b62a53510a88b9be5303",
+    "mode": "100644"
+  },
+  {
+    "path": ".gitignore",
+    "sha256": "3f04d58040b4bfc051182f3995f24af5460baa1a9ed1e0cd2e07be17f998e9e5",
+    "mode": "100644"
+  },
+  {
+    "path": ".node-version",
+    "sha256": "75daa0bc10dae1f22b2d13386b55b232adf16930d4325902f37b5033b3a7ca93",
+    "mode": "100644"
+  },
+  {
+    "path": ".npmrc",
+    "sha256": "5816c9c0373487af9d9c80d873a721b4ed1ca509c4ef7aa3a0304f315114e9ef",
+    "mode": "100644"
+  },
+  {
+    "path": ".nvmrc",
+    "sha256": "75daa0bc10dae1f22b2d13386b55b232adf16930d4325902f37b5033b3a7ca93",
+    "mode": "100644"
+  },
+  {
+    "path": "AGENTS.md",
+    "sha256": "1ac50e62de832d3328f2aaf6ea76b9a0df1a98cce28eca4e7534588b9580947c",
+    "mode": "100644"
+  },
+  {
+    "path": "LICENSE.md",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "mode": "100644"
+  },
+  {
+    "path": "MASTER_ROADMAP.md",
+    "sha256": "8053f010bf1ebf52fabc954961b7b50773533ed22e35029a147078a20c335b07",
+    "mode": "100644"
+  },
+  {
+    "path": "MODEL_POLICY.md",
+    "sha256": "9f9627435c2975a16a0adddbb8d2dae7e4843331427a51229a2a3ae3aaac6d66",
+    "mode": "100644"
+  },
+  {
+    "path": "README.md",
+    "sha256": "575b4c797e276d656c59ca02ce483cd161fb2cfbea2422f3b4ce4fd040c9e830",
+    "mode": "100644"
+  },
+  {
+    "path": "THIRD_PARTY_NOTICES.md",
+    "sha256": "2419ed74e7157ea98702df7256755d5e45e4b537f9291bf1c81902cb465006ac",
+    "mode": "100644"
+  },
+  {
+    "path": "assets/Densa-ADE-Logo 2.png",
+    "sha256": "f04cd095f13f75800c56eaf03959d58eb8a6b6c672373de5b1f93b47a75667e8",
+    "mode": "100644"
+  },
+  {
+    "path": "assets/Densa-ADE-Logo.png",
+    "sha256": "f04cd095f13f75800c56eaf03959d58eb8a6b6c672373de5b1f93b47a75667e8",
+    "mode": "100644"
+  },
+  {
+    "path": "assets/Densa-Labs-Logo 2.png",
+    "sha256": "e245a682cb0778e3bbd4b82e9dd0aaff1c6a3c9f430c837cdc2d613be3ea137e",
+    "mode": "100644"
+  },
+  {
+    "path": "assets/Densa-Labs-Logo.png",
+    "sha256": "e245a682cb0778e3bbd4b82e9dd0aaff1c6a3c9f430c837cdc2d613be3ea137e",
+    "mode": "100644"
+  },
+  {
+    "path": "assets/Densa-Letter-Logo 2.png",
+    "sha256": "cbfaa33044c4ed81cff575471b14fc46e05747d7a3ebd5cf6a1a63b098b5f3de",
+    "mode": "100644"
+  },
+  {
+    "path": "assets/Densa-Letter-Logo.png",
+    "sha256": "cbfaa33044c4ed81cff575471b14fc46e05747d7a3ebd5cf6a1a63b098b5f3de",
+    "mode": "100644"
+  },
+  {
+    "path": "assets/Densa-Logo-Dark 2.png",
+    "sha256": "35932d5375c0b040d8c85ef5103460e45b620fb16c51448fa509f78073a5f0ec",
+    "mode": "100644"
+  },
+  {
+    "path": "assets/Densa-Logo-Dark.png",
+    "sha256": "35932d5375c0b040d8c85ef5103460e45b620fb16c51448fa509f78073a5f0ec",
+    "mode": "100644"
+  },
+  {
+    "path": "assets/Densa-Logo-White 2.png",
+    "sha256": "71e9915163074c91a346a3ef538ee81716c3387221efca2417026ed64d7fbd7c",
+    "mode": "100644"
+  },
+  {
+    "path": "assets/Densa-Logo-White.png",
+    "sha256": "71e9915163074c91a346a3ef538ee81716c3387221efca2417026ed64d7fbd7c",
+    "mode": "100644"
+  },
+  {
+    "path": "docs/architecture.md",
+    "sha256": "55addb22a65543a7c38dbf5e6dc226b3211f6cabd22b383b38873e5fd28f8427",
+    "mode": "100644"
+  },
+  {
+    "path": "docs/dependency-inventory.json",
+    "sha256": "660a8e543830a6da1a08f46db191290174bb6ddf420e3c73053fbc526d04f79b",
+    "mode": "100644"
+  },
+  {
+    "path": "docs/evidence/README.md",
+    "sha256": "e388f4c1d7e1944d20c0aaaea3d9d314cbcba12b556ba389510cd4615e187b57",
+    "mode": "100644"
+  },
+  {
+    "path": "docs/evidence/ledger.json",
+    "sha256": "260f9c23618704aca34cb8b439daaed399462f748856563a4690e42f2e015faa",
+    "mode": "100644"
+  },
+  {
+    "path": "eslint.config.mjs",
+    "sha256": "6662dc70d42c586342259ccf15b0025d01a7e66795ef63cdcdc1101aa213303c",
+    "mode": "100644"
+  },
+  {
+    "path": "package-lock.json",
+    "sha256": "201aa0d2cd001742b6c899f62952e60f51dd5386ac4daa99bacfc8c7ac5cf41d",
+    "mode": "100644"
+  },
+  {
+    "path": "package.json",
+    "sha256": "13930f58ce7b01a1b417d220d2c6c2de8bd0cfbec3e86ccd2d804dc93d5ef4ee",
+    "mode": "100644"
+  },
+  {
+    "path": "packages/adapters/package.json",
+    "sha256": "c0e8c0f4e5b9fefd59e7ec32110b090c8373909e3dec08e15fce45ba867e697a",
+    "mode": "100644"
+  },
+  {
+    "path": "packages/adapters/src/index.ts",
+    "sha256": "7fae1e7040741bc3117bf5031b86d6419f5a856330e1c796273c45644947f93a",
+    "mode": "100644"
+  },
+  {
+    "path": "packages/clients/package.json",
+    "sha256": "4332559fd390594f43db431bde1c9ec1852632b88c48ff13638b5093948d9fcf",
+    "mode": "100644"
+  },
+  {
+    "path": "packages/clients/src/index.ts",
+    "sha256": "af784b52918642949f6f7ab637c8c868d6fbc130a7ada77c9fb20d331abf8630",
+    "mode": "100644"
+  },
+  {
+    "path": "packages/contracts/package.json",
+    "sha256": "c04767bfa51879b44da91bea5618a911428662c01c7386294607c84d2f07e096",
+    "mode": "100644"
+  },
+  {
+    "path": "packages/contracts/src/index.ts",
+    "sha256": "cf5a1998be0a20ed2079014b8498bc384e5eac8b5d37de5c8ab69cc7d4cbf1cd",
+    "mode": "100644"
+  },
+  {
+    "path": "packages/core/package.json",
+    "sha256": "9ff4c9b574c1d65d17d60e020715c0fbaaf751f0411da8f3e2a26ddc8a8a4c54",
+    "mode": "100644"
+  },
+  {
+    "path": "packages/core/src/index.ts",
+    "sha256": "eb877f31e57f75e5dd2f3dcf5fb42b593ca4654df4ef232e1a0bf6891313c61d",
+    "mode": "100644"
+  },
+  {
+    "path": "scripts/checks.mjs",
+    "sha256": "f5467930e1578636a36fb7767f14769f251e830851c68e8c23b769a6d23c07a2",
+    "mode": "100644"
+  },
+  {
+    "path": "scripts/toolchain.mjs",
+    "sha256": "be0662cb9703fd78fa77640a149d945c03f67c26912e1e20926420f2e545051a",
+    "mode": "100644"
+  },
+  {
+    "path": "tests/foundation.test.mjs",
+    "sha256": "db2a7aff9f8c5a24750102190b730e31327cbdbfca0f238faafeeb05ea741eef",
+    "mode": "100644"
+  },
+  {
+    "path": "tsconfig.json",
+    "sha256": "0f829dacfebedcd6a807ebe1cd1b2d3ecab80a01b2bbef05478d1a8d4b774cc0",
+    "mode": "100644"
+  },
+  {
+    "path": "website/index.html",
+    "sha256": "054afffe7664d9137d51fabb262bd142634b0dc5746b666003c0ec0f303f6e0a",
+    "mode": "100644"
+  }
+]
