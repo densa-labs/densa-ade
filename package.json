@@ -17,7 +17,7 @@
     "build": "node scripts/toolchain.mjs && tsc -p tsconfig.json",
     "typecheck": "node scripts/toolchain.mjs && tsc -p tsconfig.json --noEmit",
     "lint": "eslint . && node scripts/checks.mjs",
-    "test": "node --test tests/foundation.test.mjs",
+    "test": "npm run build && node --test tests/*.test.mjs",
     "check:architecture": "node scripts/checks.mjs architecture",
     "check:links": "node scripts/checks.mjs links",
     "check:ledger": "node scripts/checks.mjs ledger"

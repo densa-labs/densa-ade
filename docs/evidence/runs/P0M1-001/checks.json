@@ -1,0 +1,93 @@
+[
+  {
+    "id": "P0M1-BUILD",
+    "command": [
+      "npm",
+      "run",
+      "build"
+    ],
+    "cwd": "/Users/ivanuy/Library/Mobile Documents/com~apple~CloudDocs/Projects/densa-ade",
+    "class": "U",
+    "startedAt": "2026-09-09T11:24:17.107647+00:00",
+    "exitStatus": 0,
+    "result": "PASS",
+    "artifact": "docs/evidence/runs/P0M1-001/P0M1-BUILD.log",
+    "artifactSha256": "34de30110862cf3fb2d5b8a971cd10d6e988f53d1e9b4eba1652ad075ceb1f2e"
+  },
+  {
+    "id": "P0M1-TYPECHECK",
+    "command": [
+      "npm",
+      "run",
+      "typecheck"
+    ],
+    "cwd": "/Users/ivanuy/Library/Mobile Documents/com~apple~CloudDocs/Projects/densa-ade",
+    "class": "U",
+    "startedAt": "2026-09-09T11:24:17.635539+00:00",
+    "exitStatus": 0,
+    "result": "PASS",
+    "artifact": "docs/evidence/runs/P0M1-001/P0M1-TYPECHECK.log",
+    "artifactSha256": "5b017e85e63f2edb50afc191acc9a310b04f1f6a4b4caf626dcb44d2f8bfe74a"
+  },
+  {
+    "id": "P0M1-LINT",
+    "command": [
+      "npm",
+      "run",
+      "lint"
+    ],
+    "cwd": "/Users/ivanuy/Library/Mobile Documents/com~apple~CloudDocs/Projects/densa-ade",
+    "class": "U",
+    "startedAt": "2026-09-09T11:24:18.153215+00:00",
+    "exitStatus": 0,
+    "result": "PASS",
+    "artifact": "docs/evidence/runs/P0M1-001/P0M1-LINT.log",
+    "artifactSha256": "6a4ba9e2ec0895b3f8f007274dd7047fa5ca9b504f97071873ddc53529e43763"
+  },
+  {
+    "id": "P0M1-TEST",
+    "command": [
+      "npm",
+      "test"
+    ],
+    "cwd": "/Users/ivanuy/Library/Mobile Documents/com~apple~CloudDocs/Projects/densa-ade",
+    "class": "U",
+    "startedAt": "2026-09-09T11:24:18.935637+00:00",
+    "exitStatus": 0,
+    "result": "PASS",
+    "artifact": "docs/evidence/runs/P0M1-001/P0M1-TEST.log",
+    "artifactSha256": "e092f8dd9ed669fcdbb1ea47f0008aa3a63506ec748a5d722954f840115656c4"
+  },
+  {
+    "id": "P0M1-INDEPENDENT",
+    "command": [
+      "node",
+      "node_modules/typescript/bin/tsc",
+      "-p",
+      "packages/contracts/tsconfig.json",
+      "--noEmit"
+    ],
+    "cwd": "/Users/ivanuy/Library/Mobile Documents/com~apple~CloudDocs/Projects/densa-ade",
+    "class": "U",
+    "startedAt": "2026-09-09T11:24:20.283585+00:00",
+    "exitStatus": 0,
+    "result": "PASS",
+    "artifact": "docs/evidence/runs/P0M1-001/P0M1-INDEPENDENT.log",
+    "artifactSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "id": "P0M1-DIFF",
+    "command": [
+      "git",
+      "diff",
+      "--check"
+    ],
+    "cwd": "/Users/ivanuy/Library/Mobile Documents/com~apple~CloudDocs/Projects/densa-ade",
+    "class": "U",
+    "startedAt": "2026-09-09T11:24:20.707241+00:00",
+    "exitStatus": 0,
+    "result": "PASS",
+    "artifact": "docs/evidence/runs/P0M1-001/P0M1-DIFF.log",
+    "artifactSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+]

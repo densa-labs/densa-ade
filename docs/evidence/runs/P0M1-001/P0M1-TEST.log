@@ -1,0 +1,43 @@
+
+> densa-ade@0.0.0 test
+> npm run build && node --test tests/*.test.mjs
+
+
+> densa-ade@0.0.0 build
+> node scripts/toolchain.mjs && tsc -p tsconfig.json
+
+Toolchain: Node 24.14.0; npm 11.9.0
+✔ all identity kinds round trip and reject kind confusion, paths, nil and malformed IDs (4.314458ms)
+✔ JSON rejects lossy values, getters, cycles, sparse arrays, prototype keys and non-JSON objects (0.484875ms)
+✔ depth, node, string, wire byte and page limits fail before dispatch (3.997916ms)
+✔ canonical wire round trips and refuses duplicate keys, noncanonical numbers and trailing junk (0.260375ms)
+✔ serialized timestamps and revisions are exact and bounded (0.796666ms)
+✔ request version/partition matrix is fail closed and no declared action is implemented (1.45075ms)
+✔ project references and authenticated scope cannot be crossed, including revision targets (0.927416ms)
+✔ digest matches independent SHA-256 material and ignores only transport correlation/command ID (3.938708ms)
+✔ same-ID replay preserves committed warning/in-progress/unknown outcome before stale check (3.391708ms)
+✔ operation journal exposes ambiguity and requires verification to assert an external outcome (0.439459ms)
+✔ snapshot/event replay has explicit archive response, contiguous bounded pages and project checks (0.775417ms)
+✔ contracts compile independently and catalog has roadmap owners and explicit client boundaries (465.486708ms)
+✔ handshake advertises independent supported versions and rejects reserved or forged operations (0.731541ms)
+✔ response binding rejects mismatched action, correlation, command identity and query/command outcome (0.956167ms)
+✔ every H action has a valid JSON round trip fixture, with internal operations inaccessible to clients (15.417916ms)
+✔ revision set order is digest-neutral; distinct command IDs never imply a recorded replay (1.653708ms)
+✔ planner callback can explicitly lack a task attempt; worker-shaped callbacks retain scope (0.274584ms)
+✔ current repository boundaries, documents and authoritative ledger agree (24.850291ms)
+✔ neutral contract imports work while inward and editor imports fail (7.357167ms)
+✔ contracts reject platform modules and dependency declarations cannot hide forbidden edges (3.976417ms)
+✔ unknown packages and source symlinks are not silently skipped (4.467375ms)
+✔ local links resolve relative to docs and reject missing paths, headings and references (3.917ms)
+✔ ledger rejects lost contracts, stale ownership, absent impact and later prerequisites (14.547ms)
+✔ wrong npm configuration stops with actionable setup diagnostic (injected environment) (25.205625ms)
+✔ normal architecture CLI returns failure for forbidden imports (136.279625ms)
+✔ strict TypeScript build rejects an invalid assignment in a disposable workspace (357.377709ms)
+ℹ tests 26
+ℹ suites 0
+ℹ pass 26
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 715.10175

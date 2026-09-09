@@ -1,0 +1,215 @@
+{
+  "schemaVersion": 1,
+  "id": "P0M1-ACCEPTANCE-001",
+  "milestone": "P0M1",
+  "observedAt": "2026-09-09T11:26:02.586110+00:00",
+  "result": "PASS",
+  "scope": "P0M1 schema-only milestone acceptance through implementation self-verification; no independent audit or phase completion claim",
+  "baseCommit": "bad38bdafa0c6c1024b8a2033cce5675808cbfd0",
+  "candidateManifest": "docs/evidence/runs/P0M1-001/candidate.json",
+  "candidateManifestSha256": "435dfb68a0353d736090899244c403f2b0fa2134793a2325e0014ddd0cf4a686",
+  "manifestExclusions": [
+    ".git/",
+    "node_modules/",
+    "dist/",
+    "pre-existing audit/",
+    "docs/evidence/runs/ (separately hashed evidence)",
+    "docs/evidence/P0M0-report.md (historical report)",
+    "docs/evidence/P0M1-report.md (derived report, separately hashed)"
+  ],
+  "authorityHashes": {
+    "MASTER_ROADMAP.md": "8053f010bf1ebf52fabc954961b7b50773533ed22e35029a147078a20c335b07",
+    "MODEL_POLICY.md": "9f9627435c2975a16a0adddbb8d2dae7e4843331427a51229a2a3ae3aaac6d66",
+    "AGENTS.md": "1ac50e62de832d3328f2aaf6ea76b9a0df1a98cce28eca4e7534588b9580947c"
+  },
+  "prerequisiteEvidenceIds": [
+    "P0M0-ACCEPTANCE-001",
+    "P0M0-CLEAN-INSTALL"
+  ],
+  "prerequisiteVerification": "All P0M0 candidate entries matched before edits; every artifact in P0M0 artifacts.json matched. Base foundation now committed as bad38bd. Unchanged lockfile/pins preserve clean-install evidence; root evidence revalidated for new contracts.",
+  "developmentModel": {
+    "model": "gpt-6-astra",
+    "reasoningEffort": "medium",
+    "source": "current session turn_context",
+    "sessionId": "01a085db-356a-7b92-b805-f19dd6f3fa4e"
+  },
+  "versions": {
+    "node": "v24.14.0",
+    "npm": "11.9.0",
+    "git": "git version 2.54.0 (Apple Git-157)",
+    "typescript": "5.9.3",
+    "eslint": "10.9.1",
+    "typescript-eslint": "8.68.0"
+  },
+  "checks": [
+    {
+      "id": "P0M1-BUILD",
+      "command": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "cwd": "/Users/ivanuy/Library/Mobile Documents/com~apple~CloudDocs/Projects/densa-ade",
+      "class": "U",
+      "startedAt": "2026-09-09T11:24:17.107647+00:00",
+      "exitStatus": 0,
+      "result": "PASS",
+      "artifact": "docs/evidence/runs/P0M1-001/P0M1-BUILD.log",
+      "artifactSha256": "34de30110862cf3fb2d5b8a971cd10d6e988f53d1e9b4eba1652ad075ceb1f2e"
+    },
+    {
+      "id": "P0M1-TYPECHECK",
+      "command": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "cwd": "/Users/ivanuy/Library/Mobile Documents/com~apple~CloudDocs/Projects/densa-ade",
+      "class": "U",
+      "startedAt": "2026-09-09T11:24:17.635539+00:00",
+      "exitStatus": 0,
+      "result": "PASS",
+      "artifact": "docs/evidence/runs/P0M1-001/P0M1-TYPECHECK.log",
+      "artifactSha256": "5b017e85e63f2edb50afc191acc9a310b04f1f6a4b4caf626dcb44d2f8bfe74a"
+    },
+    {
+      "id": "P0M1-LINT",
+      "command": [
+        "npm",
+        "run",
+        "lint"
+      ],
+      "cwd": "/Users/ivanuy/Library/Mobile Documents/com~apple~CloudDocs/Projects/densa-ade",
+      "class": "U",
+      "startedAt": "2026-09-09T11:24:18.153215+00:00",
+      "exitStatus": 0,
+      "result": "PASS",
+      "artifact": "docs/evidence/runs/P0M1-001/P0M1-LINT.log",
+      "artifactSha256": "6a4ba9e2ec0895b3f8f007274dd7047fa5ca9b504f97071873ddc53529e43763"
+    },
+    {
+      "id": "P0M1-TEST",
+      "command": [
+        "npm",
+        "test"
+      ],
+      "cwd": "/Users/ivanuy/Library/Mobile Documents/com~apple~CloudDocs/Projects/densa-ade",
+      "class": "U",
+      "startedAt": "2026-09-09T11:24:18.935637+00:00",
+      "exitStatus": 0,
+      "result": "PASS",
+      "artifact": "docs/evidence/runs/P0M1-001/P0M1-TEST.log",
+      "artifactSha256": "e092f8dd9ed669fcdbb1ea47f0008aa3a63506ec748a5d722954f840115656c4"
+    },
+    {
+      "id": "P0M1-INDEPENDENT",
+      "command": [
+        "node",
+        "node_modules/typescript/bin/tsc",
+        "-p",
+        "packages/contracts/tsconfig.json",
+        "--noEmit"
+      ],
+      "cwd": "/Users/ivanuy/Library/Mobile Documents/com~apple~CloudDocs/Projects/densa-ade",
+      "class": "U",
+      "startedAt": "2026-09-09T11:24:20.283585+00:00",
+      "exitStatus": 0,
+      "result": "PASS",
+      "artifact": "docs/evidence/runs/P0M1-001/P0M1-INDEPENDENT.log",
+      "artifactSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "P0M1-DIFF",
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "cwd": "/Users/ivanuy/Library/Mobile Documents/com~apple~CloudDocs/Projects/densa-ade",
+      "class": "U",
+      "startedAt": "2026-09-09T11:24:20.707241+00:00",
+      "exitStatus": 0,
+      "result": "PASS",
+      "artifact": "docs/evidence/runs/P0M1-001/P0M1-DIFF.log",
+      "artifactSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "P0M1-FINAL-DOCS",
+      "command": [
+        "npm",
+        "run",
+        "lint"
+      ],
+      "cwd": "/Users/ivanuy/Library/Mobile Documents/com~apple~CloudDocs/Projects/densa-ade",
+      "class": "U",
+      "exitStatus": 0,
+      "result": "PASS",
+      "artifact": "docs/evidence/runs/P0M1-001/P0M1-FINAL-DOCS.log",
+      "artifactSha256": "6a4ba9e2ec0895b3f8f007274dd7047fa5ca9b504f97071873ddc53529e43763",
+      "reason": "Verify final report links and revalidation ledger after their creation."
+    }
+  ],
+  "criteria": {
+    "P0M1-AC1-every-H-action-schema-and-owner": [
+      "P0M1-TEST",
+      "docs/contracts.md (98 action ownership rows)",
+      "packages/contracts/src/catalog.ts"
+    ],
+    "P0M1-AC2-explicit-I-U-L-boundaries-and-later-producers": [
+      "P0M1-TEST",
+      "docs/contracts.md (compatibility and payload producer tables)",
+      "packages/contracts/src/catalog.ts"
+    ],
+    "P0M1-AC3-no-UI-provider-domain-types": [
+      "P0M1-LINT",
+      "P0M1-INDEPENDENT",
+      "packages/contracts/src/ (manual import and field review)"
+    ],
+    "P0M1-V1-valid-roundtrips-malformed-IDs": [
+      "P0M1-TEST"
+    ],
+    "P0M1-V2-same-ID-payload-semantics": [
+      "P0M1-TEST"
+    ],
+    "P0M1-V3-version-matrices": [
+      "P0M1-TEST"
+    ],
+    "P0M1-V4-oversize-cross-project-unknown-effects-partial-success": [
+      "P0M1-TEST"
+    ],
+    "R7-root-checks": [
+      "P0M1-BUILD",
+      "P0M1-TYPECHECK",
+      "P0M1-LINT",
+      "P0M1-TEST"
+    ]
+  },
+  "impactAssessmentIds": [
+    "P0M1-IMPACT-INITIAL",
+    "P0M1-IMPACT-FINAL"
+  ],
+  "supersededEvidenceIds": [
+    "P0M0-BUILD",
+    "P0M0-TYPECHECK",
+    "P0M0-LINT",
+    "P0M0-TEST"
+  ],
+  "limitations": [
+    "U schema and pure-decision tests, including injected malformed/version/oversize inputs; foundation subprocess fixtures are development tooling tests.",
+    "No database, authenticated transport, process containment, real restart/recovery, live provider, IDE, packaged or production-route evidence.",
+    "Full domain payload validation belongs to named P0M2/P0M3/P0M4 and service producers; no production handler is advertised.",
+    "All gates A–H remain pending. Tests are implementation-authored, not an independent audit."
+  ],
+  "priorDiagnostics": [
+    {
+      "command": "npm run build (initial schema implementation)",
+      "exitStatus": 2,
+      "diagnostic": "TS2550 at schema.ts lines 26, 39 and 57: String.isWellFormed is absent from the ES2023 type library. Replaced with Unicode surrogate validation; pinned toolchain and compiler target unchanged.",
+      "source": "retained summary of observed tool output",
+      "replacementEvidenceId": "P0M1-BUILD"
+    }
+  ],
+  "specificationGaps": [],
+  "deviations": [],
+  "repositoryStatus": " M docs/architecture.md\n M docs/evidence/ledger.json\n M package.json\n M packages/contracts/src/index.ts\n?? audit/\n?? docs/contracts.md\n?? docs/evidence/P0M1-report.md\n?? docs/evidence/runs/P0M1-001/\n?? packages/contracts/src/catalog.ts\n?? packages/contracts/src/protocol.ts\n?? packages/contracts/src/schema.ts\n?? packages/contracts/tsconfig.json\n?? tests/contracts.test.mjs"
+}

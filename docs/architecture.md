@@ -18,3 +18,9 @@ TypeScript strict checking and declaration emission use one root configuration. 
 The existing website deployment workflow, branding, and audit prompts are independent baseline artifacts and remain untouched. Authoritative documents are pre-existing ignored local inputs; provenance records their hashes without staging or rewriting them. A clean install requires these inputs for the full checks. Generated `node_modules/`, `dist/`, and compiler metadata are ignored. No Git commit, push, release tag, or publication is performed by build/test scripts.
 
 Historical-state refusal is a v2 requirement, not a foundation implementation claim. P1M0 owns newer/unknown schema refusal and migration safety; P1M2 owns portable identity inspection; P5 owns workspace preflight. P0M0 opens no runtime state. Runtime DB, execution, IDE, Code - OSS imports, release assets, and all P0M1 schemas remain out of scope.
+
+## Shared wire boundary (P0M1)
+
+[Executable contract notes and catalog](contracts.md) define typed identities, canonical digests, strict message schemas, explicit operation uncertainty, partial success, event watermarks and independent H/I/U/L versions. The contracts package remains dependency-free and independently compilable. Root tests build the contracts before importing their generated JavaScript. No Core service, persistence, socket, lifecycle reducer, authorization implementation or updater payload was added.
+
+P1M1 must consume the pure digest/replay decisions inside its transactional command service, increment scope aggregate revisions, persist deduplication outcomes and journal external effects. P0M2–P0M4 own the more detailed lifecycle/planning/authority/evidence/configuration schemas; P3M1 owns authenticated transport and availability registration. P11M4 must replace every H unavailable obligation with real route evidence. U/L remain reserved for their named P15/P16 producers.

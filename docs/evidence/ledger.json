@@ -3961,7 +3961,1561 @@
         "H:P16M4",
         "publication:P16M5"
       ]
+    },
+    {
+      "id": "P0M1-IMPACT-INITIAL",
+      "milestone": "P0M1",
+      "stage": "initial",
+      "changes": [
+        "R0/R5/R8/R9a shared schemas, catalog and boundary validation; root test entry expanded"
+      ],
+      "dependencyEdges": [
+        {
+          "from": "P0M0",
+          "to": "P0M1",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P0M1",
+          "to": "P0M2",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P0M1",
+          "to": "P0M3",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P0M2",
+          "to": "P0M3",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P0M1",
+          "to": "P0M4",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P0M2",
+          "to": "P0M4",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P0M3",
+          "to": "P0M4",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P0M4",
+          "to": "P1M0",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P1M0",
+          "to": "P1M1",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P0M2",
+          "to": "P1M1",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P1M1",
+          "to": "P1M2",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P1M1",
+          "to": "P1M3",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P1M2",
+          "to": "P1M3",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P1M1",
+          "to": "P1M4",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P1M3",
+          "to": "P1M4",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P0M3",
+          "to": "P1M4",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P0M4",
+          "to": "P1M4",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P1M4",
+          "to": "P1M5",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P1M1",
+          "to": "P1M5",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P1M5",
+          "to": "P1M6",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P1M3",
+          "to": "P1M6",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P1M0",
+          "to": "P1M6",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P1M0",
+          "to": "P1M7",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P1M1",
+          "to": "P1M7",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P1M2",
+          "to": "P1M7",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P1M3",
+          "to": "P1M7",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P1M4",
+          "to": "P1M7",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P1M5",
+          "to": "P1M7",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P1M6",
+          "to": "P1M7",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P1M7",
+          "to": "P2M0",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P0M3",
+          "to": "P2M0",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P2M0",
+          "to": "P2M1",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P2M0",
+          "to": "P2M2",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P2M1",
+          "to": "P2M2",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P2M2",
+          "to": "P2M3",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P1M1",
+          "to": "P2M3",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P2M3",
+          "to": "P3M0",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P1M7",
+          "to": "P3M0",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P3M0",
+          "to": "P3M1",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P1M3",
+          "to": "P3M1",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P2M0",
+          "to": "P3M1",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P3M1",
+          "to": "P3M2",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P3M2",
+          "to": "P4M0",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P2M3",
+          "to": "P4M0",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P4M0",
+          "to": "P4M1",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P1M4",
+          "to": "P4M1",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P4M1",
+          "to": "P4M2",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P2M3",
+          "to": "P4M2",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P4M2",
+          "to": "P5M0",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P1M2",
+          "to": "P5M0",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P2M0",
+          "to": "P5M0",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P5M0",
+          "to": "P5M1",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P2M2",
+          "to": "P5M1",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P1M1",
+          "to": "P5M1",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P5M1",
+          "to": "P5M2",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P2M3",
+          "to": "P5M2",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P0M4",
+          "to": "P5M2",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P5M0",
+          "to": "P6M0",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P1M5",
+          "to": "P6M0",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P4M1",
+          "to": "P6M0",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P6M0",
+          "to": "P6M1",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P4M1",
+          "to": "P6M1",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P1M3",
+          "to": "P6M1",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P6M1",
+          "to": "P6M2",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P0M2",
+          "to": "P6M2",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P0M4",
+          "to": "P6M2",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P6M2",
+          "to": "P6M3",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P2M0",
+          "to": "P6M3",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P1M3",
+          "to": "P6M3",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P1M5",
+          "to": "P6M3",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P6M3",
+          "to": "P6M4",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P1M5",
+          "to": "P6M4",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P0M4",
+          "to": "P6M4",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P6M3",
+          "to": "P7M0",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P5M2",
+          "to": "P7M0",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P2M2",
+          "to": "P7M0",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P7M0",
+          "to": "P7M1",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P2M3",
+          "to": "P7M1",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P7M1",
+          "to": "P7M2",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P7M2",
+          "to": "P7M3",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P4M2",
+          "to": "P7M3",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P7M3",
+          "to": "P7M4",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P1M4",
+          "to": "P7M4",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P4M1",
+          "to": "P7M4",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P2M0",
+          "to": "P7M4",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P2M3",
+          "to": "P7M4",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P7M4",
+          "to": "P7M5",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P1M1",
+          "to": "P7M5",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P1M6",
+          "to": "P7M5",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P7M5",
+          "to": "P7M6",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P7M4",
+          "to": "P7M6",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P5M2",
+          "to": "P7M6",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P6M4",
+          "to": "P7M6",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P7M5",
+          "to": "P8M0",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P5M2",
+          "to": "P8M0",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P2M0",
+          "to": "P8M0",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P8M0",
+          "to": "P8M1",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P3M2",
+          "to": "P8M1",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P8M1",
+          "to": "P8M2",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P2M3",
+          "to": "P8M2",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P8M2",
+          "to": "P9M0",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P7M6",
+          "to": "P9M0",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P6M4",
+          "to": "P9M0",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P3M0",
+          "to": "P9M0",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P1M1",
+          "to": "P9M0",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P9M0",
+          "to": "P9M1",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P8M2",
+          "to": "P9M1",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P6M4",
+          "to": "P9M1",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P3M0",
+          "to": "P9M1",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P7M0",
+          "to": "P9M1",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P9M1",
+          "to": "P9M2",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P4M2",
+          "to": "P9M2",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P7M5",
+          "to": "P9M2",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P8M2",
+          "to": "P9M2",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P3M2",
+          "to": "P9M2",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P9M2",
+          "to": "P9M3",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P9M3",
+          "to": "P9M4",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P8M2",
+          "to": "P9M4",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P2M3",
+          "to": "P9M4",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P9M4",
+          "to": "P9M5",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P6M4",
+          "to": "P9M5",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P9M0",
+          "to": "P9M5",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P9M5",
+          "to": "P9M6",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P1M4",
+          "to": "P9M6",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P7M4",
+          "to": "P9M6",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P7M5",
+          "to": "P9M6",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P9M6",
+          "to": "P9M7",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P9M0",
+          "to": "P9M7",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P7M6",
+          "to": "P9M7",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P1M3",
+          "to": "P9M7",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P9M7",
+          "to": "P9M8",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P6M4",
+          "to": "P9M8",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P8M2",
+          "to": "P9M8",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P5M0",
+          "to": "P9M8",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P1M2",
+          "to": "P9M8",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P9M7",
+          "to": "P10M0",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P4M1",
+          "to": "P10M0",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P10M0",
+          "to": "P10M1",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P8M2",
+          "to": "P10M1",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P9M8",
+          "to": "P10M1",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P3M0",
+          "to": "P10M1",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P10M1",
+          "to": "P10M2",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P1M4",
+          "to": "P10M2",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P10M2",
+          "to": "P10M3",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P1M6",
+          "to": "P10M3",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P3M2",
+          "to": "P10M3",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P10M3",
+          "to": "P10M4",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P9M4",
+          "to": "P10M4",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P9M8",
+          "to": "P10M4",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P1M4",
+          "to": "P10M4",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P3M1",
+          "to": "P10M4",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P10M4",
+          "to": "P11M0",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P6M4",
+          "to": "P11M0",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P4M1",
+          "to": "P11M0",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P11M0",
+          "to": "P11M1",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P1M3",
+          "to": "P11M1",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P9M7",
+          "to": "P11M1",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P11M1",
+          "to": "P11M2",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P9M7",
+          "to": "P11M2",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P10M1",
+          "to": "P11M2",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P11M2",
+          "to": "P11M3",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P11M3",
+          "to": "P11M4",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P11M1",
+          "to": "P11M4",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P10M4",
+          "to": "P11M4",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P9M8",
+          "to": "P11M4",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P3M2",
+          "to": "P11M4",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P11M4",
+          "to": "P12M0",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P12M0",
+          "to": "P12M1",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P10M3",
+          "to": "P12M1",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P12M1",
+          "to": "P12M2",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P11M4",
+          "to": "P12M2",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P12M2",
+          "to": "P12M3",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P12M3",
+          "to": "P13M0",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P6M1",
+          "to": "P13M0",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P5M0",
+          "to": "P13M0",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P11M4",
+          "to": "P13M0",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P13M0",
+          "to": "P13M1",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P6M3",
+          "to": "P13M1",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P11M1",
+          "to": "P13M1",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P13M1",
+          "to": "P13M2",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P11M1",
+          "to": "P13M2",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P13M2",
+          "to": "P13M3",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P11M0",
+          "to": "P13M3",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P13M3",
+          "to": "P13M4",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P9M7",
+          "to": "P13M4",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P8M1",
+          "to": "P13M4",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P13M4",
+          "to": "P13M5",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P9M6",
+          "to": "P13M5",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P10M4",
+          "to": "P13M5",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P13M5",
+          "to": "P13M6",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P10M1",
+          "to": "P13M6",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P9M4",
+          "to": "P13M6",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P9M8",
+          "to": "P13M6",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P13M6",
+          "to": "P13M7",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P1M2",
+          "to": "P13M7",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P5M0",
+          "to": "P13M7",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P10M1",
+          "to": "P13M7",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P13M7",
+          "to": "P13M8",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P1M3",
+          "to": "P13M8",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P6M3",
+          "to": "P13M8",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P13M8",
+          "to": "P13M9",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P10M3",
+          "to": "P13M9",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P1M6",
+          "to": "P13M9",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P12M1",
+          "to": "P13M9",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P13M0",
+          "to": "P13M10",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P13M1",
+          "to": "P13M10",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P13M2",
+          "to": "P13M10",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P13M3",
+          "to": "P13M10",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P13M4",
+          "to": "P13M10",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P13M5",
+          "to": "P13M10",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P13M6",
+          "to": "P13M10",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P13M7",
+          "to": "P13M10",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P13M8",
+          "to": "P13M10",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P13M9",
+          "to": "P13M10",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P13M10",
+          "to": "P14M0",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P14M0",
+          "to": "P14M1",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P10M3",
+          "to": "P14M1",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P13M9",
+          "to": "P14M1",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P14M1",
+          "to": "P14M2",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P13M10",
+          "to": "P14M2",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P14M2",
+          "to": "P14M3",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P14M3",
+          "to": "P15M0",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P1M0",
+          "to": "P15M0",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P3M0",
+          "to": "P15M0",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P15M0",
+          "to": "P15M1",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P12M1",
+          "to": "P15M1",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P14M1",
+          "to": "P15M1",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P15M1",
+          "to": "P15M2",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P10M1",
+          "to": "P15M2",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P10M2",
+          "to": "P15M2",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P15M2",
+          "to": "P15M3",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P15M3",
+          "to": "P15M4",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P14M2",
+          "to": "P15M4",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P15M4",
+          "to": "P16M0",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P12M0",
+          "to": "P16M0",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P14M0",
+          "to": "P16M0",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P16M0",
+          "to": "P16M1",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P15M1",
+          "to": "P16M1",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P16M1",
+          "to": "P16M2",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P13M10",
+          "to": "P16M2",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P16M2",
+          "to": "P16M3",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P15M4",
+          "to": "P16M3",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P16M3",
+          "to": "P16M4",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P14M2",
+          "to": "P16M4",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P16M0",
+          "to": "P16M4",
+          "reason": "Declared producer prerequisite"
+        },
+        {
+          "from": "P16M4",
+          "to": "P16M5",
+          "reason": "Declared producer prerequisite"
+        }
+      ],
+      "behaviorEdges": [
+        {
+          "from": "P0M1 shared wire boundaries",
+          "to": "P1M1 command journal / P3M1 transport / P11M4 H catalog",
+          "reason": "Identity, digest, revision, outcome and partition semantics govern downstream acceptance"
+        }
+      ],
+      "noImpact": [
+        "P0M0 candidate hashes all match; model and pinned toolchain verified. No prior runtime evidence exists. Foundation tooling unchanged except planned test entry expansion; rerun all root checks.",
+        "Locked dependency graph, inventory, licenses, architecture checker and link checker are unchanged. P0M0 clean-install evidence remains applicable to unchanged pins; runtime output proofs remain pending."
+      ],
+      "staleEvidence": [
+        "P0M0-BUILD",
+        "P0M0-TYPECHECK",
+        "P0M0-LINT",
+        "P0M0-TEST"
+      ],
+      "replacementEvidence": [
+        "P0M1-BUILD",
+        "P0M1-TYPECHECK",
+        "P0M1-LINT",
+        "P0M1-TEST"
+      ],
+      "pendingGates": [
+        "A",
+        "B",
+        "C",
+        "D",
+        "E",
+        "F",
+        "G",
+        "H"
+      ],
+      "transitiveAffectedMilestones": [
+        "P0M1",
+        "P0M2",
+        "P0M3",
+        "P0M4",
+        "P1M0",
+        "P1M1",
+        "P1M2",
+        "P1M3",
+        "P1M4",
+        "P1M5",
+        "P1M6",
+        "P1M7",
+        "P2M0",
+        "P2M1",
+        "P2M2",
+        "P2M3",
+        "P3M0",
+        "P3M1",
+        "P3M2",
+        "P4M0",
+        "P4M1",
+        "P4M2",
+        "P5M0",
+        "P5M1",
+        "P5M2",
+        "P6M0",
+        "P6M1",
+        "P6M2",
+        "P6M3",
+        "P6M4",
+        "P7M0",
+        "P7M1",
+        "P7M2",
+        "P7M3",
+        "P7M4",
+        "P7M5",
+        "P7M6",
+        "P8M0",
+        "P8M1",
+        "P8M2",
+        "P9M0",
+        "P9M1",
+        "P9M2",
+        "P9M3",
+        "P9M4",
+        "P9M5",
+        "P9M6",
+        "P9M7",
+        "P9M8",
+        "P10M0",
+        "P10M1",
+        "P10M2",
+        "P10M3",
+        "P10M4",
+        "P11M0",
+        "P11M1",
+        "P11M2",
+        "P11M3",
+        "P11M4",
+        "P12M0",
+        "P12M1",
+        "P12M2",
+        "P12M3",
+        "P13M0",
+        "P13M1",
+        "P13M2",
+        "P13M3",
+        "P13M4",
+        "P13M5",
+        "P13M6",
+        "P13M7",
+        "P13M8",
+        "P13M9",
+        "P13M10",
+        "P14M0",
+        "P14M1",
+        "P14M2",
+        "P14M3",
+        "P15M0",
+        "P15M1",
+        "P15M2",
+        "P15M3",
+        "P15M4",
+        "P16M0",
+        "P16M1",
+        "P16M2",
+        "P16M3",
+        "P16M4",
+        "P16M5"
+      ]
+    },
+    {
+      "id": "P0M1-IMPACT-FINAL",
+      "milestone": "P0M1",
+      "stage": "final",
+      "changes": [
+        "98 strict H action payloads; I bindings and absent U/L axes",
+        "Branded IDs and scoped references; command aggregate revision guard and SHA-256 replay decisions",
+        "Result/unknown-operation/callback/event/snapshot/response/version schemas and bounded canonical JSON",
+        "Independent contracts tsconfig, root test entry, 17 schema tests plus 9 foundation tests",
+        "Contract documentation and evidence records"
+      ],
+      "dependencyEdges": [
+        {
+          "from": "P0M1-IMPACT-INITIAL.dependencyEdges",
+          "to": "P0M1-IMPACT-INITIAL.transitiveAffectedMilestones",
+          "reason": "Full declared transitive graph preserved in initial assessment; final changes remain inside that cone."
+        }
+      ],
+      "behaviorEdges": [
+        {
+          "from": "IDs, aggregate revisions, digest replay",
+          "to": "P1M0/P1M1 storage, commands and journal",
+          "reason": "Durable consumers must preserve scope/command ordering and increment aggregate revisions."
+        },
+        {
+          "from": "Wire/partition/action/result/event boundaries",
+          "to": "P3M1/P3M2 -> P11M4 -> P12M2/P13M10 -> P16M4",
+          "reason": "Authenticated transport, clients and gates must use actual schemas and replace all H unavailable obligations."
+        },
+        {
+          "from": "Unknown effect and projection-warning envelopes",
+          "to": "P1M3/P8M2/P10M1/P11M3",
+          "reason": "Projection repair, settlement and restart must preserve original committed outcome and explicit ambiguity."
+        },
+        {
+          "from": "Proposed domain payload references and JSON containers",
+          "to": "P0M2/P0M3/P0M4 and catalog resultPayloadProducer",
+          "reason": "Later domain validators must reject semantically invalid contents before services can advertise implementation."
+        }
+      ],
+      "noImpact": [
+        "P0M0 candidate hashes all match; model and pinned toolchain verified. No prior runtime evidence exists. Foundation tooling unchanged except planned test entry expansion; rerun all root checks.",
+        "Locked dependency graph, inventory, licenses, architecture checker and link checker are unchanged. P0M0 clean-install evidence remains applicable to unchanged pins; runtime output proofs remain pending.",
+        "No lifecycle state reducer, storage, process, provider, scheduler, IDE or packaged implementation exists in this candidate. No previous product gate PASS exists to reuse; all A–H remain pending."
+      ],
+      "staleEvidence": [
+        "P0M0-BUILD",
+        "P0M0-TYPECHECK",
+        "P0M0-LINT",
+        "P0M0-TEST"
+      ],
+      "replacementEvidence": [
+        "P0M1-BUILD",
+        "P0M1-TYPECHECK",
+        "P0M1-LINT",
+        "P0M1-TEST"
+      ],
+      "pendingGates": [
+        "A",
+        "B",
+        "C",
+        "D",
+        "E",
+        "F",
+        "G",
+        "H"
+      ],
+      "transitiveAffectedMilestones": [
+        "P0M1",
+        "P0M2",
+        "P0M3",
+        "P0M4",
+        "P1M0",
+        "P1M1",
+        "P1M2",
+        "P1M3",
+        "P1M4",
+        "P1M5",
+        "P1M6",
+        "P1M7",
+        "P2M0",
+        "P2M1",
+        "P2M2",
+        "P2M3",
+        "P3M0",
+        "P3M1",
+        "P3M2",
+        "P4M0",
+        "P4M1",
+        "P4M2",
+        "P5M0",
+        "P5M1",
+        "P5M2",
+        "P6M0",
+        "P6M1",
+        "P6M2",
+        "P6M3",
+        "P6M4",
+        "P7M0",
+        "P7M1",
+        "P7M2",
+        "P7M3",
+        "P7M4",
+        "P7M5",
+        "P7M6",
+        "P8M0",
+        "P8M1",
+        "P8M2",
+        "P9M0",
+        "P9M1",
+        "P9M2",
+        "P9M3",
+        "P9M4",
+        "P9M5",
+        "P9M6",
+        "P9M7",
+        "P9M8",
+        "P10M0",
+        "P10M1",
+        "P10M2",
+        "P10M3",
+        "P10M4",
+        "P11M0",
+        "P11M1",
+        "P11M2",
+        "P11M3",
+        "P11M4",
+        "P12M0",
+        "P12M1",
+        "P12M2",
+        "P12M3",
+        "P13M0",
+        "P13M1",
+        "P13M2",
+        "P13M3",
+        "P13M4",
+        "P13M5",
+        "P13M6",
+        "P13M7",
+        "P13M8",
+        "P13M9",
+        "P13M10",
+        "P14M0",
+        "P14M1",
+        "P14M2",
+        "P14M3",
+        "P15M0",
+        "P15M1",
+        "P15M2",
+        "P15M3",
+        "P15M4",
+        "P16M0",
+        "P16M1",
+        "P16M2",
+        "P16M3",
+        "P16M4",
+        "P16M5"
+      ]
     }
   ],
-  "statusSource": "Milestone results are recorded separately in acceptance records under docs/evidence/runs. Catalog presence is not evidence of completion."
+  "statusSource": "Milestone results are recorded separately in acceptance records under docs/evidence/runs. Catalog presence is not evidence of completion.",
+  "freshnessObservations": [
+    {
+      "id": "P0M1-STALE",
+      "status": "STALE",
+      "evidenceIds": [
+        "P0M0-BUILD",
+        "P0M0-TYPECHECK",
+        "P0M0-LINT",
+        "P0M0-TEST"
+      ],
+      "reason": "New shared contracts candidate; historical P0M0 observations preserved."
+    },
+    {
+      "id": "P0M1-REVALIDATED",
+      "status": "REVALIDATED",
+      "supersededEvidenceIds": [
+        "P0M0-BUILD",
+        "P0M0-TYPECHECK",
+        "P0M0-LINT",
+        "P0M0-TEST"
+      ],
+      "replacementEvidenceIds": [
+        "P0M1-BUILD",
+        "P0M1-TYPECHECK",
+        "P0M1-LINT",
+        "P0M1-TEST"
+      ],
+      "acceptanceRecord": "docs/evidence/runs/P0M1-001/acceptance.json",
+      "reason": "All four root checks pass on the P0M1 candidate. Historical observations are retained; no product gate is claimed."
+    }
+  ]
 }
