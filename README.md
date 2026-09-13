@@ -30,9 +30,4 @@ Densa ADE has validation and recovery systems, but users **should not rely on th
 Densa Labs' original Densa ADE code is licensed under the **Apache License, Version 2.0**.
 See [`LICENSE`](LICENSE).
 
-Densa ADE is a thin fork of Code - OSS (`microsoft/vscode`). Original Code - OSS code
-remains under Microsoft's **MIT License**, and every modified Code - OSS file retains
-Microsoft's MIT notice. See
-[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) and [`code-oss/`](code-oss/).
-
 For technical documentation, see [`/docs`](docs/).
