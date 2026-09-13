@@ -1,0 +1,5 @@
+
+> densa-ade@0.0.0 typecheck
+> node scripts/toolchain.mjs && tsc -p tsconfig.json --noEmit
+
+Toolchain: Node 24.14.0; npm 11.9.0

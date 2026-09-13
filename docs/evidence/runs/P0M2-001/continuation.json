@@ -1,0 +1,16 @@
+{
+  "observedAt": "2026-09-13T05:20:11.511485+00:00",
+  "sessionId": "01a085ee-0d7d-7700-b0de-fc1ef7eb4b17",
+  "turnId": "01a0992e-78cc-76d3-9247-a57e22fac793",
+  "model": "gpt-6-astra",
+  "reasoningEffort": "xhigh",
+  "authorization": "Existing user P0M2 reasoning-policy override: yes. overrride; original Max execution and resumed XHigh execution recorded separately.",
+  "policyFileChanged": false,
+  "unrelatedChange": {
+    "path": ".gitignore",
+    "diff": "diff --git a/.gitignore b/.gitignore\nindex 6d693c7..992616e 100644\n--- a/.gitignore\n+++ b/.gitignore\n@@ -1,6 +1,7 @@\n /AGENTS.md\n /MASTER_ROADMAP.md\n /MODEL_POLICY.md\n+/audit/\n \n # P0M0 generated development outputs\n node_modules/\n",
+    "sha256": "53e9ff090b868c7fe6771308c9b7027512addf0535736416297dc619b38e5cd6",
+    "ownership": "External to this milestone; preserved, not attributed to P0M2.",
+    "effect": "Ignores existing audit/; no product/build/test behavior changes."
+  }
+}

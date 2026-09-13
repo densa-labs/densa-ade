@@ -1,0 +1,20 @@
+{
+  "result": "PASS",
+  "prerequisites": [
+    {
+      "id": "P0M0-ACCEPTANCE-001",
+      "commit": "bad38bdafa0c6c1024b8a2033cce5675808cbfd0",
+      "candidateManifestSha256": "c90caa9b0aaa9e29d9bcae491269472d956b7cc350a736948a545e82db9c219f",
+      "candidateFilesVerified": 42,
+      "artifactHashesVerified": 10
+    },
+    {
+      "id": "P0M1-ACCEPTANCE-001",
+      "commit": "18a0791f9508a4c5c2a371f15c0e8ebbda1112c2",
+      "candidateManifestSha256": "435dfb68a0353d736090899244c403f2b0fa2134793a2325e0014ddd0cf4a686",
+      "candidateFilesVerified": 48,
+      "artifactHashesVerified": 11
+    }
+  ],
+  "note": "Producer commit snapshots verified; current candidate changes are assessed separately by R7a."
+}

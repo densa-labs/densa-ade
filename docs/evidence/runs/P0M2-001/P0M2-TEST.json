@@ -1,0 +1,15 @@
+{
+  "id": "P0M2-TEST",
+  "class": "U",
+  "command": [
+    "npm",
+    "test"
+  ],
+  "cwd": "/Users/ivanuy/Library/Mobile Documents/com~apple~CloudDocs/Projects/densa-ade",
+  "startedAt": "2026-09-10T04:46:39.550501+00:00",
+  "completedAt": "2026-09-10T04:46:41.200123+00:00",
+  "exitStatus": 0,
+  "result": "PASS",
+  "artifact": "docs/evidence/runs/P0M2-001/P0M2-TEST.log",
+  "artifactSha256": "6bbc104c728947a30bd1398e69b1d424a75a6cf00de64d818346a3124aac2a9c"
+}

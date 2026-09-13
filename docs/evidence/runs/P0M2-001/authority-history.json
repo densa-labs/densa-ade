@@ -1,0 +1,37 @@
+{
+  "observedAt": "2026-09-13T05:26:11.090415+00:00",
+  "originalAuthorityHashes": {
+    "MASTER_ROADMAP.md": "8053f010bf1ebf52fabc954961b7b50773533ed22e35029a147078a20c335b07",
+    "MODEL_POLICY.md": "9f9627435c2975a16a0adddbb8d2dae7e4843331427a51229a2a3ae3aaac6d66",
+    "AGENTS.md": "1ac50e62de832d3328f2aaf6ea76b9a0df1a98cce28eca4e7534588b9580947c"
+  },
+  "currentAuthorityHashes": {
+    "MASTER_ROADMAP.md": "8053f010bf1ebf52fabc954961b7b50773533ed22e35029a147078a20c335b07",
+    "MODEL_POLICY.md": "cdae0c0511dc569e76b8c94ef74965972e652be28362f16a7bae1c7b823f0255",
+    "AGENTS.md": "370241f67ff0c23ef5612cc9a2564aa773cdee78c11f640bcf2fa61fbd89e859"
+  },
+  "originalSnapshots": {
+    "MODEL_POLICY.md": {
+      "path": "docs/evidence/runs/P0M2-001/before-selected-role-holds/MODEL_POLICY.md.snapshot",
+      "sha256": "9f9627435c2975a16a0adddbb8d2dae7e4843331427a51229a2a3ae3aaac6d66"
+    },
+    "AGENTS.md": {
+      "path": "docs/evidence/runs/P0M2-001/before-selected-role-holds/AGENTS.md.snapshot",
+      "sha256": "1ac50e62de832d3328f2aaf6ea76b9a0df1a98cce28eca4e7534588b9580947c"
+    }
+  },
+  "externalChanges": [
+    {
+      "path": "MODEL_POLICY.md",
+      "change": "Medium reasoning replaced with Extra High throughout; all other text is identical.",
+      "impact": "Resumed GPT-6 Astra / XHigh complies; original Max execution retains explicit user override."
+    },
+    {
+      "path": "AGENTS.md",
+      "change": "README ownership subsection added; all other text is identical.",
+      "impact": "README was not edited in P0M2. No new product behavior, verification or milestone scope requirement."
+    }
+  ],
+  "assessment": "Original snapshot digests match prior acceptance; roadmap and production contracts unchanged. Final document/ledger checks and prerequisite hash verification must use current authority provenance while retaining original snapshots.",
+  "agentModifiedAuthorityFiles": false
+}

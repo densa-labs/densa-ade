@@ -1,0 +1,15 @@
+{
+  "id": "P0M2-TEST-HOLDS",
+  "class": "U",
+  "command": [
+    "npm",
+    "test"
+  ],
+  "cwd": "/Users/ivanuy/Library/Mobile Documents/com~apple~CloudDocs/Projects/densa-ade",
+  "startedAt": "2026-09-13T05:18:42.923097+00:00",
+  "completedAt": "2026-09-13T05:18:44.650059+00:00",
+  "exitStatus": 0,
+  "result": "PASS",
+  "artifact": "/Users/ivanuy/Library/Mobile Documents/com~apple~CloudDocs/Projects/densa-ade/docs/evidence/runs/P0M2-001/P0M2-TEST-HOLDS.log",
+  "artifactSha256": "227657c7867ed50b3abab80be184c53ae255a986a5924801f509013232eec30c"
+}

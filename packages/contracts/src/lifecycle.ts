@@ -1,0 +1,159 @@
+import { enumeration, fail, json } from './schema.js';
+import { requireBooleanFacts } from './decision-facts.js';
+
+/** Canonical vocabulary from AGENTS §10. These are proposals, never runtime writes. */
+export const projectStates = ['DRAFT', 'PLANNING', 'READY', 'RUNNING', 'PAUSED', 'WAITING_FOR_USER', 'WAITING_FOR_USAGE', 'BLOCKED', 'COMPLETED', 'FAILED'] as const;
+export const phaseStates = ['PENDING', 'READY', 'RUNNING', 'VALIDATING', 'AWAITING_APPROVAL', 'COMPLETED', 'BLOCKED'] as const;
+export const taskStates = ['PENDING', 'READY', 'RUNNING', 'VALIDATING', 'RETRYING', 'WAITING_FOR_USER', 'WAITING_FOR_USAGE', 'BLOCKED', 'INTERRUPTED', 'COMPLETED', 'CANCELLED'] as const;
+export type ProjectState = typeof projectStates[number];
+export type PhaseState = typeof phaseStates[number];
+export type TaskState = typeof taskStates[number];
+export const executionModes = ['Guided', 'Phase', 'Continuous'] as const;
+export type ExecutionMode = typeof executionModes[number];
+export const states = Object.freeze({ project: projectStates, phase: phaseStates, task: taskStates });
+export type Entity = keyof typeof states;
+export type State = ProjectState | PhaseState | TaskState;
+
+/** Each fact is derived by the owning Core service, not accepted from a client/model. */
+export const lifecycleGuards = [
+  'currentRevision', 'draftRevisionRecorded', 'specificationApproved', 'fullRoadmapApproved',
+  'schedulablePlan', 'startAuthorized', 'identityWorkspaceValid', 'trustPolicyValid',
+  'settingsValid', 'validationPlanAvailable', 'decisionsResolved', 'leaseAvailable',
+  'dependenciesCovered', 'phaseOrderValid', 'noControlOrRecoveryHold', 'budgetAvailable',
+  'implementationTask', 'qualificationTask', 'taskApprovalSatisfied', 'dispatchIntentRecorded',
+  'attemptReserved', 'reservedSlotWithinLimit', 'renewalIntentRecorded', 'workerTerminated', 'candidateFrozen',
+  'latestAttempt', 'allCriteriaSatisfied', 'currentCertificate', 'commitIdentityVerified',
+  'resultRefVerified', 'acceptedPointerInCompletionTransaction', 'noCancellationOrRevocation',
+  'noMandatoryHold', 'settlementReconciled', 'writersTerminated', 'diagnosticsRetained',
+  'revisedStrategy', 'originalCheckpointRestored', 'retryIntentRecorded', 'fourAttemptsExhausted',
+  'pauseIntentRecorded', 'schedulingFenced', 'cancelIntentRecorded', 'requiredDependencyCancelled',
+  'supersessionApproved', 'successorLinksRecorded', 'userHoldRecorded', 'denialRecorded',
+  'usageReliablyLimited', 'roleContinuationRecorded', 'resumePreflightComplete',
+  'interruptedWorker', 'interruptedValidation', 'allRequiredTasksSettled', 'phaseAcceptancePassed',
+  'freshPhaseReviewPassed', 'phaseReportRecorded', 'boundaryApprovalRequired',
+  'boundaryApprovalNotRequired', 'boundPhaseApproval', 'allRequiredPhasesComplete',
+  'allCurrentCoverageValid', 'noMandatoryDecisionOrRecovery', 'projectStopIntentRecorded',
+  'allUnfinishedTasksCancelled', 'explicitRepairApproved', 'repairGateSatisfied',
+  'completionAlreadyCommitted', 'cancelAlreadyCommitted', 'heldRoleCorrectionAuthorized',
+  'revocationRecorded', 'sameCandidate', 'sameExecution', 'planningOperation', 'recordedPhaseStageReady',
+  'recordedPhaseStageRunning', 'recordedPhaseStageValidating',
+  'roleSelected', 'verifiedNeverDispatched', 'heldValidationRole',
+] as const;
+export type LifecycleGuard = typeof lifecycleGuards[number];
+export type LifecycleFacts = Partial<Record<LifecycleGuard, boolean>>;
+export interface TransitionRule {
+  readonly id: string; readonly entity: Entity; readonly from: State; readonly to: State;
+  readonly trigger: string; readonly requires: readonly LifecycleGuard[]; readonly contract: string;
+}
+const rules: TransitionRule[] = [];
+function rows(entity: Entity, from: readonly State[], to: State, trigger: string, requires: readonly LifecycleGuard[], contract = 'R1'): void {
+  for (const state of from) rules.push(Object.freeze({ id: `${entity}.${trigger}.${state}.${to}`, entity, from: state, to, trigger, requires: Object.freeze(['currentRevision', 'sameExecution', ...requires] as LifecycleGuard[]), contract }));
+}
+const dispatch: LifecycleGuard[] = ['startAuthorized', 'identityWorkspaceValid', 'trustPolicyValid', 'settingsValid', 'validationPlanAvailable', 'decisionsResolved', 'leaseAvailable', 'dependenciesCovered', 'phaseOrderValid', 'noControlOrRecoveryHold'];
+const settlement: LifecycleGuard[] = ['latestAttempt', 'candidateFrozen', 'allCriteriaSatisfied', 'currentCertificate', 'commitIdentityVerified', 'resultRefVerified', 'acceptedPointerInCompletionTransaction', 'settlementReconciled', 'writersTerminated', 'noCancellationOrRevocation', 'noMandatoryHold'];
+const openProjects = projectStates.filter(s => s !== 'COMPLETED' && s !== 'FAILED');
+const unfinishedTasks = taskStates.filter(s => s !== 'COMPLETED' && s !== 'CANCELLED');
+const activeTasks: TaskState[] = ['RUNNING', 'VALIDATING', 'RETRYING', 'INTERRUPTED', 'WAITING_FOR_USER', 'WAITING_FOR_USAGE'];
+rows('project', ['DRAFT'], 'PLANNING', 'begin-planning', ['draftRevisionRecorded']);
+rows('project', ['PLANNING', 'WAITING_FOR_USER', 'WAITING_FOR_USAGE', 'BLOCKED'], 'DRAFT', 'abandon-planning', ['planningOperation', 'draftRevisionRecorded', 'writersTerminated', 'settlementReconciled']);
+rows('project', ['PLANNING', 'WAITING_FOR_USER', 'WAITING_FOR_USAGE', 'BLOCKED'], 'PLANNING', 'restart-planning', ['planningOperation', 'draftRevisionRecorded', 'writersTerminated', 'settlementReconciled']);
+rows('project', ['PLANNING'], 'READY', 'approve-plan', ['specificationApproved', 'fullRoadmapApproved', 'schedulablePlan', 'decisionsResolved']);
+rows('project', ['READY'], 'RUNNING', 'start', dispatch);
+rows('project', ['PAUSED', 'WAITING_FOR_USER', 'WAITING_FOR_USAGE', 'BLOCKED'], 'RUNNING', 'resume', [...dispatch, 'resumePreflightComplete', 'budgetAvailable', 'allCurrentCoverageValid']);
+rows('project', ['PAUSED', 'WAITING_FOR_USER', 'WAITING_FOR_USAGE', 'BLOCKED'], 'RUNNING', 'resume-validation', ['resumePreflightComplete', 'sameCandidate', 'candidateFrozen', 'trustPolicyValid', 'settingsValid', 'validationPlanAvailable', 'noControlOrRecoveryHold', 'roleContinuationRecorded']);
+rows('project', ['PAUSED', 'WAITING_FOR_USER', 'WAITING_FOR_USAGE', 'BLOCKED'], 'RUNNING', 'resume-renewal', ['resumePreflightComplete', 'renewalIntentRecorded', 'trustPolicyValid', 'settingsValid', 'validationPlanAvailable', 'noControlOrRecoveryHold'], 'R3b');
+rows('project', ['WAITING_FOR_USER', 'WAITING_FOR_USAGE', 'BLOCKED'], 'PLANNING', 'resume-planning', ['planningOperation', 'draftRevisionRecorded', 'trustPolicyValid', 'settingsValid', 'decisionsResolved', 'writersTerminated', 'noControlOrRecoveryHold', 'roleContinuationRecorded']);
+rows('project', ['READY', 'RUNNING', 'PAUSED', 'WAITING_FOR_USER', 'WAITING_FOR_USAGE', 'BLOCKED'], 'PAUSED', 'pause-quiescent', ['pauseIntentRecorded', 'schedulingFenced', 'writersTerminated', 'settlementReconciled']);
+rows('project', openProjects, 'WAITING_FOR_USER', 'user-hold', ['userHoldRecorded', 'noCancellationOrRevocation']);
+rows('project', openProjects, 'WAITING_FOR_USER', 'revocation-hold', ['revocationRecorded', 'userHoldRecorded', 'schedulingFenced']);
+rows('project', openProjects, 'WAITING_FOR_USAGE', 'usage-hold', ['usageReliablyLimited', 'roleContinuationRecorded', 'noMandatoryHold', 'noControlOrRecoveryHold']);
+rows('project', openProjects, 'BLOCKED', 'deny', ['denialRecorded']);
+rows('project', ['RUNNING', 'WAITING_FOR_USER', 'WAITING_FOR_USAGE', 'BLOCKED'], 'BLOCKED', 'attempts-exhausted', ['fourAttemptsExhausted', 'diagnosticsRetained']);
+rows('project', openProjects, 'BLOCKED', 'failure', ['diagnosticsRetained', 'schedulingFenced']);
+rows('project', ['RUNNING', 'WAITING_FOR_USER', 'BLOCKED'], 'RUNNING', 'admit-repair', [...dispatch, 'explicitRepairApproved'], 'R3b');
+rows('project', ['RUNNING', 'WAITING_FOR_USER'], 'COMPLETED', 'complete', ['allRequiredTasksSettled', 'allRequiredPhasesComplete', 'allCurrentCoverageValid', 'noMandatoryDecisionOrRecovery', 'noControlOrRecoveryHold']);
+rows('project', openProjects, 'FAILED', 'stop-reconciled', ['projectStopIntentRecorded', 'schedulingFenced', 'writersTerminated', 'settlementReconciled', 'allUnfinishedTasksCancelled']);
+
+rows('phase', ['PENDING'], 'READY', 'eligible', ['phaseOrderValid', 'dependenciesCovered', 'noControlOrRecoveryHold']);
+rows('phase', ['READY'], 'RUNNING', 'start', dispatch);
+rows('phase', ['RUNNING'], 'VALIDATING', 'tasks-settled', ['allRequiredTasksSettled', 'allCurrentCoverageValid', 'noControlOrRecoveryHold']);
+rows('phase', ['VALIDATING'], 'AWAITING_APPROVAL', 'report', ['phaseAcceptancePassed', 'freshPhaseReviewPassed', 'phaseReportRecorded', 'boundaryApprovalRequired', 'noMandatoryHold']);
+rows('phase', ['VALIDATING'], 'COMPLETED', 'continuous-complete', ['phaseAcceptancePassed', 'freshPhaseReviewPassed', 'phaseReportRecorded', 'boundaryApprovalNotRequired', 'noControlOrRecoveryHold', 'allCurrentCoverageValid']);
+rows('phase', ['AWAITING_APPROVAL'], 'COMPLETED', 'approve', ['boundPhaseApproval', 'allCurrentCoverageValid', 'noMandatoryDecisionOrRecovery']);
+rows('phase', ['AWAITING_APPROVAL'], 'BLOCKED', 'reject-report', ['denialRecorded']);
+rows('phase', phaseStates.filter(s => s !== 'COMPLETED'), 'BLOCKED', 'failure', ['diagnosticsRetained']);
+rows('phase', ['BLOCKED'], 'READY', 'repair-pending-phase', ['recordedPhaseStageReady', 'explicitRepairApproved', 'repairGateSatisfied', 'phaseOrderValid', 'noControlOrRecoveryHold'], 'R3b');
+rows('phase', ['BLOCKED'], 'RUNNING', 'release-suspended-phase', ['recordedPhaseStageRunning', 'repairGateSatisfied', 'allCurrentCoverageValid', 'noControlOrRecoveryHold'], 'R3b');
+rows('phase', ['BLOCKED'], 'VALIDATING', 'release-suspended-validation', ['recordedPhaseStageValidating', 'repairGateSatisfied', 'allCurrentCoverageValid', 'allRequiredTasksSettled', 'noControlOrRecoveryHold'], 'R3b');
+for (const state of ['RUNNING', 'VALIDATING'] as const) rows('phase', [state], state, 'retain-stage-hold', ['roleContinuationRecorded'], 'R1/R3b');
+
+rows('task', ['PENDING'], 'READY', 'eligible', ['dependenciesCovered', 'phaseOrderValid', 'validationPlanAvailable', 'noControlOrRecoveryHold']);
+rows('task', ['READY'], 'RUNNING', 'dispatch-worker', [...dispatch, 'implementationTask', 'taskApprovalSatisfied', 'attemptReserved', 'reservedSlotWithinLimit', 'dispatchIntentRecorded']);
+rows('task', ['READY'], 'VALIDATING', 'dispatch-qualification', [...dispatch, 'qualificationTask', 'taskApprovalSatisfied', 'renewalIntentRecorded', 'candidateFrozen'], 'R5/R1b');
+rows('task', ['RUNNING'], 'VALIDATING', 'worker-candidate', ['workerTerminated', 'candidateFrozen', 'latestAttempt', 'noControlOrRecoveryHold']);
+rows('task', ['VALIDATING'], 'COMPLETED', 'settle', settlement, 'R1/R3');
+rows('task', ['RUNNING', 'VALIDATING', 'INTERRUPTED', 'WAITING_FOR_USER', 'WAITING_FOR_USAGE'], 'RETRYING', 'repairable-failure', ['implementationTask', 'writersTerminated', 'settlementReconciled', 'diagnosticsRetained', 'revisedStrategy', 'budgetAvailable', 'retryIntentRecorded', 'noControlOrRecoveryHold']);
+rows('task', ['RETRYING'], 'READY', 'reset-for-retry', ['originalCheckpointRestored', 'writersTerminated', 'settlementReconciled', 'retryIntentRecorded', 'budgetAvailable', 'noControlOrRecoveryHold']);
+rows('task', activeTasks, 'INTERRUPTED', 'pause-terminated', ['pauseIntentRecorded', 'schedulingFenced', 'writersTerminated', 'settlementReconciled']);
+rows('task', activeTasks, 'INTERRUPTED', 'revoked-terminated', ['revocationRecorded', 'schedulingFenced', 'writersTerminated', 'settlementReconciled', 'userHoldRecorded'], 'R3a');
+rows('task', ['INTERRUPTED', 'WAITING_FOR_USER', 'WAITING_FOR_USAGE', 'BLOCKED'], 'READY', 'resume-worker', [...dispatch, 'resumePreflightComplete', 'implementationTask', 'interruptedWorker', 'budgetAvailable', 'originalCheckpointRestored', 'writersTerminated', 'settlementReconciled']);
+rows('task', ['INTERRUPTED', 'WAITING_FOR_USER', 'WAITING_FOR_USAGE', 'BLOCKED'], 'VALIDATING', 'resume-validation', [...dispatch, 'resumePreflightComplete', 'interruptedValidation', 'sameCandidate', 'candidateFrozen', 'writersTerminated', 'dispatchIntentRecorded']);
+rows('task', ['WAITING_FOR_USER', 'BLOCKED'], 'VALIDATING', 'correct-held-role', [...dispatch, 'heldRoleCorrectionAuthorized', 'sameCandidate', 'candidateFrozen', 'writersTerminated', 'dispatchIntentRecorded'], 'R5a');
+rows('task', activeTasks, 'WAITING_FOR_USER', 'user-hold', ['userHoldRecorded', 'noCancellationOrRevocation']);
+rows('task', activeTasks, 'WAITING_FOR_USAGE', 'usage-hold', ['usageReliablyLimited', 'roleContinuationRecorded', 'noMandatoryHold', 'noControlOrRecoveryHold']);
+rows('task', ['READY'], 'WAITING_FOR_USER', 'selected-role-user-hold', ['roleSelected', 'verifiedNeverDispatched', 'roleContinuationRecorded', 'userHoldRecorded', 'noCancellationOrRevocation']);
+rows('task', ['READY'], 'WAITING_FOR_USAGE', 'selected-role-usage-hold', ['roleSelected', 'verifiedNeverDispatched', 'roleContinuationRecorded', 'usageReliablyLimited', 'noMandatoryHold', 'noControlOrRecoveryHold']);
+rows('task', ['WAITING_FOR_USER', 'WAITING_FOR_USAGE'], 'READY', 'resume-before-worker-dispatch', [...dispatch, 'implementationTask', 'resumePreflightComplete', 'verifiedNeverDispatched', 'writersTerminated', 'budgetAvailable']);
+rows('task', ['BLOCKED'], 'WAITING_FOR_USER', 'held-validation-user-hold', ['heldValidationRole', 'roleContinuationRecorded', 'userHoldRecorded', 'writersTerminated', 'noCancellationOrRevocation'], 'R4/R5a');
+rows('task', unfinishedTasks, 'BLOCKED', 'failure', ['diagnosticsRetained']);
+rows('task', unfinishedTasks, 'BLOCKED', 'dependency-cancelled', ['requiredDependencyCancelled']);
+rows('task', unfinishedTasks, 'BLOCKED', 'deny', ['denialRecorded']);
+rows('task', unfinishedTasks, 'BLOCKED', 'attempts-exhausted', ['fourAttemptsExhausted', 'diagnosticsRetained']);
+rows('task', unfinishedTasks, 'CANCELLED', 'cancel-reconciled', ['cancelIntentRecorded', 'schedulingFenced', 'writersTerminated', 'settlementReconciled'], 'R1/R3a');
+rows('task', unfinishedTasks, 'CANCELLED', 'supersede', ['supersessionApproved', 'successorLinksRecorded', 'writersTerminated', 'settlementReconciled'], 'R5');
+rows('task', ['COMPLETED'], 'COMPLETED', 'late-cancel', ['completionAlreadyCommitted'], 'R3a');
+rows('task', ['CANCELLED'], 'CANCELLED', 'repeat-cancel', ['cancelAlreadyCommitted']);
+export const transitionRules: readonly TransitionRule[] = Object.freeze(rules);
+
+/** Full N×N table, including explicit empty (illegal) cells and same-state events. */
+export function transitionPairs(entity: Entity) {
+  enumeration(['project', 'phase', 'task']).parse(entity);
+  return states[entity].flatMap(from => states[entity].map(to => ({ from, to, rules: transitionRules.filter(r => r.entity === entity && r.from === from && r.to === to).map(r => r.id) })));
+}
+export function proposeTransition(entity: Entity, from: State, to: State, trigger: string, facts: LifecycleFacts) {
+  enumeration(['project', 'phase', 'task']).parse(entity);
+  enumeration(states[entity]).parse(from); enumeration(states[entity]).parse(to);
+  const safe = json(facts);
+  if (!safe || typeof safe !== 'object' || Array.isArray(safe)) fail();
+  for (const [key, value] of Object.entries(safe)) if (!lifecycleGuards.includes(key as LifecycleGuard) || typeof value !== 'boolean') fail();
+  const rule = transitionRules.find(r => r.entity === entity && r.from === from && r.to === to && r.trigger === trigger);
+  if (!rule) fail('INVALID_TRANSITION');
+  const missing = rule.requires.filter(guard => safe[guard] !== true);
+  if (missing.length) return { kind: 'rejected' as const, code: 'INVALID_TRANSITION' as const, rule: rule.id, missing };
+  return { kind: 'proposed' as const, entity, from, to, events: [{ type: 'lifecycle.transition-proposed' as const, rule: rule.id, trigger, contract: rule.contract }] };
+}
+
+export interface HoldFacts {
+  completionCommitted: boolean; cancel: boolean; revoke: boolean; externalEffectUnknown: boolean;
+  liveWriter: boolean; pause: boolean; mandatory: readonly string[]; usage: readonly string[];
+  blocked: readonly string[]; retryPending: boolean;
+}
+/** Serialized facts, never promise-return order. Preserve every reason, even when hidden. */
+export function decidePrecedence(f: HoldFacts) {
+  requireBooleanFacts(f, ['completionCommitted', 'cancel', 'revoke', 'externalEffectUnknown', 'liveWriter', 'pause', 'retryPending']);
+  const reasons = [...(f.cancel ? ['cancel'] : []), ...(f.revoke ? ['revocation'] : []), ...(f.externalEffectUnknown ? ['recovery'] : []), ...(f.liveWriter ? ['writer-termination'] : []), ...(f.pause ? ['pause'] : []), ...f.mandatory, ...f.usage, ...f.blocked, ...(f.retryPending ? ['retry'] : [])];
+  const action = f.completionCommitted ? 'preserve-completion' : f.externalEffectUnknown ? 'reconcile' : f.cancel ? f.liveWriter ? 'terminate-for-cancel' : 'cancel' : f.revoke ? f.liveWriter ? 'terminate-for-revocation' : 'interrupt-and-request-user' : f.pause ? f.liveWriter ? 'terminate-for-pause' : 'pause' : f.mandatory.length ? 'wait-user' : f.usage.length ? 'wait-usage' : f.blocked.length ? 'block' : f.liveWriter ? 'await-owned-writer' : f.retryPending ? 'retry' : 'continue';
+  return { action, reasons, schedulingFenced: action !== 'continue' && action !== 'retry', terminalAllowed: !f.externalEffectUnknown && !f.liveWriter } as const;
+}
+
+export function decidePhaseBoundary(f: { mode: ExecutionMode; phaseStage: 'VALIDATING' | 'AWAITING_APPROVAL'; finalPhase: boolean; acceptancePassed: boolean; freshReviewPassed: boolean; coverageCurrent: boolean; approval: 'pending' | 'approved' | 'denied'; approvalBound: boolean; mandatoryHold: boolean; callbackActive: boolean; pauseOrRecovery: boolean }) {
+  requireBooleanFacts(f, ['finalPhase', 'acceptancePassed', 'freshReviewPassed', 'coverageCurrent', 'approvalBound', 'mandatoryHold', 'callbackActive', 'pauseOrRecovery']);
+  enumeration(executionModes).parse(f.mode);
+  enumeration(['VALIDATING', 'AWAITING_APPROVAL']).parse(f.phaseStage); enumeration(['pending', 'approved', 'denied']).parse(f.approval);
+  if (f.pauseOrRecovery) return { phase: f.phaseStage, project: 'retain-control-state' as const, continuation: 'record-pending-continuation' as const };
+  if (!f.acceptancePassed || !f.freshReviewPassed || !f.coverageCurrent) return { phase: 'BLOCKED' as const, project: 'BLOCKED' as const, continuation: 'repair-proposal' as const };
+  if (f.mandatoryHold) return { phase: f.phaseStage, project: 'WAITING_FOR_USER' as const, continuation: 'held' as const };
+  if (f.mode !== 'Continuous' && (f.approval === 'pending' || !f.approvalBound)) return { phase: 'AWAITING_APPROVAL' as const, project: 'WAITING_FOR_USER' as const, continuation: 'bound-phase-approval' as const };
+  if (f.mode !== 'Continuous' && f.approval === 'denied') return { phase: 'BLOCKED' as const, project: 'BLOCKED' as const, continuation: 'repair-proposal' as const };
+  return { phase: 'COMPLETED' as const, project: f.callbackActive ? 'retain-execution-state' as const : f.finalPhase ? 'COMPLETED' as const : 'RUNNING' as const, continuation: f.callbackActive ? 'record-pending-continuation' as const : f.finalPhase ? 'complete-project' as const : 'start-next-phase' as const };
+}

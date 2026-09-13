@@ -1,0 +1,7 @@
+
+> densa-ade@0.0.0 lint
+> eslint . && node scripts/checks.mjs
+
+architecture: PASS
+links: PASS
+ledger: PASS

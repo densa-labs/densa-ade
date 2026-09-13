@@ -1,0 +1,22 @@
+{
+  "inputs/tests/lifecycle.test.mjs": {
+    "snapshot": "inputs/tests/lifecycle.test.mjs.snapshot",
+    "sha256": "d94387a44429f265d354269ce649c889369b37a378c7561c59171c9fc3563289"
+  },
+  "inputs/docs/lifecycle.md": {
+    "snapshot": "inputs/docs/lifecycle.md.snapshot",
+    "sha256": "00238b2af152079fef4aa64d1e4e63efcde223cf89d21120f9ac8a7f6c027107"
+  },
+  "inputs/packages/contracts/src/lifecycle.ts": {
+    "snapshot": "inputs/packages/contracts/src/lifecycle.ts.snapshot",
+    "sha256": "a7641b24ef9a0c60eaae91e4d427dc59cf626f7a88dfc15bc236efc5a4168c3c"
+  },
+  "inputs/docs/evidence/ledger.json": {
+    "snapshot": "inputs/docs/evidence/ledger.json.snapshot",
+    "sha256": "2e6e511a8b1ed347b27815aa575757b47071e03bb4be66afe25072f8266506e0"
+  },
+  "report.md": {
+    "snapshot": "report.md.snapshot",
+    "sha256": "83d370a85c2898a22883183679992e914abb20bb65855e7cc9197afe339088e1"
+  }
+}

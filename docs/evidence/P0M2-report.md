@@ -1,0 +1,51 @@
+# P0M2 — COMPLETE
+
+Implemented lifecycle and planning decision contracts. This is P0M2 unit acceptance through implementation self-verification; phase completion, independent review and product gates remain pending.
+
+| Section | Result |
+| --- | --- |
+| Implementation | Six new contract modules (`lifecycle`, `attempts`, `role-results`, `planning`, `continuity`, `decision-facts`) plus shared exports; 213 guarded rules over all 270 project/phase/task pairs; four-attempt and three-call accounting; 112 role/result cells; graph readiness, split/supersession and mutation rules; cancellation seams, renewal/repair, sponsorship/departure and reopen initialization. Added 22 P0M2 tests and architecture, contract and scenario documentation. |
+| Verification | Build, typecheck, lint, all 48 tests, standalone contracts compilation, table generation and prerequisite hash verification pass. Final documentation/diff checks and digest verification bind the completed report. All nineteen R1 rows, both milestone acceptance criteria and every required deliverable map to evidence IDs and test names in the acceptance record. Required rejection, timeout, exhaustion, cancellation, retry, recovery, stale-state and partial-effect scenarios are pure U fixtures. |
+| Scope | Pure proposals only. No persistence, scheduler loop, worker/provider/OS/Git execution, UI or new dependency. The shared JSON-safe boolean validator prevents malformed facts from becoming evidence. Documentation and generated tables are required milestone support. No later milestone, commit, push or tag. |
+| Evidence freshness | Initial and final R7a assessments record the 88-milestone producer/consumer cone and behavior edges. Affected P0M1 checks were superseded. The earlier P0M2 acceptance was then marked STALE when selected-role holds were corrected; `P0M2-ACCEPTANCE-002` and checks ending in `-HOLDS` replace it. Historical observations, changed inputs and digest-matching original tables are retained. P0M0 clean-install applicability remains unchanged. Gates A–H and all later production/recovery/security/IDE/packaged obligations remain pending. |
+| Specification status | Specification gaps: None identified. Deviations: None in product contracts. The user approved the original GPT-6 Astra / Max exception. Resumed XHigh complies with the externally updated Extra High model policy. AGENTS externally gained a README ownership rule; README was preserved. This agent did not edit authority files. Internal choices: finite rule arrays, JSON-safe Core-derived facts, stable-ID ordering and separate pure decision functions. |
+| Repository state | Base commit `18a0791f9508a4c5c2a371f15c0e8ebbda1112c2`; base tree `27791eed2b3981959091971ad3d050abc9883527`. All P0M2 work is uncommitted; the index is unchanged. Existing audit/ and an external `.gitignore` addition of `/audit/` are preserved and excluded from P0M2 ownership. Actual final status appears below. |
+| Handoff | P0M0/P0M1 committed producer snapshots and all 21 retained artifact digests verify. P0M2 provides pure decision prerequisites for P0M3, subject to fresh-chat preflight and candidate freshness verification. P0M3 was not started. P0M4 and later services retain ownership of detailed authority/evidence/configuration records and real execution proof. |
+
+[Acceptance record](runs/P0M2-001/acceptance.json) maps every requirement to exact checks and test prefixes. [Guard definitions and scenario specification](../lifecycle.md) describe producer responsibilities and expected outcomes. [Pairwise cells](runs/P0M2-001/pairwise.json), [complete rules](runs/P0M2-001/transition-rules.json), and [role-result matrix](runs/P0M2-001/role-results.json) supply the machine-readable tables.
+
+[Candidate manifest](runs/P0M2-001/candidate.json), [artifact digests](runs/P0M2-001/artifacts.json), [initial preflight](runs/P0M2-001/preflight.json), [continuation/configuration observation](runs/P0M2-001/continuation.json), [authority change assessment](runs/P0M2-001/authority-history.json), and [evidence ledger](ledger.json) retain R7/R7a provenance. The final integrity record is `runs/P0M2-001/integrity-final.json`; it binds the candidate, acceptance and artifact manifests without recursive hashes. `P0M2-INDEPENDENT-HOLDS` names standalone compilation only, not an independent audit.
+
+Roadmap SHA-256: `8053f010bf1ebf52fabc954961b7b50773533ed22e35029a147078a20c335b07`.
+Uncommitted candidate manifest SHA-256: `be4decdafaa640427a0fdbe05059b73939966170ab5d16e42554151d1ce93948`.
+Prerequisites: `P0M0-ACCEPTANCE-001`, `P0M1-ACCEPTANCE-001`, `P0M0-CLEAN-INSTALL`, verified by `P0M2-PREREQUISITES-HOLDS` using exact historical authority snapshots and current-policy validation.
+Toolchain: Node v24.14.0, npm 11.9.0, TypeScript 5.9.3, ESLint 10.9.1, typescript-eslint 8.68.0, Git 2.54.0 (Apple Git-157), Python 3.14.3. Authority/configuration hashes, exact commands, times, exit statuses and result digests are in the acceptance record and manifests.
+
+The candidate manifest includes observed external `.gitignore`, MODEL_POLICY and AGENTS edits for exact binding; it does not attribute those edits to this milestone. It excludes generated dependencies/builds, audit prompts, separately hashed run artifacts and derived/historical reports. Product source and tests are unchanged after replacement cumulative checks; subsequent evidence/document edits receive final link/ledger, whitespace and digest verification. One preliminary evidence-finalization command exited 1 because external authority edits invalidated its original hash binding. The diagnostic is retained as `P0M2-FINALIZE-AUTHORITY-CHANGED`; reading the new rules, preserving exact originals and refreshing prerequisite/configuration evidence resolves it. All required final checks pass; none remain unavailable. Earlier observations and self-review corrections are retained.
+
+Process termination, ref identity, coverage and authority inputs are unit fixtures. They do not prove actual restart, enforcement, settlement or independent validation. Future Core services must establish these facts through normal routes and preserve R0/R3 transactions and fences; no runtime command is advertised as implemented.
+
+Actual `git status --short`:
+
+```text
+ M .gitignore
+ M docs/architecture.md
+ M docs/contracts.md
+ M docs/evidence/ledger.json
+ M packages/contracts/src/index.ts
+?? docs/evidence/P0M2-report.md
+?? docs/evidence/runs/P0M2-001/
+?? docs/lifecycle.md
+?? packages/contracts/src/attempts.ts
+?? packages/contracts/src/continuity.ts
+?? packages/contracts/src/decision-facts.ts
+?? packages/contracts/src/lifecycle.ts
+?? packages/contracts/src/planning.ts
+?? packages/contracts/src/role-results.ts
+?? tests/lifecycle.test.mjs
+?? tests/planning-continuity.test.mjs
+```
+
+Pre-existing work: audit/, now ignored. Unrelated work observed on continuation: `.gitignore` adds `/audit/`; ignored MODEL_POLICY and AGENTS have the external edits described above. Every other status entry is P0M2 work. README is unchanged. No files were staged and no commit was created.
+
+README mismatch: it still describes only P0M0 and four empty package boundaries; P0M1/P0M2 now provide implemented pure contracts. AGENTS requires preserving the user-owned README, so current implementation is documented in the architecture, contract and lifecycle notes instead. There is still no runnable product.

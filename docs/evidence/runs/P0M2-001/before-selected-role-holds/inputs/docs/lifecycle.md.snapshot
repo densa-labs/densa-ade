@@ -1,0 +1,102 @@
+# P0M2 lifecycle and planning decisions
+
+P0M2 implements pure decisions in the [contracts package](../packages/contracts/src/index.ts). They return transition proposals, required next actions, or rejection; they do not persist facts, schedule work, call models, verify a process, touch Git or authorize a client. The roadmap owns behavior. These notes describe the implementation choices and the facts future producers must supply.
+
+## Boundaries and composition
+
+| Module | Pure responsibility | Runtime producer/consumer obligation |
+| --- | --- | --- |
+| [lifecycle.ts](../packages/contracts/src/lifecycle.ts) | Canonical states, full pairwise transition rules, required guards, control precedence and phase boundaries | P1M1 validates facts and proposes/persists state, revisions, commands and events atomically. P9 composes task and phase continuation; P10M1 applies the recovery barrier. |
+| [attempts.ts](../packages/contracts/src/attempts.ts) | Four-slot reservation ledger, dispatch uncertainty, safe retry prerequisites, three-call role budget | P1M1 persists intent before dispatch; P4/P9 prove launch/termination and preserve counters across waits/restarts. |
+| [role-results.ts](../packages/contracts/src/role-results.ts) | Every R4 role/result mapping, same-input/candidate retry scope, refusal and unknown-failure holds | P4M1 classifies actual provider/trusted-runner signals. P7 distinguishes acceptance findings from infrastructure failure. |
+| [planning.ts](../packages/contracts/src/planning.ts) | Graph validation, serial readiness, exact split obligations and mutation classification/admission | P6M2/P6M3 materialize approved semantic plans. P7 establishes actual validator feasibility; P9 proves normal dispatch and quiesced mutation. |
+| [continuity.ts](../packages/contracts/src/continuity.ts) | R3a cancellation seams, sponsorship/Quit, reopen initialization, renewal and repair decisions | P8M2 verifies actual objects/refs and compensation; P9M0/P9M8/P10M4 implement renewal, reopen and departure routes. |
+
+All decisions consume a coherent, revision-checked snapshot of **Core-derived facts**. A boolean named `objectsVerified`, an approval ID, or a candidate digest supplied by a client/model is not verification or authorization. R0 authentication, object lookup, callback fencing, transaction serialization and trusted evidence remain required at their owning milestones. TypeScript contracts and required-boolean validation catch malformed facts; they do not attest to their truth. Inputs are JSON-safe under the existing P0M1 bounds. Schema parsing is structural proof only.
+
+The runtime composition order is: reconcile command replay/revisions and callback ownership; retain all control/hold reasons; determine settlement/recovery facts; evaluate role/renewal/graph decisions; check the exact transition rule and all its guards; atomically persist the proposed transition/events and associated intents. External effects still require their journal and later verification. Helper results cannot bypass a transition guard or stronger control. A result such as `retain-control-state` is an instruction to retain the recorded state, not a new canonical state.
+
+`proposeTransition` rejects an unlisted entity/state/trigger combination with `INVALID_TRANSITION`. A listed rule with missing or false guards returns a rejected result naming every missing fact. Successful output contains a `lifecycle.transition-proposed` event descriptor and the rule ID; P1M1 owns authoritative event identity, sequence, version and persistence. Same-state cells contain only explicitly listed outcome events. Retaining a state while recording a hold is not permission for an unrelated transition.
+
+## Complete tables
+
+The retained [pairwise table](evidence/runs/P0M2-001/pairwise.json) contains all **270 cells**: 100 project, 49 phase and 121 task pairs. An empty rule list is an illegal transition cell. Each populated cell references the complete trigger/guard row in the [rule table](evidence/runs/P0M2-001/transition-rules.json). The [role-result table](evidence/runs/P0M2-001/role-results.json) contains all **112 cells** for eight roles and fourteen result classes, including invalid signal combinations and unknown failure.
+
+[Lifecycle tests](../tests/lifecycle.test.mjs) separately encode expected adjacency from the normative triggers. They examine every cell, exercise every declared rule, remove each guard individually, and check concrete expected outcomes. This is implementation-authored unit verification, not an independent audit. The generated tables are inspectable deliverables, not independent proof by themselves.
+
+## Guard meanings
+
+These predicates are conjunctions of the named roadmap requirements. None means “choose a safe point.” The guard arrays list exactly which predicates each transition requires; a missing fact is false. Applicability is fixed by the rule and task/role kind, not inferred from prose.
+
+| Guard group | Meaning and source |
+| --- | --- |
+| `currentRevision`, `sameExecution` | R0 expected revisions/callback fences are current, and a transition does not change execution identity. Reopen uses a new execution and never reverses a terminal row. |
+| `planningOperation`, `draftRevisionRecorded` | The held operation is the interview/planning operation, and retained/new draft revision intent is recorded. A worker hold cannot be abandoned as an interview. |
+| `specificationApproved`, `fullRoadmapApproved`, `schedulablePlan` | Exact current specification and complete roadmap approvals exist; R5 graph/coverage/criteria/decision checks pass. |
+| `startAuthorized`, `identityWorkspaceValid`, `trustPolicyValid`, `settingsValid` | Exact start/continuation is authorized; source/execution identity and R3 workspace checks pass; current trust/policy and effective configuration permit the operation. These are future service facts. |
+| `validationPlanAvailable`, `decisionsResolved`, `leaseAvailable` | Required validation can run; blocking decisions are resolved; applicable owned lease is available. P0M2's declared feasibility is not installed-tool proof. |
+| `dependenciesCovered`, `phaseOrderValid`, `allCurrentCoverageValid` | Required inputs have current candidate-bound coverage; ordered phase gates permit this slice; all applicable current promises are covered. R3b admitted repairs use only the exact named failed-coverage exception, with all other dependencies valid. |
+| `noControlOrRecoveryHold`, `noMandatoryHold`, `noMandatoryDecisionOrRecovery`, `noCancellationOrRevocation` | No recorded barrier in the specified category prevents this transition. `decidePrecedence` retains every simultaneous reason; clearing one reason does not clear others. |
+| `budgetAvailable`, `attemptReserved`, `reservedSlotWithinLimit` | Another implementation reservation fits within four total slots; this task owns a recorded reservation; that reservation is within the four-slot ceiling. Dispatch of the fourth reserved slot does not require a fifth free slot. |
+| `implementationTask`, `qualificationTask`, `taskApprovalSatisfied` | Explicit task kind and exact Guided task approval (or applicable mode authorization). Qualification runs no worker. |
+| `dispatchIntentRecorded`, `renewalIntentRecorded`, `retryIntentRecorded` | The relevant journal/control intent exists before dispatch or RETRYING. P1M1 must persist these facts; P0M2 proposes only. |
+| `workerTerminated`, `writersTerminated`, `settlementReconciled` | Owned worker/child termination is verified, and external effects are reconciled. PID existence, a disconnect, promise timing, or an exit-looking message is insufficient. |
+| `candidateFrozen`, `sameCandidate`, `latestAttempt` | Immutable candidate identity/bytes are unchanged and provenance refers to the latest non-superseded attempt. P0M4/P5/P7 own those proofs. |
+| `allCriteriaSatisfied`, `currentCertificate`, `commitIdentityVerified`, `resultRefVerified`, `acceptedPointerInCompletionTransaction` | Exact required criteria/certificate and commit/ref are verified; accepted baseline, task completion and completion event will be recorded in the same transaction. A moved ref is still tentative before that transaction. |
+| `diagnosticsRetained`, `revisedStrategy`, `originalCheckpointRestored`, `fourAttemptsExhausted` | Failure evidence is retained; retry has a revised diagnostic strategy; reset verified the original task checkpoint; all four dispatched/ambiguous attempt slots are spent. Resume never resets this count. |
+| `pauseIntentRecorded`, `schedulingFenced`, `cancelIntentRecorded`, `revocationRecorded`, `projectStopIntentRecorded` | Exact durable control intent/epoch is present and new scheduling is fenced. Settlement compensation is separate from a revoked worker grant. |
+| `requiredDependencyCancelled`, `supersessionApproved`, `successorLinksRecorded` | Cancellation is unsatisfied; semantic supersession approval and explicit replacement/reconnection links exist. Completed history is immutable. |
+| `userHoldRecorded`, `denialRecorded`, `usageReliablyLimited`, `roleContinuationRecorded` | The required decision/denial/observed limit and role-specific continuation are recorded. Unknown usage is not a reliable limit. Phase holds retain the recorded execution stage. |
+| `resumePreflightComplete`, `interruptedWorker`, `interruptedValidation` | Resume has rechecked identity/workspace, lease, evidence, trust/policy/settings, decisions and applicable budget. A stopped worker needs a new attempt; stopped validation resumes on frozen bytes. Separate validation/renewal project resume rules do not require a spare worker attempt or already-renewed coverage. |
+| `allRequiredTasksSettled`, `phaseAcceptancePassed`, `freshPhaseReviewPassed`, `phaseReportRecorded` | Current required tasks settled, cumulative phase acceptance and fresh review passed, and the exact report is recorded. |
+| `boundaryApprovalRequired`, `boundaryApprovalNotRequired`, `boundPhaseApproval`, `allRequiredPhasesComplete` | Guided/Phase require bound phase approval, including final phase; Continuous omits routine approvals. Final completion also requires every current required phase complete. |
+| `explicitRepairApproved`, `repairGateSatisfied`, `recordedPhaseStageReady/Running/Validating` | The exact R3b repair is approved; matching original coverage and any recovery phase acceptance/review/mode approval pass. The recorded suspended stage selects its legal restoration target. |
+| `completionAlreadyCommitted`, `cancelAlreadyCommitted` | Durable serialized outcome already exists. Late cancel preserves COMPLETED; repeating cancellation preserves CANCELLED. |
+| `heldRoleCorrectionAuthorized` | The R5a correction is exact, material, confirmed, same-candidate/requirements, no live child or settlement, and within the old/current authority ceiling. P0M3/P0M4/P7M4 own its detailed authority/configuration schemas and full-bundle execution. |
+
+## R1 scenario specification and acceptance map
+
+Numbers follow the nineteen normative R1 rows in roadmap order. Every row is required and covered in the final unit evidence.
+
+| Criterion | Deterministic expectation | Unit scenario / decision |
+| --- | --- | --- |
+| R1-01 create/planning | DRAFT → PLANNING → READY after both approvals; abandon retains history, restart records a new draft | `P0M2 R1 rows`; planning guards |
+| R1-02 start | Project/phase/task advance in order only with applicable authorization, current inputs, lease and recorded dispatch reservation | `P0M2 R1 rows`, `P0M2 readiness`, `P0M2 guards` |
+| R1-03 usable candidate | RUNNING → VALIDATING; no prose-to-COMPLETED edge | `P0M2 R1 rows`, pairwise rejection |
+| R1-04 repairable failure | Diagnose and terminalize attempt; revised strategy plus budget yields journaled RETRYING then verified reset → READY; otherwise block | `P0M2 attempt reservation`, guard-removal tests |
+| R1-05 attempts | Four total reserved/dispatched slots; unknown dispatch counts until disproven; only proven never-dispatched slots release | `P0M2 attempt reservation`, `P0M2 boundary regressions` |
+| R1-06 exhaustion | Task/phase/project BLOCKED; counters survive value round trip and resume has no reset operation | `P0M2 R1 rows`, attempt budget tests |
+| R1-07 pause | Fence immediately; terminate before INTERRUPTED/quiescent PAUSED; reconcile dispatched settlement and initiate no new publication | `P0M2 control precedence`, `P0M2 R3a`, mode barrier tests |
+| R1-08 resume | Recheck required facts; interrupted worker needs new reservation, validation retains candidate, renewal precedes ordinary readiness | `P0M2 R1 rows`, `P0M2 R3b A/B/C` |
+| R1-09 cancel/stop | Reconciled unfinished task becomes CANCELLED, dependents block; stop ends FAILED; committed completion remains | `P0M2 R3a`, `P0M2 R1 rows`, idempotent cancel |
+| R1-10 dependencies/supersession | Cancellation is never satisfaction; explicit approved successor mapping preserves obligations and completed history | `P0M2 R5 graph`, `P0M2 R5 split` |
+| R1-11 required user input | Active task/project wait; phase stage retained; denial blocks without retry loop | R1 rows, role matrix and mode hold tests |
+| R1-12 usage | Reliable role-specific limit waits and retains input/candidate; unknown failure blocks; no extra validation worker attempt | R4 matrix, role budget and precedence tests |
+| R1-13 phase final tasks | RUNNING → VALIDATING; full cumulative acceptance plus fresh review/report; failures require tracked repair | R1 rows, mode and historical repair tests |
+| R1-14 Guided | Exact task approval plus every phase approval, including final phase | Readiness and exhaustive mode matrix |
+| R1-15 Phase | Current phase start authorization; every validated phase awaits approval; final approval completes project | Readiness and exhaustive mode matrix |
+| R1-16 Continuous | Validated phase/project completes without routine boundary approval while mandatory/control holds still win | Mode matrix and barrier regressions |
+| R1-17 report rejection | AWAITING_APPROVAL → BLOCKED, project BLOCKED; explicit repair proposal preserves evidence | R1 rows and mode denial tests |
+| R1-18 project completion | Every current required task/phase settled/validated/approved, coverage current, no mandatory recovery/decision | Completion guard-removal and final mode tests |
+| R1-19 reopen | New execution DRAFT with verified selected baseline, new approvals/IDs, zero-attempt qualification and immutable terminal history | `P0M2 R1b reopen`, terminal pair rejection |
+
+These additional scenario families cover the P0M2-required subcontracts:
+
+| Contract | Deterministic scenario specification |
+| --- | --- |
+| R4 / AR04 | Interview, planner/scope planner, worker, reviewer, trusted command/browser validator and optional Master have explicit outcomes. Provider refusal asks the user without repair/fallback. Structured acceptance failure may request a new unsettled-task worker attempt; cumulative failure creates a repair proposal. Invalid trusted evidence blocks. Third known timeout/transient blocks after 30/120-second planned backoffs; one schema repair shares the same three calls. Live/unknown termination requires reconciliation before replacement. Missing config avoids blind launches. Mandatory context cannot be dropped; optional-only preparation neither dispatches nor resets counters. Optional Master holds affect only that request. |
+| R3a / AR03 | Before commit or before ref movement, cancel retains B and N as attempt evidence. After ref movement but before completion, exact journaled CAS compensation restores owned N→B; cancellation remains nonterminal until verified. Ref mismatch/unknown ownership blocks. A committed completion preserves N. No-change N=B uses the same ordering without an empty commit. Revocation yields INTERRUPTED plus user hold; pause retains verified unfinished state and suppresses new publication. |
+| R3b / AR02 | B invalidates A, so C cannot dispatch before current-digest renewal. Renewal consumes zero worker attempts/Git changes. Regression proposes one durable repair per obligation/content; explicit approval is always required. Historical repair is a new phase before the suspended phase (or appended if none is open). An admitted repair bypasses only its named failed-coverage obligations; pending renewal, unrelated invalid coverage, hard dependencies, controls and authority still block. Original coverage renewal and recovery phase acceptance/review/mode approval precede release. Exhaustion never silently creates a fresh task budget. |
+| R1a / AR05 | Only explicit application Quit over exact observed, revision-matching, still-sponsored executions proposes pause. Unobserved work, other sponsors and CLI-sponsored work are excluded. Transfers follow revision order. Keep-running honors existing holds. Window close, disconnect and crash do not pause. Quit during recovery records intent behind the barrier; acknowledgment does not await process exit or approve a phase. |
+| R1b / AR06 | Reopen requires a terminal quiescent execution and resolved journal. Default to last accepted result even when unapplied to source; use original baseline only if no result settled. Missing/corrupt baseline holds. Divergence requires confirmation; source baseline requires explicit clean-branch choice/preflight. Requirements retain identity with new revisions, approvals repeat, unchanged guarantees need qualification, and changed/unfulfilled requirements receive new linked tasks. |
+| R5 | Reject missing/cross-project references, cycles, later-phase dependencies, empty or infeasible acceptance, uncovered required promises and unresolved decisions. Stable task ID orders equally eligible work. Split criteria/requirements remain an exact union; incoming and outgoing dependencies are preserved through explicit direct or transitive successor mapping. Security/architecture/persistence have SIGNIFICANT floors; promise addition/removal/weakening has SCOPE floor. Active changes quiesce before atomic application; stale proposals need fresh presentation. |
+
+## Accounting, ownership and limitations
+
+Attempt slots keep released tombstones and never reuse an attempt ID. `implementationAttemptsConsumed` in a role decision describes the already-linked worker dispatch; the attempt ledger counts that identity once. Repeated callbacks must be fenced/deduplicated by R0, not charged again. Non-worker roles always report zero implementation attempts. The budget reducers have no reset command. Explicit remediation/correction creates a linked new role operation at the later producer; a new worker budget requires an approved successor task revision.
+
+Planning schema data represents declared feasibility; it cannot prove installed tools, current grants or actual independent coverage. Runtime readiness additionally receives verified coverage, phase gates, exact task approvals, lease availability and controls. A completed historical task with stale coverage is ineligible as an ordinary dependency. Split inspection must be composed with full graph validation before a mutation is accepted; it does not materialize IDs or mutate prior rows.
+
+`settlementFenceRequired` reports only the settlement-local fence. Project stop/pause/revocation and all other controls are evaluated separately and can continue to fence scheduling after a completed settlement. `accepted: B` remains true even when the helper proposes a completion transaction; only the observed committed seam reports N. Optional result export/source integration is separate from implementation completion and cannot negate an accepted transaction.
+
+The table tests, serialized-value round trips and supplied termination/ref facts are **U evidence**, with explicit simulated outcomes. They prove no durable transition, actual restart, process containment, compensation, provider compatibility, production route, IDE behavior or packaged product. P1M1, P2M3, P4M2, P7–P10 and gates A–H retain their full R9 replacement obligations. P0M2 makes no phase completion or independent-review claim.

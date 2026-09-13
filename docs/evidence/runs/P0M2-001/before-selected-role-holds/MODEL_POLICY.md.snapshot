@@ -1,0 +1,84 @@
+# DENSA ADE DEVELOPMENT MODEL POLICY
+
+## Scope
+
+This policy governs the models used to **develop, review, audit, and maintain Densa ADE**.
+
+It does not define the models or providers used by Densa ADE at runtime.
+
+## Primary / Approved Model
+
+**GPT-6 Astra**
+
+## Reasoning Effort
+
+**Medium**
+
+## Required For
+
+GPT-6 Astra with Medium reasoning should be used for:
+
+* every roadmap milestone;
+* architecture and specification work;
+* Core implementation;
+* Codex integration;
+* tests and validation work;
+* debugging;
+* code review;
+* independent audits;
+* Code - OSS fork work;
+* UI implementation;
+* security and recovery work;
+* refactors;
+* release and pre-release audits.
+
+## Subagent Use
+
+Subagents may use either:
+
+* **GPT-6 Astra -- Medium reasoning**
+* **GPT-5.6 Sol -- High reasoning**
+
+The default subagent model should be selected according to task difficulty:
+
+* **GPT-5.6 Sol -- High reasoning** for bounded, routine, or lower-complexity delegated work.
+* **GPT-6 Astra -- Medium reasoning** for harder work requiring deeper reasoning, broader context, architectural judgment, security analysis, complex debugging, or cross-subsystem understanding.
+
+If there is meaningful uncertainty about whether the delegated task requires the stronger model, prefer **GPT-6 Astra -- Medium reasoning**.
+
+Subagents must not automatically use:
+
+* Terra;
+* Luna;
+* older GPT models;
+* alternative providers;
+
+unless explicitly approved by the user.
+
+The parent agent remains responsible for verifying subagent output before relying on it for milestone completion or acceptance evidence.
+
+## Downgrade Policy
+
+Do **not** automatically downgrade to:
+
+* Terra;
+* Luna;
+* older GPT models;
+* alternative providers;
+* a lower reasoning effort.
+
+Any substitution or downgrade requires **explicit user approval**.
+
+A substitute must not be treated as approved merely because the primary model is unavailable, rate-limited, or has exhausted its usage window.
+
+## Unavailability
+
+If GPT-6 Astra with Medium reasoning is unavailable, the task should **stop rather than silently continue with a weaker model or reasoning configuration**.
+
+The task may continue under another model or reasoning level only after explicit user approval.
+
+## Authority
+
+This policy is authoritative for Densa ADE development-model selection.
+
+Product-runtime model selection and provider behavior are defined separately by the Densa ADE roadmap and implementation contracts.

@@ -1,0 +1,834 @@
+{
+  "schemaVersion": 1,
+  "id": "P0M2-ACCEPTANCE-002",
+  "milestone": "P0M2",
+  "observedAt": "2026-09-13T05:29:29.995013+00:00",
+  "result": "PASS",
+  "scope": "Pure decision-contract milestone acceptance through implementation-authored unit verification; no independent audit or phase completion claim.",
+  "baseCommit": "18a0791f9508a4c5c2a371f15c0e8ebbda1112c2",
+  "baseTree": "27791eed2b3981959091971ad3d050abc9883527",
+  "candidateManifest": "docs/evidence/runs/P0M2-001/candidate.json",
+  "candidateManifestSha256": "be4decdafaa640427a0fdbe05059b73939966170ab5d16e42554151d1ce93948",
+  "manifestExclusions": [
+    ".git/",
+    "node_modules/",
+    "dist/",
+    "pre-existing audit/",
+    "docs/evidence/runs/ (separately hashed evidence)",
+    "docs/evidence/*-report.md (derived/historical reports, P0M2 report separately hashed)"
+  ],
+  "authorityHashes": {
+    "MASTER_ROADMAP.md": "8053f010bf1ebf52fabc954961b7b50773533ed22e35029a147078a20c335b07",
+    "MODEL_POLICY.md": "cdae0c0511dc569e76b8c94ef74965972e652be28362f16a7bae1c7b823f0255",
+    "AGENTS.md": "370241f67ff0c23ef5612cc9a2564aa773cdee78c11f640bcf2fa61fbd89e859"
+  },
+  "prerequisiteEvidenceIds": [
+    "P0M0-ACCEPTANCE-001",
+    "P0M1-ACCEPTANCE-001",
+    "P0M0-CLEAN-INSTALL"
+  ],
+  "prerequisiteVerificationEvidenceId": "P0M2-PREREQUISITES-HOLDS",
+  "developmentModel": {
+    "model": "gpt-6-astra",
+    "reasoningEffort": "max",
+    "source": "current session turn_context",
+    "sessionId": "01a085ee-0d7d-7700-b0de-fc1ef7eb4b17",
+    "turnId": "01a08986-1e7f-7023-ac02-899af7d11619",
+    "override": "User explicitly approved GPT-6 Astra / Max for P0M2: yes. overrride",
+    "policyChanged": false
+  },
+  "versions": {
+    "node": "v24.14.0",
+    "npm": "11.9.0",
+    "git": "git version 2.54.0 (Apple Git-157)",
+    "python": "Python 3.14.3",
+    "typescript": "5.9.3",
+    "eslint": "10.9.1",
+    "typescript-eslint": "8.68.0"
+  },
+  "checks": [
+    {
+      "id": "P0M2-BUILD-HOLDS",
+      "class": "U",
+      "command": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "cwd": "/Users/ivanuy/Library/Mobile Documents/com~apple~CloudDocs/Projects/densa-ade",
+      "startedAt": "2026-09-13T05:15:54.499631+00:00",
+      "completedAt": "2026-09-13T05:15:55.252436+00:00",
+      "exitStatus": 0,
+      "result": "PASS",
+      "artifact": "/Users/ivanuy/Library/Mobile Documents/com~apple~CloudDocs/Projects/densa-ade/docs/evidence/runs/P0M2-001/P0M2-BUILD-HOLDS.log",
+      "artifactSha256": "34de30110862cf3fb2d5b8a971cd10d6e988f53d1e9b4eba1652ad075ceb1f2e"
+    },
+    {
+      "id": "P0M2-TYPECHECK-HOLDS",
+      "class": "U",
+      "command": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "cwd": "/Users/ivanuy/Library/Mobile Documents/com~apple~CloudDocs/Projects/densa-ade",
+      "startedAt": "2026-09-13T05:15:54.499637+00:00",
+      "completedAt": "2026-09-13T05:15:55.210037+00:00",
+      "exitStatus": 0,
+      "result": "PASS",
+      "artifact": "/Users/ivanuy/Library/Mobile Documents/com~apple~CloudDocs/Projects/densa-ade/docs/evidence/runs/P0M2-001/P0M2-TYPECHECK-HOLDS.log",
+      "artifactSha256": "5b017e85e63f2edb50afc191acc9a310b04f1f6a4b4caf626dcb44d2f8bfe74a"
+    },
+    {
+      "id": "P0M2-LINT-HOLDS",
+      "class": "U",
+      "command": [
+        "npm",
+        "run",
+        "lint"
+      ],
+      "cwd": "/Users/ivanuy/Library/Mobile Documents/com~apple~CloudDocs/Projects/densa-ade",
+      "startedAt": "2026-09-13T05:18:42.924615+00:00",
+      "completedAt": "2026-09-13T05:18:44.327263+00:00",
+      "exitStatus": 0,
+      "result": "PASS",
+      "artifact": "/Users/ivanuy/Library/Mobile Documents/com~apple~CloudDocs/Projects/densa-ade/docs/evidence/runs/P0M2-001/P0M2-LINT-HOLDS.log",
+      "artifactSha256": "6a4ba9e2ec0895b3f8f007274dd7047fa5ca9b504f97071873ddc53529e43763"
+    },
+    {
+      "id": "P0M2-TEST-HOLDS",
+      "class": "U",
+      "command": [
+        "npm",
+        "test"
+      ],
+      "cwd": "/Users/ivanuy/Library/Mobile Documents/com~apple~CloudDocs/Projects/densa-ade",
+      "startedAt": "2026-09-13T05:18:42.923097+00:00",
+      "completedAt": "2026-09-13T05:18:44.650059+00:00",
+      "exitStatus": 0,
+      "result": "PASS",
+      "artifact": "/Users/ivanuy/Library/Mobile Documents/com~apple~CloudDocs/Projects/densa-ade/docs/evidence/runs/P0M2-001/P0M2-TEST-HOLDS.log",
+      "artifactSha256": "227657c7867ed50b3abab80be184c53ae255a986a5924801f509013232eec30c"
+    },
+    {
+      "id": "P0M2-INDEPENDENT-HOLDS",
+      "class": "U",
+      "command": [
+        "node",
+        "node_modules/typescript/bin/tsc",
+        "-p",
+        "packages/contracts/tsconfig.json",
+        "--noEmit"
+      ],
+      "cwd": "/Users/ivanuy/Library/Mobile Documents/com~apple~CloudDocs/Projects/densa-ade",
+      "startedAt": "2026-09-13T05:18:42.935470+00:00",
+      "completedAt": "2026-09-13T05:18:43.609607+00:00",
+      "exitStatus": 0,
+      "result": "PASS",
+      "artifact": "/Users/ivanuy/Library/Mobile Documents/com~apple~CloudDocs/Projects/densa-ade/docs/evidence/runs/P0M2-001/P0M2-INDEPENDENT-HOLDS.log",
+      "artifactSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "P0M2-TABLES-HOLDS",
+      "class": "U",
+      "command": [
+        "node",
+        "docs/evidence/runs/P0M2-001/generate-tables.mjs"
+      ],
+      "cwd": "/Users/ivanuy/Library/Mobile Documents/com~apple~CloudDocs/Projects/densa-ade",
+      "startedAt": "2026-09-13T05:18:30.660646+00:00",
+      "completedAt": "2026-09-13T05:18:30.696096+00:00",
+      "exitStatus": 0,
+      "result": "PASS",
+      "artifact": "/Users/ivanuy/Library/Mobile Documents/com~apple~CloudDocs/Projects/densa-ade/docs/evidence/runs/P0M2-001/P0M2-TABLES-HOLDS.log",
+      "artifactSha256": "df71709c9a2135a1e3c7eb2584256dc0fdfc2bf01922660375c460ec6182fb62"
+    },
+    {
+      "id": "P0M2-PREREQUISITES-HOLDS",
+      "class": "U",
+      "command": [
+        "python3",
+        "docs/evidence/runs/P0M2-001/verify-prerequisites.py"
+      ],
+      "cwd": "/Users/ivanuy/Library/Mobile Documents/com~apple~CloudDocs/Projects/densa-ade",
+      "startedAt": "2026-09-13T05:26:11.269664+00:00",
+      "completedAt": "2026-09-13T05:26:12.185586+00:00",
+      "exitStatus": 0,
+      "result": "PASS",
+      "artifact": "/Users/ivanuy/Library/Mobile Documents/com~apple~CloudDocs/Projects/densa-ade/docs/evidence/runs/P0M2-001/P0M2-PREREQUISITES-HOLDS.log",
+      "artifactSha256": "3001c8635cec04477733910dad274fc30b55d98dc51a1f23e689b14ef7964102"
+    },
+    {
+      "id": "P0M2-FINAL-DOCS-HOLDS",
+      "class": "U",
+      "command": [
+        "npm",
+        "run",
+        "lint"
+      ],
+      "cwd": "/Users/ivanuy/Library/Mobile Documents/com~apple~CloudDocs/Projects/densa-ade",
+      "startedAt": "2026-09-13T05:27:59.484692+00:00",
+      "completedAt": "2026-09-13T05:28:00.408688+00:00",
+      "exitStatus": 0,
+      "result": "PASS",
+      "artifact": "/Users/ivanuy/Library/Mobile Documents/com~apple~CloudDocs/Projects/densa-ade/docs/evidence/runs/P0M2-001/P0M2-FINAL-DOCS-HOLDS.log",
+      "artifactSha256": "6a4ba9e2ec0895b3f8f007274dd7047fa5ca9b504f97071873ddc53529e43763"
+    },
+    {
+      "id": "P0M2-FINAL-DIFF-HOLDS",
+      "class": "U",
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "cwd": "/Users/ivanuy/Library/Mobile Documents/com~apple~CloudDocs/Projects/densa-ade",
+      "startedAt": "2026-09-13T05:27:59.479576+00:00",
+      "completedAt": "2026-09-13T05:27:59.491021+00:00",
+      "exitStatus": 0,
+      "result": "PASS",
+      "artifact": "/Users/ivanuy/Library/Mobile Documents/com~apple~CloudDocs/Projects/densa-ade/docs/evidence/runs/P0M2-001/P0M2-FINAL-DIFF-HOLDS.log",
+      "artifactSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "criteria": {
+    "R1-01": {
+      "requirement": "Create/interview/approve and abandon/restart",
+      "result": "PASS",
+      "evidenceIds": [
+        "P0M2-TEST-HOLDS"
+      ],
+      "testPrefixes": [
+        "P0M2 R1 rows",
+        "P0M2 guards"
+      ],
+      "specification": "MASTER_ROADMAP.md R1 row 01"
+    },
+    "R1-02": {
+      "requirement": "Authorized sequential start and dispatch intent",
+      "result": "PASS",
+      "evidenceIds": [
+        "P0M2-TEST-HOLDS"
+      ],
+      "testPrefixes": [
+        "P0M2 R1 rows",
+        "P0M2 readiness",
+        "P0M2 guards"
+      ],
+      "specification": "MASTER_ROADMAP.md R1 row 02"
+    },
+    "R1-03": {
+      "requirement": "Usable candidate enters validation, never direct completion",
+      "result": "PASS",
+      "evidenceIds": [
+        "P0M2-TEST-HOLDS"
+      ],
+      "testPrefixes": [
+        "P0M2 R1 rows",
+        "P0M2 pairs"
+      ],
+      "specification": "MASTER_ROADMAP.md R1 row 03"
+    },
+    "R1-04": {
+      "requirement": "Repairable failure, revised strategy and safe reset",
+      "result": "PASS",
+      "evidenceIds": [
+        "P0M2-TEST-HOLDS"
+      ],
+      "testPrefixes": [
+        "P0M2 attempt reservation",
+        "P0M2 guards"
+      ],
+      "specification": "MASTER_ROADMAP.md R1 row 04"
+    },
+    "R1-05": {
+      "requirement": "Four-attempt reservation and dispatch accounting",
+      "result": "PASS",
+      "evidenceIds": [
+        "P0M2-TEST-HOLDS"
+      ],
+      "testPrefixes": [
+        "P0M2 attempt reservation",
+        "P0M2 boundary regressions"
+      ],
+      "specification": "MASTER_ROADMAP.md R1 row 05"
+    },
+    "R1-06": {
+      "requirement": "Task/phase/project exhaustion blocks without counter reset",
+      "result": "PASS",
+      "evidenceIds": [
+        "P0M2-TEST-HOLDS"
+      ],
+      "testPrefixes": [
+        "P0M2 R1 rows",
+        "P0M2 attempt reservation"
+      ],
+      "specification": "MASTER_ROADMAP.md R1 row 06"
+    },
+    "R1-07": {
+      "requirement": "Pause fences, terminates and reconciles without new publication",
+      "result": "PASS",
+      "evidenceIds": [
+        "P0M2-TEST-HOLDS"
+      ],
+      "testPrefixes": [
+        "P0M2 control precedence",
+        "P0M2 R3a",
+        "P0M2 modes"
+      ],
+      "specification": "MASTER_ROADMAP.md R1 row 07"
+    },
+    "R1-08": {
+      "requirement": "Revalidated resume, new worker attempt or same candidate validation",
+      "result": "PASS",
+      "evidenceIds": [
+        "P0M2-TEST-HOLDS"
+      ],
+      "testPrefixes": [
+        "P0M2 R1 rows",
+        "P0M2 R3b A/B/C"
+      ],
+      "specification": "MASTER_ROADMAP.md R1 row 08"
+    },
+    "R1-09": {
+      "requirement": "Cancel/stop with dependency blocking and accepted history",
+      "result": "PASS",
+      "evidenceIds": [
+        "P0M2-TEST-HOLDS"
+      ],
+      "testPrefixes": [
+        "P0M2 R3a",
+        "P0M2 R1 rows"
+      ],
+      "specification": "MASTER_ROADMAP.md R1 row 09"
+    },
+    "R1-10": {
+      "requirement": "Cancellation/supersession is unsatisfied; explicit reconnection",
+      "result": "PASS",
+      "evidenceIds": [
+        "P0M2-TEST-HOLDS"
+      ],
+      "testPrefixes": [
+        "P0M2 R5 graph",
+        "P0M2 R5 split"
+      ],
+      "specification": "MASTER_ROADMAP.md R1 row 10"
+    },
+    "R1-11": {
+      "requirement": "Required user holds retain stage; denial blocks",
+      "result": "PASS",
+      "evidenceIds": [
+        "P0M2-TEST-HOLDS"
+      ],
+      "testPrefixes": [
+        "P0M2 R1 rows",
+        "P0M2 R4",
+        "P0M2 modes",
+        "P0M2 selected-role holds"
+      ],
+      "specification": "MASTER_ROADMAP.md R1 row 11"
+    },
+    "R1-12": {
+      "requirement": "Reliable usage holds; unknown failure diagnoses/block",
+      "result": "PASS",
+      "evidenceIds": [
+        "P0M2-TEST-HOLDS"
+      ],
+      "testPrefixes": [
+        "P0M2 R4",
+        "P0M2 control precedence",
+        "P0M2 selected-role holds"
+      ],
+      "specification": "MASTER_ROADMAP.md R1 row 12"
+    },
+    "R1-13": {
+      "requirement": "Full cumulative phase acceptance and fresh review",
+      "result": "PASS",
+      "evidenceIds": [
+        "P0M2-TEST-HOLDS"
+      ],
+      "testPrefixes": [
+        "P0M2 R1 rows",
+        "P0M2 modes",
+        "P0M2 R3b historical repair"
+      ],
+      "specification": "MASTER_ROADMAP.md R1 row 13"
+    },
+    "R1-14": {
+      "requirement": "Guided exact task and final/non-final phase approvals",
+      "result": "PASS",
+      "evidenceIds": [
+        "P0M2-TEST-HOLDS"
+      ],
+      "testPrefixes": [
+        "P0M2 readiness",
+        "P0M2 modes"
+      ],
+      "specification": "MASTER_ROADMAP.md R1 row 14"
+    },
+    "R1-15": {
+      "requirement": "Phase default behavior and final/non-final approval",
+      "result": "PASS",
+      "evidenceIds": [
+        "P0M2-TEST-HOLDS"
+      ],
+      "testPrefixes": [
+        "P0M2 readiness",
+        "P0M2 modes"
+      ],
+      "specification": "MASTER_ROADMAP.md R1 row 15"
+    },
+    "R1-16": {
+      "requirement": "Continuous boundaries subject to mandatory/control holds",
+      "result": "PASS",
+      "evidenceIds": [
+        "P0M2-TEST-HOLDS"
+      ],
+      "testPrefixes": [
+        "P0M2 modes"
+      ],
+      "specification": "MASTER_ROADMAP.md R1 row 16"
+    },
+    "R1-17": {
+      "requirement": "Phase report rejection blocks; explicit repair",
+      "result": "PASS",
+      "evidenceIds": [
+        "P0M2-TEST-HOLDS"
+      ],
+      "testPrefixes": [
+        "P0M2 R1 rows",
+        "P0M2 modes"
+      ],
+      "specification": "MASTER_ROADMAP.md R1 row 17"
+    },
+    "R1-18": {
+      "requirement": "Complete only current covered/settled/approved work",
+      "result": "PASS",
+      "evidenceIds": [
+        "P0M2-TEST-HOLDS"
+      ],
+      "testPrefixes": [
+        "P0M2 guards",
+        "P0M2 modes"
+      ],
+      "specification": "MASTER_ROADMAP.md R1 row 18"
+    },
+    "R1-19": {
+      "requirement": "Reopen new DRAFT execution, baseline and qualification",
+      "result": "PASS",
+      "evidenceIds": [
+        "P0M2-TEST-HOLDS"
+      ],
+      "testPrefixes": [
+        "P0M2 R1b reopen",
+        "P0M2 pairs"
+      ],
+      "specification": "MASTER_ROADMAP.md R1 row 19"
+    },
+    "P0M2-AC1-every-R1-row-deterministic": {
+      "result": "PASS",
+      "evidenceIds": [
+        "P0M2-TEST-HOLDS",
+        "P0M2-TABLES-HOLDS"
+      ],
+      "mapsTo": [
+        "R1-01",
+        "R1-02",
+        "R1-03",
+        "R1-04",
+        "R1-05",
+        "R1-06",
+        "R1-07",
+        "R1-08",
+        "R1-09",
+        "R1-10",
+        "R1-11",
+        "R1-12",
+        "R1-13",
+        "R1-14",
+        "R1-15",
+        "R1-16",
+        "R1-17",
+        "R1-18",
+        "R1-19"
+      ],
+      "artifact": "docs/lifecycle.md"
+    },
+    "P0M2-AC2-no-unspecified-safe-point-branches": {
+      "result": "PASS",
+      "evidenceIds": [
+        "P0M2-TEST-HOLDS",
+        "P0M2-TABLES-HOLDS"
+      ],
+      "artifact": "docs/lifecycle.md",
+      "basis": "213 explicit guard rows, pairwise rejection, individually missing guard tests, required boolean rejection, documented producer-derived facts and precedence."
+    },
+    "P0M2-D1-pure-contracts-and-pairwise-deliverables": {
+      "result": "PASS",
+      "evidenceIds": [
+        "P0M2-INDEPENDENT-HOLDS",
+        "P0M2-LINT-HOLDS",
+        "P0M2-TABLES-HOLDS",
+        "P0M2-TEST-HOLDS"
+      ],
+      "artifacts": [
+        "pairwise.json",
+        "transition-rules.json",
+        "role-results.json"
+      ]
+    },
+    "P0M2-R4-role-results-and-budgets": {
+      "result": "PASS",
+      "evidenceIds": [
+        "P0M2-TEST-HOLDS"
+      ],
+      "testPrefixes": [
+        "P0M2 R4",
+        "P0M2 boundary regressions"
+      ]
+    },
+    "P0M2-R3a-cancellation-seams": {
+      "result": "PASS",
+      "evidenceIds": [
+        "P0M2-TEST-HOLDS"
+      ],
+      "testPrefixes": [
+        "P0M2 R3a"
+      ]
+    },
+    "P0M2-R3b-renewal-and-repair-readiness": {
+      "result": "PASS",
+      "evidenceIds": [
+        "P0M2-TEST-HOLDS"
+      ],
+      "testPrefixes": [
+        "P0M2 R3b"
+      ]
+    },
+    "P0M2-R1a-departure-scope": {
+      "result": "PASS",
+      "evidenceIds": [
+        "P0M2-TEST-HOLDS"
+      ],
+      "testPrefixes": [
+        "P0M2 R1a"
+      ]
+    },
+    "P0M2-R1b-reopen-initialization": {
+      "result": "PASS",
+      "evidenceIds": [
+        "P0M2-TEST-HOLDS"
+      ],
+      "testPrefixes": [
+        "P0M2 R1b"
+      ]
+    },
+    "P0M2-R5-graph-splits-supersession-mutations": {
+      "result": "PASS",
+      "evidenceIds": [
+        "P0M2-TEST-HOLDS"
+      ],
+      "testPrefixes": [
+        "P0M2 R5",
+        "P0M2 readiness",
+        "P0M2 mutation"
+      ]
+    },
+    "P0M2-V1-every-pair-and-required-failure-scenarios": {
+      "result": "PASS",
+      "evidenceIds": [
+        "P0M2-TEST-HOLDS"
+      ],
+      "testPrefixes": [
+        "P0M2 pairs",
+        "P0M2 guards",
+        "P0M2 control precedence",
+        "P0M2 modes",
+        "P0M2 attempt reservation",
+        "P0M2 facts"
+      ]
+    },
+    "R7-root-checks": {
+      "result": "PASS",
+      "evidenceIds": [
+        "P0M2-BUILD-HOLDS",
+        "P0M2-TYPECHECK-HOLDS",
+        "P0M2-LINT-HOLDS",
+        "P0M2-TEST-HOLDS"
+      ]
+    }
+  },
+  "counts": {
+    "cumulativeTests": 48,
+    "P0M2Tests": 22,
+    "statePairs": 270,
+    "transitionRules": 213,
+    "roleResultCells": 112
+  },
+  "impactAssessmentIds": [
+    "P0M2-IMPACT-INITIAL",
+    "P0M2-IMPACT-FINAL",
+    "P0M2-IMPACT-SELECTED-ROLE-HOLDS-FINAL"
+  ],
+  "supersededEvidenceIds": [
+    "P0M1-BUILD",
+    "P0M1-TYPECHECK",
+    "P0M1-LINT",
+    "P0M1-TEST",
+    "P0M1-INDEPENDENT",
+    "P0M1-FINAL-DOCS",
+    "P0M2-BUILD",
+    "P0M2-TYPECHECK",
+    "P0M2-LINT",
+    "P0M2-TEST",
+    "P0M2-INDEPENDENT",
+    "P0M2-TABLES",
+    "P0M2-FINAL-DOCS",
+    "P0M2-ACCEPTANCE-001",
+    "P0M2-PREREQUISITES"
+  ],
+  "pendingGates": [
+    "A",
+    "B",
+    "C",
+    "D",
+    "E",
+    "F",
+    "G",
+    "H"
+  ],
+  "noImpactClaims": [
+    "No changes to P0M1 schema/protocol/catalog behavior or dependencies, lockfile/tool versions, Core/adapters/clients, UI or product runtime. Expanded shared exports required cumulative rerun. External authority changes are separately assessed in authority-history.json.",
+    "Production-route/restart/security/IDE/packaged proofs do not exist yet; all later gate obligations remain pending."
+  ],
+  "limitations": [
+    "All new behavioral evidence is U; input termination, ref, approval and candidate facts are deterministic fixtures, not real enforcement.",
+    "Serialized budget round trips do not prove durable storage or restart. No worker/model/validator execution, Git settlement/compensation, runtime scheduling, provider compatibility, actual recovery, IDE or packaged proof.",
+    "Contracts describe Core-derived verified facts. P1M1 and later producers must authenticate, derive, persist and enforce them through normal routes.",
+    "Tests and review are implementation-authored. No independent audit, runtime authority certification or Phase 0 completion is claimed."
+  ],
+  "priorDiagnostics": [
+    {
+      "command": "npm run build",
+      "exitStatus": 0,
+      "artifact": "docs/evidence/runs/P0M2-001/P0M2-BUILD-INITIAL.log",
+      "note": "Earlier passing observation retained; replaced by final current-candidate checks."
+    },
+    {
+      "command": "npm run typecheck",
+      "exitStatus": 0,
+      "artifact": "docs/evidence/runs/P0M2-001/P0M2-TYPECHECK-FIRST.log",
+      "note": "Earlier passing observation retained; replaced by final current-candidate checks."
+    },
+    {
+      "command": "npm run lint",
+      "exitStatus": 0,
+      "artifact": "docs/evidence/runs/P0M2-001/P0M2-LINT-FIRST.log",
+      "note": "Earlier passing observation retained; replaced by final current-candidate checks."
+    },
+    {
+      "command": "npm test",
+      "exitStatus": 0,
+      "artifact": "docs/evidence/runs/P0M2-001/P0M2-TEST-FIRST.log",
+      "note": "Earlier passing observation retained; replaced by final current-candidate checks."
+    },
+    {
+      "command": "npm test",
+      "exitStatus": 0,
+      "artifact": "docs/evidence/runs/P0M2-001/P0M2-TEST-REVIEW.log",
+      "note": "Earlier passing observation retained; replaced by final current-candidate checks."
+    },
+    {
+      "id": "P0M2-BUILD",
+      "command": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "exitStatus": 0,
+      "artifact": "docs/evidence/runs/P0M2-001/P0M2-BUILD.log",
+      "note": "Original observation preserved; superseded by selected-role-hold replacement checks."
+    },
+    {
+      "id": "P0M2-TABLES",
+      "command": [
+        "node",
+        "docs/evidence/runs/P0M2-001/generate-tables.mjs"
+      ],
+      "exitStatus": 0,
+      "artifact": "docs/evidence/runs/P0M2-001/P0M2-TABLES.log",
+      "note": "Original observation preserved; superseded by selected-role-hold replacement checks."
+    },
+    {
+      "id": "P0M2-TEST",
+      "command": [
+        "npm",
+        "test"
+      ],
+      "exitStatus": 0,
+      "artifact": "docs/evidence/runs/P0M2-001/P0M2-TEST.log",
+      "note": "Original observation preserved; superseded by selected-role-hold replacement checks."
+    },
+    {
+      "id": "P0M2-LINT",
+      "command": [
+        "npm",
+        "run",
+        "lint"
+      ],
+      "exitStatus": 0,
+      "artifact": "docs/evidence/runs/P0M2-001/P0M2-LINT.log",
+      "note": "Original observation preserved; superseded by selected-role-hold replacement checks."
+    },
+    {
+      "id": "P0M2-TYPECHECK",
+      "command": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "exitStatus": 0,
+      "artifact": "docs/evidence/runs/P0M2-001/P0M2-TYPECHECK.log",
+      "note": "Original observation preserved; superseded by selected-role-hold replacement checks."
+    },
+    {
+      "id": "P0M2-DIFF",
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exitStatus": 0,
+      "artifact": "docs/evidence/runs/P0M2-001/P0M2-DIFF.log",
+      "note": "Original observation preserved; superseded by selected-role-hold replacement checks."
+    },
+    {
+      "id": "P0M2-INDEPENDENT",
+      "command": [
+        "node",
+        "node_modules/typescript/bin/tsc",
+        "-p",
+        "packages/contracts/tsconfig.json",
+        "--noEmit"
+      ],
+      "exitStatus": 0,
+      "artifact": "docs/evidence/runs/P0M2-001/P0M2-INDEPENDENT.log",
+      "note": "Original observation preserved; superseded by selected-role-hold replacement checks."
+    },
+    {
+      "id": "P0M2-FINAL-DIFF",
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exitStatus": 0,
+      "artifact": "docs/evidence/runs/P0M2-001/P0M2-FINAL-DIFF.log",
+      "note": "Original observation preserved; superseded by selected-role-hold replacement checks."
+    },
+    {
+      "id": "P0M2-FINAL-DOCS",
+      "command": [
+        "npm",
+        "run",
+        "lint"
+      ],
+      "exitStatus": 0,
+      "artifact": "docs/evidence/runs/P0M2-001/P0M2-FINAL-DOCS.log",
+      "note": "Original observation preserved; superseded by selected-role-hold replacement checks."
+    },
+    {
+      "id": "P0M2-FINALIZE-AUTHORITY-CHANGED",
+      "class": "U",
+      "result": "FAIL",
+      "exitStatus": 1,
+      "command": [
+        "python3",
+        "docs/evidence/runs/P0M2-001/finalize-evidence.py"
+      ],
+      "observedAt": "2026-09-13T05:26:11.090415+00:00",
+      "artifact": "docs/evidence/runs/P0M2-001/failed-finalization/authority-mismatch.log",
+      "artifactSha256": "be549f586d7c6bd05816604712a6932aebbecba3652e6dd5d9f1c42d182ff9b3",
+      "diagnostic": "Authority binding detected external MODEL_POLICY.md change; follow-up inspection also found AGENTS.md README ownership addition.",
+      "resolution": "Read current authority files; preserve hash-verified originals; record semantic no-impact assessment and current compliant model; refresh provenance and prerequisite verification."
+    }
+  ],
+  "selfReviewFixes": [
+    "Separated fourth reserved slot validity from spare retry capacity.",
+    "Allowed same-candidate validation and coverage renewal without a spare worker attempt or already-renewed coverage.",
+    "Restricted admitted repair bypass to named failed coverage; pending renewal and unrelated/hard dependencies still block.",
+    "Preserved phase/project state behind pause/recovery and deferred final continuation while a callback is active.",
+    "Added explicit unknown role failures, bounded optional-only context preparation, runtime boolean rejection, typed action outputs and supersession-cycle rejection.",
+    "Added selected pre-dispatch authentication/usage holds, zero-attempt return to READY, and held-validation user correction; 213 rules and 48 tests verify the final candidate."
+  ],
+  "specificationGaps": [],
+  "deviations": [],
+  "authorizedConfigurationException": "User approved the original P0M2 reasoning-policy override (yes. overrride) for GPT-6 Astra / Max. Resumed XHigh now complies with the externally updated Extra High policy; this agent did not edit authority files.",
+  "repositoryStatus": " M .gitignore\n M docs/architecture.md\n M docs/contracts.md\n M docs/evidence/ledger.json\n M packages/contracts/src/index.ts\n?? docs/evidence/P0M2-report.md\n?? docs/evidence/runs/P0M2-001/\n?? docs/lifecycle.md\n?? packages/contracts/src/attempts.ts\n?? packages/contracts/src/continuity.ts\n?? packages/contracts/src/decision-facts.ts\n?? packages/contracts/src/lifecycle.ts\n?? packages/contracts/src/planning.ts\n?? packages/contracts/src/role-results.ts\n?? tests/lifecycle.test.mjs\n?? tests/planning-continuity.test.mjs",
+  "preExistingChanges": [
+    "audit/ (present at initial preflight; preserved, now ignored by an external .gitignore edit)"
+  ],
+  "commitCreated": false,
+  "artifactManifest": "docs/evidence/runs/P0M2-001/artifacts.json",
+  "finalIntegrityRecord": "docs/evidence/runs/P0M2-001/integrity-final.json",
+  "artifactManifestExclusions": [
+    "top-level artifacts.json itself",
+    "integrity-final.json final verification output (binds this manifest, avoiding recursive hashes)"
+  ],
+  "initialAuthorityHashes": {
+    "MASTER_ROADMAP.md": "8053f010bf1ebf52fabc954961b7b50773533ed22e35029a147078a20c335b07",
+    "MODEL_POLICY.md": "9f9627435c2975a16a0adddbb8d2dae7e4843331427a51229a2a3ae3aaac6d66",
+    "AGENTS.md": "1ac50e62de832d3328f2aaf6ea76b9a0df1a98cce28eca4e7534588b9580947c"
+  },
+  "authorityHistory": "docs/evidence/runs/P0M2-001/authority-history.json",
+  "developmentModelContinuation": {
+    "observedAt": "2026-09-13T05:20:11.511485+00:00",
+    "sessionId": "01a085ee-0d7d-7700-b0de-fc1ef7eb4b17",
+    "turnId": "01a0992e-78cc-76d3-9247-a57e22fac793",
+    "model": "gpt-6-astra",
+    "reasoningEffort": "xhigh",
+    "authorization": "Existing user P0M2 reasoning-policy override: yes. overrride; original Max execution and resumed XHigh execution recorded separately.",
+    "policyFileChanged": false,
+    "unrelatedChange": {
+      "path": ".gitignore",
+      "diff": "diff --git a/.gitignore b/.gitignore\nindex 6d693c7..992616e 100644\n--- a/.gitignore\n+++ b/.gitignore\n@@ -1,6 +1,7 @@\n /AGENTS.md\n /MASTER_ROADMAP.md\n /MODEL_POLICY.md\n+/audit/\n \n # P0M0 generated development outputs\n node_modules/\n",
+      "sha256": "53e9ff090b868c7fe6771308c9b7027512addf0535736416297dc619b38e5cd6",
+      "ownership": "External to this milestone; preserved, not attributed to P0M2.",
+      "effect": "Ignores existing audit/; no product/build/test behavior changes."
+    }
+  },
+  "unrelatedChanges": [
+    {
+      "path": ".gitignore",
+      "diff": "diff --git a/.gitignore b/.gitignore\nindex 6d693c7..992616e 100644\n--- a/.gitignore\n+++ b/.gitignore\n@@ -1,6 +1,7 @@\n /AGENTS.md\n /MASTER_ROADMAP.md\n /MODEL_POLICY.md\n+/audit/\n \n # P0M0 generated development outputs\n node_modules/\n",
+      "sha256": "53e9ff090b868c7fe6771308c9b7027512addf0535736416297dc619b38e5cd6",
+      "ownership": "External to this milestone; preserved, not attributed to P0M2.",
+      "effect": "Ignores existing audit/; no product/build/test behavior changes."
+    },
+    {
+      "path": "MODEL_POLICY.md",
+      "change": "Medium reasoning replaced with Extra High throughout; all other text is identical.",
+      "impact": "Resumed GPT-6 Astra / XHigh complies; original Max execution retains explicit user override."
+    },
+    {
+      "path": "AGENTS.md",
+      "change": "README ownership subsection added; all other text is identical.",
+      "impact": "README was not edited in P0M2. No new product behavior, verification or milestone scope requirement."
+    }
+  ],
+  "supersededAcceptanceRecord": "docs/evidence/runs/P0M2-001/before-selected-role-holds/acceptance.json",
+  "freshnessObservationIds": [
+    "P0M2-STALE",
+    "P0M2-REVALIDATED",
+    "P0M2-SELECTED-ROLE-HOLDS-STALE",
+    "P0M2-AUTHORITY-PROVENANCE-STALE",
+    "P0M2-SELECTED-ROLE-HOLDS-REVALIDATED"
+  ],
+  "documentationMismatches": [
+    {
+      "path": "README.md",
+      "mismatch": "README still describes only the P0M0 foundation and four empty package boundaries; P0M1/P0M2 now provide implemented pure contracts.",
+      "disposition": "Preserved under AGENTS README ownership rule; current implementation is documented in docs/architecture.md, docs/contracts.md and docs/lifecycle.md. No runnable product is claimed."
+    }
+  ]
+}

@@ -1,0 +1,196 @@
+"""Bind P0M2 replacement evidence; --final requires final documentation checks."""
+import copy
+import datetime
+import hashlib
+import json
+import pathlib
+import subprocess
+import sys
+
+root = pathlib.Path.cwd()
+run = root / 'docs/evidence/runs/P0M2-001'
+final = '--final' in sys.argv
+sha = lambda path: hashlib.sha256(path.read_bytes()).hexdigest()
+now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+
+
+def write_json(path, value):
+    path.write_text(json.dumps(value, indent=2, ensure_ascii=False) + '\n')
+
+
+acceptance = json.loads((run / 'before-selected-role-holds/acceptance.json').read_text())
+old_checks = copy.deepcopy(acceptance['checks'])
+authority_history = json.loads((run / 'authority-history.json').read_text())
+acceptance['initialAuthorityHashes'] = acceptance['authorityHashes']
+acceptance['authorityHashes'] = authority_history['currentAuthorityHashes']
+acceptance['authorityHistory'] = 'docs/evidence/runs/P0M2-001/authority-history.json'
+check_ids = [
+    'P0M2-BUILD-HOLDS', 'P0M2-TYPECHECK-HOLDS', 'P0M2-LINT-HOLDS',
+    'P0M2-TEST-HOLDS', 'P0M2-INDEPENDENT-HOLDS', 'P0M2-TABLES-HOLDS',
+    'P0M2-PREREQUISITES-HOLDS',
+]
+if final:
+    check_ids += ['P0M2-FINAL-DOCS-HOLDS', 'P0M2-FINAL-DIFF-HOLDS']
+checks = [json.loads((run / (name + '.json')).read_text()) for name in check_ids]
+for check in checks:
+    assert check['result'] == 'PASS' and check['exitStatus'] == 0, check['id']
+    assert sha(root / check['artifact']) == check['artifactSha256'], check['id']
+assert 'tests 48\n' in (run / 'P0M2-TEST-HOLDS.log').read_text()
+assert json.loads((run / 'P0M2-TABLES-HOLDS.log').read_text()) == {
+    'pairs': 270, 'rules': 213, 'roleResultCells': 112,
+}
+for path, digest in acceptance['authorityHashes'].items():
+    assert sha(root / path) == digest, path
+continuation = json.loads((run / 'continuation.json').read_text())
+assert sha(root / '.gitignore') == continuation['unrelatedChange']['sha256']
+assert subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip() == acceptance['baseCommit']
+subprocess.run(['git', 'diff', '--cached', '--quiet'], check=True)
+
+ledger_path = root / 'docs/evidence/ledger.json'
+ledger = json.loads(ledger_path.read_text())
+impact_id = 'P0M2-IMPACT-SELECTED-ROLE-HOLDS-FINAL'
+freshness_id = 'P0M2-SELECTED-ROLE-HOLDS-REVALIDATED'
+stale = next(row for row in ledger['freshnessObservations'] if row['id'] == 'P0M2-SELECTED-ROLE-HOLDS-STALE')
+if final and not any(row['id'] == impact_id for row in ledger['impactAssessments']):
+    initial = next(row for row in ledger['impactAssessments'] if row['id'] == 'P0M2-IMPACT-INITIAL')
+    ledger['impactAssessments'].append({
+        'id': impact_id, 'milestone': 'P0M2', 'stage': 'final', 'observedAt': now,
+        'changes': [
+            '213 guarded transitions over 270 state pairs, with selected pre-dispatch auth/usage holds and zero-attempt resume, plus held-validation user correction.',
+            '48 cumulative tests including 22 P0M2 tests; all existing attempt, role-result, planning and continuity decisions remain covered.',
+            'Updated scenario specification, regenerated tables and replacement evidence binding; original observations and changed inputs retained.',
+        ],
+        'dependencyEdges': [{
+            'from': 'P0M2-IMPACT-INITIAL.dependencyEdges',
+            'to': 'P0M2-IMPACT-INITIAL.transitiveAffectedMilestones',
+            'reason': 'Final changes remain within the previously traversed 88-milestone producer/consumer cone.',
+        }],
+        'behaviorEdges': initial['behaviorEdges'] + [{
+            'from': 'R1 rows 11/12 and R4/R5a selected-role/held-validator continuation',
+            'to': 'P1M1/P4M1/P7M4/P9M2/P9M3/P9M7 -> P10M1 -> P11M3/P11M4 -> P13M10/P16M4',
+            'reason': 'Future persistence and scheduler routes must retain stage and counters while applying these holds; runtime Gate D and subsequent IDE/packaged continuation evidence remain pending.',
+        }],
+        'noImpact': [
+            'No edits to schema.ts, protocol.ts, catalog.ts, package manifests/lockfile, toolchain, Core/adapters/clients or UI. Root tests revalidate expanded shared exports. Roadmap unchanged.',
+            'External MODEL_POLICY change from Medium to Extra High matches the resumed session. External AGENTS addition makes README user-owned; README was not edited. Hash-verified original authority snapshots and current-file assessment are retained in authority-history.json; final documentation and prerequisite checks refresh affected evidence.',
+            'External .gitignore addition of /audit/ is preserved and included in the observed candidate, but is not P0M2 work. It changes discovery of existing audit prompts only, with no product, build or test behavior impact.',
+            'All product source/test inputs remain unchanged after the replacement cumulative checks. Subsequent documentation/evidence additions receive final link/ledger, whitespace and digest verification.',
+            'P0M0 clean-install and unchanged P0M1 producer contracts retain applicability; committed prerequisite snapshots and all 21 retained artifact digests verified by P0M2-PREREQUISITES-HOLDS.',
+            'No later product gate exists yet. Integration, failure, security, restart, IDE and packaged obligations remain pending at their owners.',
+        ],
+        'staleEvidence': stale['evidenceIds'] + ['P0M2-PREREQUISITES'], 'replacementEvidence': check_ids,
+        'pendingGates': initial['pendingGates'],
+        'transitiveAffectedMilestones': initial['transitiveAffectedMilestones'],
+    })
+    ledger['freshnessObservations'].append({
+        'id': freshness_id, 'status': 'REVALIDATED', 'observedAt': now,
+        'supersededEvidenceIds': stale['evidenceIds'] + ['P0M2-PREREQUISITES'], 'replacementEvidenceIds': check_ids,
+        'acceptanceId': 'P0M2-ACCEPTANCE-002',
+        'acceptanceRecord': 'docs/evidence/runs/P0M2-001/acceptance.json',
+        'supersededAcceptanceRecord': 'docs/evidence/runs/P0M2-001/before-selected-role-holds/acceptance.json',
+        'reason': 'Replacement build, typecheck, lint, 48 tests, standalone compilation, tables and final docs/diff checks pass. Earlier acceptance remains historical; no later product gate is claimed.',
+    })
+    write_json(ledger_path, ledger)
+
+acceptance.update({
+    'id': 'P0M2-ACCEPTANCE-002', 'observedAt': now,
+    'result': 'PASS' if final else 'PENDING_FINAL_CHECKS', 'checks': checks,
+    'counts': {'cumulativeTests': 48, 'P0M2Tests': 22, 'statePairs': 270, 'transitionRules': 213, 'roleResultCells': 112},
+    'developmentModelContinuation': continuation,
+    'authorizedConfigurationException': 'User approved the original P0M2 reasoning-policy override (yes. overrride) for GPT-6 Astra / Max. Resumed XHigh now complies with the externally updated Extra High policy; this agent did not edit authority files.',
+    'repositoryStatus': subprocess.check_output(['git', 'status', '--short'], text=True).rstrip(),
+    'preExistingChanges': ['audit/ (present at initial preflight; preserved, now ignored by an external .gitignore edit)'],
+    'unrelatedChanges': [continuation['unrelatedChange']] + authority_history['externalChanges'],
+    'prerequisiteVerificationEvidenceId': 'P0M2-PREREQUISITES-HOLDS',
+    'finalIntegrityRecord': 'docs/evidence/runs/P0M2-001/integrity-final.json',
+    'artifactManifestExclusions': [
+        'top-level artifacts.json itself',
+        'integrity-final.json final verification output (binds this manifest, avoiding recursive hashes)',
+    ],
+})
+for criterion in acceptance['criteria'].values():
+    if 'evidenceIds' in criterion:
+        criterion['evidenceIds'] = [name + '-HOLDS' for name in criterion['evidenceIds']]
+    if 'basis' in criterion:
+        criterion['basis'] = criterion['basis'].replace('208', '213')
+for row in ['R1-11', 'R1-12']:
+    acceptance['criteria'][row]['testPrefixes'].append('P0M2 selected-role holds')
+acceptance['impactAssessmentIds'].append(impact_id)
+acceptance['supersededEvidenceIds'] += stale['evidenceIds'] + ['P0M2-PREREQUISITES']
+acceptance['supersededAcceptanceRecord'] = 'docs/evidence/runs/P0M2-001/before-selected-role-holds/acceptance.json'
+acceptance['freshnessObservationIds'] = ['P0M2-STALE', 'P0M2-REVALIDATED', stale['id'], 'P0M2-AUTHORITY-PROVENANCE-STALE', freshness_id]
+acceptance['priorDiagnostics'] += [{
+    'id': check['id'], 'command': check['command'], 'exitStatus': check['exitStatus'],
+    'artifact': check['artifact'], 'note': 'Original observation preserved; superseded by selected-role-hold replacement checks.',
+} for check in old_checks if check['id'] != 'P0M2-PREREQUISITES']
+acceptance['selfReviewFixes'].append('Added selected pre-dispatch authentication/usage holds, zero-attempt return to READY, and held-validation user correction; 213 rules and 48 tests verify the final candidate.')
+acceptance['priorDiagnostics'].append(json.loads((run / 'P0M2-FINALIZE-AUTHORITY-CHANGED.json').read_text()))
+acceptance['noImpactClaims'][0] = 'No changes to P0M1 schema/protocol/catalog behavior or dependencies, lockfile/tool versions, Core/adapters/clients, UI or product runtime. Expanded shared exports required cumulative rerun. External authority changes are separately assessed in authority-history.json.'
+acceptance['documentationMismatches'] = [{
+    'path': 'README.md',
+    'mismatch': 'README still describes only the P0M0 foundation and four empty package boundaries; P0M1/P0M2 now provide implemented pure contracts.',
+    'disposition': 'Preserved under AGENTS README ownership rule; current implementation is documented in docs/architecture.md, docs/contracts.md and docs/lifecycle.md. No runnable product is claimed.',
+}]
+
+paths = set(subprocess.check_output(['git', 'ls-files', '-z'], text=True).split('\0'))
+paths.update(subprocess.check_output(['git', 'ls-files', '--others', '--exclude-standard', '-z'], text=True).split('\0'))
+paths.update(acceptance['authorityHashes'])
+candidate = []
+for path in sorted(paths - {''}):
+    if path.startswith(('audit/', 'docs/evidence/runs/')) or (path.startswith('docs/evidence/') and path.endswith('-report.md')):
+        continue
+    file = root / path
+    assert file.is_file() and not file.is_symlink(), path
+    candidate.append({'path': path, 'mode': '100755' if file.stat().st_mode & 0o111 else '100644', 'sha256': sha(file)})
+write_json(run / 'candidate.json', candidate)
+acceptance['candidateManifestSha256'] = sha(run / 'candidate.json')
+write_json(run / 'acceptance.json', acceptance)
+
+status = 'COMPLETE' if final else 'PARTIAL — final documentation and digest verification pending'
+report = f'''# P0M2 — {status}
+
+Implemented lifecycle and planning decision contracts. This is P0M2 unit acceptance through implementation self-verification; phase completion, independent review and product gates remain pending.
+
+| Section | Result |
+| --- | --- |
+| Implementation | Six new contract modules (`lifecycle`, `attempts`, `role-results`, `planning`, `continuity`, `decision-facts`) plus shared exports; 213 guarded rules over all 270 project/phase/task pairs; four-attempt and three-call accounting; 112 role/result cells; graph readiness, split/supersession and mutation rules; cancellation seams, renewal/repair, sponsorship/departure and reopen initialization. Added 22 P0M2 tests and architecture, contract and scenario documentation. |
+| Verification | Build, typecheck, lint, all 48 tests, standalone contracts compilation, table generation and prerequisite hash verification pass. Final documentation/diff checks and digest verification bind the completed report. All nineteen R1 rows, both milestone acceptance criteria and every required deliverable map to evidence IDs and test names in the acceptance record. Required rejection, timeout, exhaustion, cancellation, retry, recovery, stale-state and partial-effect scenarios are pure U fixtures. |
+| Scope | Pure proposals only. No persistence, scheduler loop, worker/provider/OS/Git execution, UI or new dependency. The shared JSON-safe boolean validator prevents malformed facts from becoming evidence. Documentation and generated tables are required milestone support. No later milestone, commit, push or tag. |
+| Evidence freshness | Initial and final R7a assessments record the 88-milestone producer/consumer cone and behavior edges. Affected P0M1 checks were superseded. The earlier P0M2 acceptance was then marked STALE when selected-role holds were corrected; `P0M2-ACCEPTANCE-002` and checks ending in `-HOLDS` replace it. Historical observations, changed inputs and digest-matching original tables are retained. P0M0 clean-install applicability remains unchanged. Gates A–H and all later production/recovery/security/IDE/packaged obligations remain pending. |
+| Specification status | Specification gaps: None identified. Deviations: None in product contracts. The user approved the original GPT-6 Astra / Max exception. Resumed XHigh complies with the externally updated Extra High model policy. AGENTS externally gained a README ownership rule; README was preserved. This agent did not edit authority files. Internal choices: finite rule arrays, JSON-safe Core-derived facts, stable-ID ordering and separate pure decision functions. |
+| Repository state | Base commit `{acceptance['baseCommit']}`; base tree `{acceptance['baseTree']}`. All P0M2 work is uncommitted; the index is unchanged. Existing audit/ and an external `.gitignore` addition of `/audit/` are preserved and excluded from P0M2 ownership. Actual final status appears below. |
+| Handoff | P0M0/P0M1 committed producer snapshots and all 21 retained artifact digests verify. P0M2 provides pure decision prerequisites for P0M3, subject to fresh-chat preflight and candidate freshness verification. P0M3 was not started. P0M4 and later services retain ownership of detailed authority/evidence/configuration records and real execution proof. |
+
+[Acceptance record](runs/P0M2-001/acceptance.json) maps every requirement to exact checks and test prefixes. [Guard definitions and scenario specification](../lifecycle.md) describe producer responsibilities and expected outcomes. [Pairwise cells](runs/P0M2-001/pairwise.json), [complete rules](runs/P0M2-001/transition-rules.json), and [role-result matrix](runs/P0M2-001/role-results.json) supply the machine-readable tables.
+
+[Candidate manifest](runs/P0M2-001/candidate.json), [artifact digests](runs/P0M2-001/artifacts.json), [initial preflight](runs/P0M2-001/preflight.json), [continuation/configuration observation](runs/P0M2-001/continuation.json), [authority change assessment](runs/P0M2-001/authority-history.json), and [evidence ledger](ledger.json) retain R7/R7a provenance. The final integrity record is `runs/P0M2-001/integrity-final.json`; it binds the candidate, acceptance and artifact manifests without recursive hashes. `P0M2-INDEPENDENT-HOLDS` names standalone compilation only, not an independent audit.
+
+Roadmap SHA-256: `{acceptance['authorityHashes']['MASTER_ROADMAP.md']}`.
+Uncommitted candidate manifest SHA-256: `{acceptance['candidateManifestSha256']}`.
+Prerequisites: `P0M0-ACCEPTANCE-001`, `P0M1-ACCEPTANCE-001`, `P0M0-CLEAN-INSTALL`, verified by `P0M2-PREREQUISITES-HOLDS` using exact historical authority snapshots and current-policy validation.
+Toolchain: Node v24.14.0, npm 11.9.0, TypeScript 5.9.3, ESLint 10.9.1, typescript-eslint 8.68.0, Git 2.54.0 (Apple Git-157), Python 3.14.3. Authority/configuration hashes, exact commands, times, exit statuses and result digests are in the acceptance record and manifests.
+
+The candidate manifest includes observed external `.gitignore`, MODEL_POLICY and AGENTS edits for exact binding; it does not attribute those edits to this milestone. It excludes generated dependencies/builds, audit prompts, separately hashed run artifacts and derived/historical reports. Product source and tests are unchanged after replacement cumulative checks; subsequent evidence/document edits receive final link/ledger, whitespace and digest verification. One preliminary evidence-finalization command exited 1 because external authority edits invalidated its original hash binding. The diagnostic is retained as `P0M2-FINALIZE-AUTHORITY-CHANGED`; reading the new rules, preserving exact originals and refreshing prerequisite/configuration evidence resolves it. All required final checks pass; none remain unavailable. Earlier observations and self-review corrections are retained.
+
+Process termination, ref identity, coverage and authority inputs are unit fixtures. They do not prove actual restart, enforcement, settlement or independent validation. Future Core services must establish these facts through normal routes and preserve R0/R3 transactions and fences; no runtime command is advertised as implemented.
+
+Actual `git status --short`:
+
+```text
+{acceptance['repositoryStatus']}
+```
+
+Pre-existing work: audit/, now ignored. Unrelated work observed on continuation: `.gitignore` adds `/audit/`; ignored MODEL_POLICY and AGENTS have the external edits described above. Every other status entry is P0M2 work. README is unchanged. No files were staged and no commit was created.
+
+README mismatch: it still describes only P0M0 and four empty package boundaries; P0M1/P0M2 now provide implemented pure contracts. AGENTS requires preserving the user-owned README, so current implementation is documented in the architecture, contract and lifecycle notes instead. There is still no runnable product.
+'''
+(root / 'docs/evidence/P0M2-report.md').write_text(report)
+
+artifacts = {}
+for file in sorted(run.rglob('*')):
+    if file.is_file() and file.name != 'integrity-final.json' and file != run / 'artifacts.json':
+        assert not file.is_symlink()
+        artifacts[str(file.relative_to(run))] = sha(file)
+artifacts['../../P0M2-report.md'] = sha(root / 'docs/evidence/P0M2-report.md')
+write_json(run / 'artifacts.json', artifacts)
+print(json.dumps({'result': acceptance['result'], 'candidateFiles': len(candidate), 'candidateManifestSha256': acceptance['candidateManifestSha256'], 'artifacts': len(artifacts)}))

@@ -1,0 +1,16 @@
+{
+  "id": "P0M2-DIFF",
+  "class": "U",
+  "command": [
+    "git",
+    "diff",
+    "--check"
+  ],
+  "cwd": "/Users/ivanuy/Library/Mobile Documents/com~apple~CloudDocs/Projects/densa-ade",
+  "startedAt": "2026-09-10T04:46:39.558198+00:00",
+  "completedAt": "2026-09-10T04:46:39.571767+00:00",
+  "exitStatus": 0,
+  "result": "PASS",
+  "artifact": "docs/evidence/runs/P0M2-001/P0M2-DIFF.log",
+  "artifactSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

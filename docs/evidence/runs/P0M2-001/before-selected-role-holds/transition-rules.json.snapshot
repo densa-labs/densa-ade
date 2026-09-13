@@ -1,0 +1,3406 @@
+[
+  {
+    "id": "project.begin-planning.DRAFT.PLANNING",
+    "entity": "project",
+    "from": "DRAFT",
+    "to": "PLANNING",
+    "trigger": "begin-planning",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "draftRevisionRecorded"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.abandon-planning.PLANNING.DRAFT",
+    "entity": "project",
+    "from": "PLANNING",
+    "to": "DRAFT",
+    "trigger": "abandon-planning",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "planningOperation",
+      "draftRevisionRecorded",
+      "writersTerminated",
+      "settlementReconciled"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.abandon-planning.WAITING_FOR_USER.DRAFT",
+    "entity": "project",
+    "from": "WAITING_FOR_USER",
+    "to": "DRAFT",
+    "trigger": "abandon-planning",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "planningOperation",
+      "draftRevisionRecorded",
+      "writersTerminated",
+      "settlementReconciled"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.abandon-planning.WAITING_FOR_USAGE.DRAFT",
+    "entity": "project",
+    "from": "WAITING_FOR_USAGE",
+    "to": "DRAFT",
+    "trigger": "abandon-planning",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "planningOperation",
+      "draftRevisionRecorded",
+      "writersTerminated",
+      "settlementReconciled"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.abandon-planning.BLOCKED.DRAFT",
+    "entity": "project",
+    "from": "BLOCKED",
+    "to": "DRAFT",
+    "trigger": "abandon-planning",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "planningOperation",
+      "draftRevisionRecorded",
+      "writersTerminated",
+      "settlementReconciled"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.restart-planning.PLANNING.PLANNING",
+    "entity": "project",
+    "from": "PLANNING",
+    "to": "PLANNING",
+    "trigger": "restart-planning",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "planningOperation",
+      "draftRevisionRecorded",
+      "writersTerminated",
+      "settlementReconciled"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.restart-planning.WAITING_FOR_USER.PLANNING",
+    "entity": "project",
+    "from": "WAITING_FOR_USER",
+    "to": "PLANNING",
+    "trigger": "restart-planning",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "planningOperation",
+      "draftRevisionRecorded",
+      "writersTerminated",
+      "settlementReconciled"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.restart-planning.WAITING_FOR_USAGE.PLANNING",
+    "entity": "project",
+    "from": "WAITING_FOR_USAGE",
+    "to": "PLANNING",
+    "trigger": "restart-planning",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "planningOperation",
+      "draftRevisionRecorded",
+      "writersTerminated",
+      "settlementReconciled"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.restart-planning.BLOCKED.PLANNING",
+    "entity": "project",
+    "from": "BLOCKED",
+    "to": "PLANNING",
+    "trigger": "restart-planning",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "planningOperation",
+      "draftRevisionRecorded",
+      "writersTerminated",
+      "settlementReconciled"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.approve-plan.PLANNING.READY",
+    "entity": "project",
+    "from": "PLANNING",
+    "to": "READY",
+    "trigger": "approve-plan",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "specificationApproved",
+      "fullRoadmapApproved",
+      "schedulablePlan",
+      "decisionsResolved"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.start.READY.RUNNING",
+    "entity": "project",
+    "from": "READY",
+    "to": "RUNNING",
+    "trigger": "start",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "startAuthorized",
+      "identityWorkspaceValid",
+      "trustPolicyValid",
+      "settingsValid",
+      "validationPlanAvailable",
+      "decisionsResolved",
+      "leaseAvailable",
+      "dependenciesCovered",
+      "phaseOrderValid",
+      "noControlOrRecoveryHold"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.resume.PAUSED.RUNNING",
+    "entity": "project",
+    "from": "PAUSED",
+    "to": "RUNNING",
+    "trigger": "resume",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "startAuthorized",
+      "identityWorkspaceValid",
+      "trustPolicyValid",
+      "settingsValid",
+      "validationPlanAvailable",
+      "decisionsResolved",
+      "leaseAvailable",
+      "dependenciesCovered",
+      "phaseOrderValid",
+      "noControlOrRecoveryHold",
+      "resumePreflightComplete",
+      "budgetAvailable",
+      "allCurrentCoverageValid"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.resume.WAITING_FOR_USER.RUNNING",
+    "entity": "project",
+    "from": "WAITING_FOR_USER",
+    "to": "RUNNING",
+    "trigger": "resume",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "startAuthorized",
+      "identityWorkspaceValid",
+      "trustPolicyValid",
+      "settingsValid",
+      "validationPlanAvailable",
+      "decisionsResolved",
+      "leaseAvailable",
+      "dependenciesCovered",
+      "phaseOrderValid",
+      "noControlOrRecoveryHold",
+      "resumePreflightComplete",
+      "budgetAvailable",
+      "allCurrentCoverageValid"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.resume.WAITING_FOR_USAGE.RUNNING",
+    "entity": "project",
+    "from": "WAITING_FOR_USAGE",
+    "to": "RUNNING",
+    "trigger": "resume",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "startAuthorized",
+      "identityWorkspaceValid",
+      "trustPolicyValid",
+      "settingsValid",
+      "validationPlanAvailable",
+      "decisionsResolved",
+      "leaseAvailable",
+      "dependenciesCovered",
+      "phaseOrderValid",
+      "noControlOrRecoveryHold",
+      "resumePreflightComplete",
+      "budgetAvailable",
+      "allCurrentCoverageValid"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.resume.BLOCKED.RUNNING",
+    "entity": "project",
+    "from": "BLOCKED",
+    "to": "RUNNING",
+    "trigger": "resume",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "startAuthorized",
+      "identityWorkspaceValid",
+      "trustPolicyValid",
+      "settingsValid",
+      "validationPlanAvailable",
+      "decisionsResolved",
+      "leaseAvailable",
+      "dependenciesCovered",
+      "phaseOrderValid",
+      "noControlOrRecoveryHold",
+      "resumePreflightComplete",
+      "budgetAvailable",
+      "allCurrentCoverageValid"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.resume-validation.PAUSED.RUNNING",
+    "entity": "project",
+    "from": "PAUSED",
+    "to": "RUNNING",
+    "trigger": "resume-validation",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "resumePreflightComplete",
+      "sameCandidate",
+      "candidateFrozen",
+      "trustPolicyValid",
+      "settingsValid",
+      "validationPlanAvailable",
+      "noControlOrRecoveryHold",
+      "roleContinuationRecorded"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.resume-validation.WAITING_FOR_USER.RUNNING",
+    "entity": "project",
+    "from": "WAITING_FOR_USER",
+    "to": "RUNNING",
+    "trigger": "resume-validation",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "resumePreflightComplete",
+      "sameCandidate",
+      "candidateFrozen",
+      "trustPolicyValid",
+      "settingsValid",
+      "validationPlanAvailable",
+      "noControlOrRecoveryHold",
+      "roleContinuationRecorded"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.resume-validation.WAITING_FOR_USAGE.RUNNING",
+    "entity": "project",
+    "from": "WAITING_FOR_USAGE",
+    "to": "RUNNING",
+    "trigger": "resume-validation",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "resumePreflightComplete",
+      "sameCandidate",
+      "candidateFrozen",
+      "trustPolicyValid",
+      "settingsValid",
+      "validationPlanAvailable",
+      "noControlOrRecoveryHold",
+      "roleContinuationRecorded"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.resume-validation.BLOCKED.RUNNING",
+    "entity": "project",
+    "from": "BLOCKED",
+    "to": "RUNNING",
+    "trigger": "resume-validation",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "resumePreflightComplete",
+      "sameCandidate",
+      "candidateFrozen",
+      "trustPolicyValid",
+      "settingsValid",
+      "validationPlanAvailable",
+      "noControlOrRecoveryHold",
+      "roleContinuationRecorded"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.resume-renewal.PAUSED.RUNNING",
+    "entity": "project",
+    "from": "PAUSED",
+    "to": "RUNNING",
+    "trigger": "resume-renewal",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "resumePreflightComplete",
+      "renewalIntentRecorded",
+      "trustPolicyValid",
+      "settingsValid",
+      "validationPlanAvailable",
+      "noControlOrRecoveryHold"
+    ],
+    "contract": "R3b"
+  },
+  {
+    "id": "project.resume-renewal.WAITING_FOR_USER.RUNNING",
+    "entity": "project",
+    "from": "WAITING_FOR_USER",
+    "to": "RUNNING",
+    "trigger": "resume-renewal",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "resumePreflightComplete",
+      "renewalIntentRecorded",
+      "trustPolicyValid",
+      "settingsValid",
+      "validationPlanAvailable",
+      "noControlOrRecoveryHold"
+    ],
+    "contract": "R3b"
+  },
+  {
+    "id": "project.resume-renewal.WAITING_FOR_USAGE.RUNNING",
+    "entity": "project",
+    "from": "WAITING_FOR_USAGE",
+    "to": "RUNNING",
+    "trigger": "resume-renewal",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "resumePreflightComplete",
+      "renewalIntentRecorded",
+      "trustPolicyValid",
+      "settingsValid",
+      "validationPlanAvailable",
+      "noControlOrRecoveryHold"
+    ],
+    "contract": "R3b"
+  },
+  {
+    "id": "project.resume-renewal.BLOCKED.RUNNING",
+    "entity": "project",
+    "from": "BLOCKED",
+    "to": "RUNNING",
+    "trigger": "resume-renewal",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "resumePreflightComplete",
+      "renewalIntentRecorded",
+      "trustPolicyValid",
+      "settingsValid",
+      "validationPlanAvailable",
+      "noControlOrRecoveryHold"
+    ],
+    "contract": "R3b"
+  },
+  {
+    "id": "project.resume-planning.WAITING_FOR_USER.PLANNING",
+    "entity": "project",
+    "from": "WAITING_FOR_USER",
+    "to": "PLANNING",
+    "trigger": "resume-planning",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "planningOperation",
+      "draftRevisionRecorded",
+      "trustPolicyValid",
+      "settingsValid",
+      "decisionsResolved",
+      "writersTerminated",
+      "noControlOrRecoveryHold",
+      "roleContinuationRecorded"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.resume-planning.WAITING_FOR_USAGE.PLANNING",
+    "entity": "project",
+    "from": "WAITING_FOR_USAGE",
+    "to": "PLANNING",
+    "trigger": "resume-planning",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "planningOperation",
+      "draftRevisionRecorded",
+      "trustPolicyValid",
+      "settingsValid",
+      "decisionsResolved",
+      "writersTerminated",
+      "noControlOrRecoveryHold",
+      "roleContinuationRecorded"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.resume-planning.BLOCKED.PLANNING",
+    "entity": "project",
+    "from": "BLOCKED",
+    "to": "PLANNING",
+    "trigger": "resume-planning",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "planningOperation",
+      "draftRevisionRecorded",
+      "trustPolicyValid",
+      "settingsValid",
+      "decisionsResolved",
+      "writersTerminated",
+      "noControlOrRecoveryHold",
+      "roleContinuationRecorded"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.pause-quiescent.READY.PAUSED",
+    "entity": "project",
+    "from": "READY",
+    "to": "PAUSED",
+    "trigger": "pause-quiescent",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "pauseIntentRecorded",
+      "schedulingFenced",
+      "writersTerminated",
+      "settlementReconciled"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.pause-quiescent.RUNNING.PAUSED",
+    "entity": "project",
+    "from": "RUNNING",
+    "to": "PAUSED",
+    "trigger": "pause-quiescent",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "pauseIntentRecorded",
+      "schedulingFenced",
+      "writersTerminated",
+      "settlementReconciled"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.pause-quiescent.PAUSED.PAUSED",
+    "entity": "project",
+    "from": "PAUSED",
+    "to": "PAUSED",
+    "trigger": "pause-quiescent",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "pauseIntentRecorded",
+      "schedulingFenced",
+      "writersTerminated",
+      "settlementReconciled"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.pause-quiescent.WAITING_FOR_USER.PAUSED",
+    "entity": "project",
+    "from": "WAITING_FOR_USER",
+    "to": "PAUSED",
+    "trigger": "pause-quiescent",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "pauseIntentRecorded",
+      "schedulingFenced",
+      "writersTerminated",
+      "settlementReconciled"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.pause-quiescent.WAITING_FOR_USAGE.PAUSED",
+    "entity": "project",
+    "from": "WAITING_FOR_USAGE",
+    "to": "PAUSED",
+    "trigger": "pause-quiescent",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "pauseIntentRecorded",
+      "schedulingFenced",
+      "writersTerminated",
+      "settlementReconciled"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.pause-quiescent.BLOCKED.PAUSED",
+    "entity": "project",
+    "from": "BLOCKED",
+    "to": "PAUSED",
+    "trigger": "pause-quiescent",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "pauseIntentRecorded",
+      "schedulingFenced",
+      "writersTerminated",
+      "settlementReconciled"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.user-hold.DRAFT.WAITING_FOR_USER",
+    "entity": "project",
+    "from": "DRAFT",
+    "to": "WAITING_FOR_USER",
+    "trigger": "user-hold",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "userHoldRecorded",
+      "noCancellationOrRevocation"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.user-hold.PLANNING.WAITING_FOR_USER",
+    "entity": "project",
+    "from": "PLANNING",
+    "to": "WAITING_FOR_USER",
+    "trigger": "user-hold",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "userHoldRecorded",
+      "noCancellationOrRevocation"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.user-hold.READY.WAITING_FOR_USER",
+    "entity": "project",
+    "from": "READY",
+    "to": "WAITING_FOR_USER",
+    "trigger": "user-hold",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "userHoldRecorded",
+      "noCancellationOrRevocation"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.user-hold.RUNNING.WAITING_FOR_USER",
+    "entity": "project",
+    "from": "RUNNING",
+    "to": "WAITING_FOR_USER",
+    "trigger": "user-hold",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "userHoldRecorded",
+      "noCancellationOrRevocation"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.user-hold.PAUSED.WAITING_FOR_USER",
+    "entity": "project",
+    "from": "PAUSED",
+    "to": "WAITING_FOR_USER",
+    "trigger": "user-hold",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "userHoldRecorded",
+      "noCancellationOrRevocation"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.user-hold.WAITING_FOR_USER.WAITING_FOR_USER",
+    "entity": "project",
+    "from": "WAITING_FOR_USER",
+    "to": "WAITING_FOR_USER",
+    "trigger": "user-hold",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "userHoldRecorded",
+      "noCancellationOrRevocation"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.user-hold.WAITING_FOR_USAGE.WAITING_FOR_USER",
+    "entity": "project",
+    "from": "WAITING_FOR_USAGE",
+    "to": "WAITING_FOR_USER",
+    "trigger": "user-hold",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "userHoldRecorded",
+      "noCancellationOrRevocation"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.user-hold.BLOCKED.WAITING_FOR_USER",
+    "entity": "project",
+    "from": "BLOCKED",
+    "to": "WAITING_FOR_USER",
+    "trigger": "user-hold",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "userHoldRecorded",
+      "noCancellationOrRevocation"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.revocation-hold.DRAFT.WAITING_FOR_USER",
+    "entity": "project",
+    "from": "DRAFT",
+    "to": "WAITING_FOR_USER",
+    "trigger": "revocation-hold",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "revocationRecorded",
+      "userHoldRecorded",
+      "schedulingFenced"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.revocation-hold.PLANNING.WAITING_FOR_USER",
+    "entity": "project",
+    "from": "PLANNING",
+    "to": "WAITING_FOR_USER",
+    "trigger": "revocation-hold",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "revocationRecorded",
+      "userHoldRecorded",
+      "schedulingFenced"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.revocation-hold.READY.WAITING_FOR_USER",
+    "entity": "project",
+    "from": "READY",
+    "to": "WAITING_FOR_USER",
+    "trigger": "revocation-hold",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "revocationRecorded",
+      "userHoldRecorded",
+      "schedulingFenced"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.revocation-hold.RUNNING.WAITING_FOR_USER",
+    "entity": "project",
+    "from": "RUNNING",
+    "to": "WAITING_FOR_USER",
+    "trigger": "revocation-hold",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "revocationRecorded",
+      "userHoldRecorded",
+      "schedulingFenced"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.revocation-hold.PAUSED.WAITING_FOR_USER",
+    "entity": "project",
+    "from": "PAUSED",
+    "to": "WAITING_FOR_USER",
+    "trigger": "revocation-hold",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "revocationRecorded",
+      "userHoldRecorded",
+      "schedulingFenced"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.revocation-hold.WAITING_FOR_USER.WAITING_FOR_USER",
+    "entity": "project",
+    "from": "WAITING_FOR_USER",
+    "to": "WAITING_FOR_USER",
+    "trigger": "revocation-hold",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "revocationRecorded",
+      "userHoldRecorded",
+      "schedulingFenced"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.revocation-hold.WAITING_FOR_USAGE.WAITING_FOR_USER",
+    "entity": "project",
+    "from": "WAITING_FOR_USAGE",
+    "to": "WAITING_FOR_USER",
+    "trigger": "revocation-hold",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "revocationRecorded",
+      "userHoldRecorded",
+      "schedulingFenced"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.revocation-hold.BLOCKED.WAITING_FOR_USER",
+    "entity": "project",
+    "from": "BLOCKED",
+    "to": "WAITING_FOR_USER",
+    "trigger": "revocation-hold",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "revocationRecorded",
+      "userHoldRecorded",
+      "schedulingFenced"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.usage-hold.DRAFT.WAITING_FOR_USAGE",
+    "entity": "project",
+    "from": "DRAFT",
+    "to": "WAITING_FOR_USAGE",
+    "trigger": "usage-hold",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "usageReliablyLimited",
+      "roleContinuationRecorded",
+      "noMandatoryHold",
+      "noControlOrRecoveryHold"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.usage-hold.PLANNING.WAITING_FOR_USAGE",
+    "entity": "project",
+    "from": "PLANNING",
+    "to": "WAITING_FOR_USAGE",
+    "trigger": "usage-hold",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "usageReliablyLimited",
+      "roleContinuationRecorded",
+      "noMandatoryHold",
+      "noControlOrRecoveryHold"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.usage-hold.READY.WAITING_FOR_USAGE",
+    "entity": "project",
+    "from": "READY",
+    "to": "WAITING_FOR_USAGE",
+    "trigger": "usage-hold",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "usageReliablyLimited",
+      "roleContinuationRecorded",
+      "noMandatoryHold",
+      "noControlOrRecoveryHold"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.usage-hold.RUNNING.WAITING_FOR_USAGE",
+    "entity": "project",
+    "from": "RUNNING",
+    "to": "WAITING_FOR_USAGE",
+    "trigger": "usage-hold",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "usageReliablyLimited",
+      "roleContinuationRecorded",
+      "noMandatoryHold",
+      "noControlOrRecoveryHold"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.usage-hold.PAUSED.WAITING_FOR_USAGE",
+    "entity": "project",
+    "from": "PAUSED",
+    "to": "WAITING_FOR_USAGE",
+    "trigger": "usage-hold",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "usageReliablyLimited",
+      "roleContinuationRecorded",
+      "noMandatoryHold",
+      "noControlOrRecoveryHold"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.usage-hold.WAITING_FOR_USER.WAITING_FOR_USAGE",
+    "entity": "project",
+    "from": "WAITING_FOR_USER",
+    "to": "WAITING_FOR_USAGE",
+    "trigger": "usage-hold",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "usageReliablyLimited",
+      "roleContinuationRecorded",
+      "noMandatoryHold",
+      "noControlOrRecoveryHold"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.usage-hold.WAITING_FOR_USAGE.WAITING_FOR_USAGE",
+    "entity": "project",
+    "from": "WAITING_FOR_USAGE",
+    "to": "WAITING_FOR_USAGE",
+    "trigger": "usage-hold",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "usageReliablyLimited",
+      "roleContinuationRecorded",
+      "noMandatoryHold",
+      "noControlOrRecoveryHold"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.usage-hold.BLOCKED.WAITING_FOR_USAGE",
+    "entity": "project",
+    "from": "BLOCKED",
+    "to": "WAITING_FOR_USAGE",
+    "trigger": "usage-hold",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "usageReliablyLimited",
+      "roleContinuationRecorded",
+      "noMandatoryHold",
+      "noControlOrRecoveryHold"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.deny.DRAFT.BLOCKED",
+    "entity": "project",
+    "from": "DRAFT",
+    "to": "BLOCKED",
+    "trigger": "deny",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "denialRecorded"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.deny.PLANNING.BLOCKED",
+    "entity": "project",
+    "from": "PLANNING",
+    "to": "BLOCKED",
+    "trigger": "deny",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "denialRecorded"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.deny.READY.BLOCKED",
+    "entity": "project",
+    "from": "READY",
+    "to": "BLOCKED",
+    "trigger": "deny",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "denialRecorded"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.deny.RUNNING.BLOCKED",
+    "entity": "project",
+    "from": "RUNNING",
+    "to": "BLOCKED",
+    "trigger": "deny",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "denialRecorded"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.deny.PAUSED.BLOCKED",
+    "entity": "project",
+    "from": "PAUSED",
+    "to": "BLOCKED",
+    "trigger": "deny",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "denialRecorded"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.deny.WAITING_FOR_USER.BLOCKED",
+    "entity": "project",
+    "from": "WAITING_FOR_USER",
+    "to": "BLOCKED",
+    "trigger": "deny",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "denialRecorded"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.deny.WAITING_FOR_USAGE.BLOCKED",
+    "entity": "project",
+    "from": "WAITING_FOR_USAGE",
+    "to": "BLOCKED",
+    "trigger": "deny",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "denialRecorded"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.deny.BLOCKED.BLOCKED",
+    "entity": "project",
+    "from": "BLOCKED",
+    "to": "BLOCKED",
+    "trigger": "deny",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "denialRecorded"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.attempts-exhausted.RUNNING.BLOCKED",
+    "entity": "project",
+    "from": "RUNNING",
+    "to": "BLOCKED",
+    "trigger": "attempts-exhausted",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "fourAttemptsExhausted",
+      "diagnosticsRetained"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.attempts-exhausted.WAITING_FOR_USER.BLOCKED",
+    "entity": "project",
+    "from": "WAITING_FOR_USER",
+    "to": "BLOCKED",
+    "trigger": "attempts-exhausted",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "fourAttemptsExhausted",
+      "diagnosticsRetained"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.attempts-exhausted.WAITING_FOR_USAGE.BLOCKED",
+    "entity": "project",
+    "from": "WAITING_FOR_USAGE",
+    "to": "BLOCKED",
+    "trigger": "attempts-exhausted",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "fourAttemptsExhausted",
+      "diagnosticsRetained"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.attempts-exhausted.BLOCKED.BLOCKED",
+    "entity": "project",
+    "from": "BLOCKED",
+    "to": "BLOCKED",
+    "trigger": "attempts-exhausted",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "fourAttemptsExhausted",
+      "diagnosticsRetained"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.failure.DRAFT.BLOCKED",
+    "entity": "project",
+    "from": "DRAFT",
+    "to": "BLOCKED",
+    "trigger": "failure",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "diagnosticsRetained",
+      "schedulingFenced"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.failure.PLANNING.BLOCKED",
+    "entity": "project",
+    "from": "PLANNING",
+    "to": "BLOCKED",
+    "trigger": "failure",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "diagnosticsRetained",
+      "schedulingFenced"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.failure.READY.BLOCKED",
+    "entity": "project",
+    "from": "READY",
+    "to": "BLOCKED",
+    "trigger": "failure",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "diagnosticsRetained",
+      "schedulingFenced"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.failure.RUNNING.BLOCKED",
+    "entity": "project",
+    "from": "RUNNING",
+    "to": "BLOCKED",
+    "trigger": "failure",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "diagnosticsRetained",
+      "schedulingFenced"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.failure.PAUSED.BLOCKED",
+    "entity": "project",
+    "from": "PAUSED",
+    "to": "BLOCKED",
+    "trigger": "failure",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "diagnosticsRetained",
+      "schedulingFenced"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.failure.WAITING_FOR_USER.BLOCKED",
+    "entity": "project",
+    "from": "WAITING_FOR_USER",
+    "to": "BLOCKED",
+    "trigger": "failure",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "diagnosticsRetained",
+      "schedulingFenced"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.failure.WAITING_FOR_USAGE.BLOCKED",
+    "entity": "project",
+    "from": "WAITING_FOR_USAGE",
+    "to": "BLOCKED",
+    "trigger": "failure",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "diagnosticsRetained",
+      "schedulingFenced"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.failure.BLOCKED.BLOCKED",
+    "entity": "project",
+    "from": "BLOCKED",
+    "to": "BLOCKED",
+    "trigger": "failure",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "diagnosticsRetained",
+      "schedulingFenced"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.admit-repair.RUNNING.RUNNING",
+    "entity": "project",
+    "from": "RUNNING",
+    "to": "RUNNING",
+    "trigger": "admit-repair",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "startAuthorized",
+      "identityWorkspaceValid",
+      "trustPolicyValid",
+      "settingsValid",
+      "validationPlanAvailable",
+      "decisionsResolved",
+      "leaseAvailable",
+      "dependenciesCovered",
+      "phaseOrderValid",
+      "noControlOrRecoveryHold",
+      "explicitRepairApproved"
+    ],
+    "contract": "R3b"
+  },
+  {
+    "id": "project.admit-repair.WAITING_FOR_USER.RUNNING",
+    "entity": "project",
+    "from": "WAITING_FOR_USER",
+    "to": "RUNNING",
+    "trigger": "admit-repair",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "startAuthorized",
+      "identityWorkspaceValid",
+      "trustPolicyValid",
+      "settingsValid",
+      "validationPlanAvailable",
+      "decisionsResolved",
+      "leaseAvailable",
+      "dependenciesCovered",
+      "phaseOrderValid",
+      "noControlOrRecoveryHold",
+      "explicitRepairApproved"
+    ],
+    "contract": "R3b"
+  },
+  {
+    "id": "project.admit-repair.BLOCKED.RUNNING",
+    "entity": "project",
+    "from": "BLOCKED",
+    "to": "RUNNING",
+    "trigger": "admit-repair",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "startAuthorized",
+      "identityWorkspaceValid",
+      "trustPolicyValid",
+      "settingsValid",
+      "validationPlanAvailable",
+      "decisionsResolved",
+      "leaseAvailable",
+      "dependenciesCovered",
+      "phaseOrderValid",
+      "noControlOrRecoveryHold",
+      "explicitRepairApproved"
+    ],
+    "contract": "R3b"
+  },
+  {
+    "id": "project.complete.RUNNING.COMPLETED",
+    "entity": "project",
+    "from": "RUNNING",
+    "to": "COMPLETED",
+    "trigger": "complete",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "allRequiredTasksSettled",
+      "allRequiredPhasesComplete",
+      "allCurrentCoverageValid",
+      "noMandatoryDecisionOrRecovery",
+      "noControlOrRecoveryHold"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.complete.WAITING_FOR_USER.COMPLETED",
+    "entity": "project",
+    "from": "WAITING_FOR_USER",
+    "to": "COMPLETED",
+    "trigger": "complete",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "allRequiredTasksSettled",
+      "allRequiredPhasesComplete",
+      "allCurrentCoverageValid",
+      "noMandatoryDecisionOrRecovery",
+      "noControlOrRecoveryHold"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.stop-reconciled.DRAFT.FAILED",
+    "entity": "project",
+    "from": "DRAFT",
+    "to": "FAILED",
+    "trigger": "stop-reconciled",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "projectStopIntentRecorded",
+      "schedulingFenced",
+      "writersTerminated",
+      "settlementReconciled",
+      "allUnfinishedTasksCancelled"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.stop-reconciled.PLANNING.FAILED",
+    "entity": "project",
+    "from": "PLANNING",
+    "to": "FAILED",
+    "trigger": "stop-reconciled",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "projectStopIntentRecorded",
+      "schedulingFenced",
+      "writersTerminated",
+      "settlementReconciled",
+      "allUnfinishedTasksCancelled"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.stop-reconciled.READY.FAILED",
+    "entity": "project",
+    "from": "READY",
+    "to": "FAILED",
+    "trigger": "stop-reconciled",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "projectStopIntentRecorded",
+      "schedulingFenced",
+      "writersTerminated",
+      "settlementReconciled",
+      "allUnfinishedTasksCancelled"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.stop-reconciled.RUNNING.FAILED",
+    "entity": "project",
+    "from": "RUNNING",
+    "to": "FAILED",
+    "trigger": "stop-reconciled",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "projectStopIntentRecorded",
+      "schedulingFenced",
+      "writersTerminated",
+      "settlementReconciled",
+      "allUnfinishedTasksCancelled"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.stop-reconciled.PAUSED.FAILED",
+    "entity": "project",
+    "from": "PAUSED",
+    "to": "FAILED",
+    "trigger": "stop-reconciled",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "projectStopIntentRecorded",
+      "schedulingFenced",
+      "writersTerminated",
+      "settlementReconciled",
+      "allUnfinishedTasksCancelled"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.stop-reconciled.WAITING_FOR_USER.FAILED",
+    "entity": "project",
+    "from": "WAITING_FOR_USER",
+    "to": "FAILED",
+    "trigger": "stop-reconciled",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "projectStopIntentRecorded",
+      "schedulingFenced",
+      "writersTerminated",
+      "settlementReconciled",
+      "allUnfinishedTasksCancelled"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.stop-reconciled.WAITING_FOR_USAGE.FAILED",
+    "entity": "project",
+    "from": "WAITING_FOR_USAGE",
+    "to": "FAILED",
+    "trigger": "stop-reconciled",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "projectStopIntentRecorded",
+      "schedulingFenced",
+      "writersTerminated",
+      "settlementReconciled",
+      "allUnfinishedTasksCancelled"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "project.stop-reconciled.BLOCKED.FAILED",
+    "entity": "project",
+    "from": "BLOCKED",
+    "to": "FAILED",
+    "trigger": "stop-reconciled",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "projectStopIntentRecorded",
+      "schedulingFenced",
+      "writersTerminated",
+      "settlementReconciled",
+      "allUnfinishedTasksCancelled"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "phase.eligible.PENDING.READY",
+    "entity": "phase",
+    "from": "PENDING",
+    "to": "READY",
+    "trigger": "eligible",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "phaseOrderValid",
+      "dependenciesCovered",
+      "noControlOrRecoveryHold"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "phase.start.READY.RUNNING",
+    "entity": "phase",
+    "from": "READY",
+    "to": "RUNNING",
+    "trigger": "start",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "startAuthorized",
+      "identityWorkspaceValid",
+      "trustPolicyValid",
+      "settingsValid",
+      "validationPlanAvailable",
+      "decisionsResolved",
+      "leaseAvailable",
+      "dependenciesCovered",
+      "phaseOrderValid",
+      "noControlOrRecoveryHold"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "phase.tasks-settled.RUNNING.VALIDATING",
+    "entity": "phase",
+    "from": "RUNNING",
+    "to": "VALIDATING",
+    "trigger": "tasks-settled",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "allRequiredTasksSettled",
+      "allCurrentCoverageValid",
+      "noControlOrRecoveryHold"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "phase.report.VALIDATING.AWAITING_APPROVAL",
+    "entity": "phase",
+    "from": "VALIDATING",
+    "to": "AWAITING_APPROVAL",
+    "trigger": "report",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "phaseAcceptancePassed",
+      "freshPhaseReviewPassed",
+      "phaseReportRecorded",
+      "boundaryApprovalRequired",
+      "noMandatoryHold"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "phase.continuous-complete.VALIDATING.COMPLETED",
+    "entity": "phase",
+    "from": "VALIDATING",
+    "to": "COMPLETED",
+    "trigger": "continuous-complete",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "phaseAcceptancePassed",
+      "freshPhaseReviewPassed",
+      "phaseReportRecorded",
+      "boundaryApprovalNotRequired",
+      "noControlOrRecoveryHold",
+      "allCurrentCoverageValid"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "phase.approve.AWAITING_APPROVAL.COMPLETED",
+    "entity": "phase",
+    "from": "AWAITING_APPROVAL",
+    "to": "COMPLETED",
+    "trigger": "approve",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "boundPhaseApproval",
+      "allCurrentCoverageValid",
+      "noMandatoryDecisionOrRecovery"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "phase.reject-report.AWAITING_APPROVAL.BLOCKED",
+    "entity": "phase",
+    "from": "AWAITING_APPROVAL",
+    "to": "BLOCKED",
+    "trigger": "reject-report",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "denialRecorded"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "phase.failure.PENDING.BLOCKED",
+    "entity": "phase",
+    "from": "PENDING",
+    "to": "BLOCKED",
+    "trigger": "failure",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "diagnosticsRetained"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "phase.failure.READY.BLOCKED",
+    "entity": "phase",
+    "from": "READY",
+    "to": "BLOCKED",
+    "trigger": "failure",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "diagnosticsRetained"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "phase.failure.RUNNING.BLOCKED",
+    "entity": "phase",
+    "from": "RUNNING",
+    "to": "BLOCKED",
+    "trigger": "failure",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "diagnosticsRetained"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "phase.failure.VALIDATING.BLOCKED",
+    "entity": "phase",
+    "from": "VALIDATING",
+    "to": "BLOCKED",
+    "trigger": "failure",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "diagnosticsRetained"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "phase.failure.AWAITING_APPROVAL.BLOCKED",
+    "entity": "phase",
+    "from": "AWAITING_APPROVAL",
+    "to": "BLOCKED",
+    "trigger": "failure",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "diagnosticsRetained"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "phase.failure.BLOCKED.BLOCKED",
+    "entity": "phase",
+    "from": "BLOCKED",
+    "to": "BLOCKED",
+    "trigger": "failure",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "diagnosticsRetained"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "phase.repair-pending-phase.BLOCKED.READY",
+    "entity": "phase",
+    "from": "BLOCKED",
+    "to": "READY",
+    "trigger": "repair-pending-phase",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "recordedPhaseStageReady",
+      "explicitRepairApproved",
+      "repairGateSatisfied",
+      "phaseOrderValid",
+      "noControlOrRecoveryHold"
+    ],
+    "contract": "R3b"
+  },
+  {
+    "id": "phase.release-suspended-phase.BLOCKED.RUNNING",
+    "entity": "phase",
+    "from": "BLOCKED",
+    "to": "RUNNING",
+    "trigger": "release-suspended-phase",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "recordedPhaseStageRunning",
+      "repairGateSatisfied",
+      "allCurrentCoverageValid",
+      "noControlOrRecoveryHold"
+    ],
+    "contract": "R3b"
+  },
+  {
+    "id": "phase.release-suspended-validation.BLOCKED.VALIDATING",
+    "entity": "phase",
+    "from": "BLOCKED",
+    "to": "VALIDATING",
+    "trigger": "release-suspended-validation",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "recordedPhaseStageValidating",
+      "repairGateSatisfied",
+      "allCurrentCoverageValid",
+      "allRequiredTasksSettled",
+      "noControlOrRecoveryHold"
+    ],
+    "contract": "R3b"
+  },
+  {
+    "id": "phase.retain-stage-hold.RUNNING.RUNNING",
+    "entity": "phase",
+    "from": "RUNNING",
+    "to": "RUNNING",
+    "trigger": "retain-stage-hold",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "roleContinuationRecorded"
+    ],
+    "contract": "R1/R3b"
+  },
+  {
+    "id": "phase.retain-stage-hold.VALIDATING.VALIDATING",
+    "entity": "phase",
+    "from": "VALIDATING",
+    "to": "VALIDATING",
+    "trigger": "retain-stage-hold",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "roleContinuationRecorded"
+    ],
+    "contract": "R1/R3b"
+  },
+  {
+    "id": "task.eligible.PENDING.READY",
+    "entity": "task",
+    "from": "PENDING",
+    "to": "READY",
+    "trigger": "eligible",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "dependenciesCovered",
+      "phaseOrderValid",
+      "validationPlanAvailable",
+      "noControlOrRecoveryHold"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.dispatch-worker.READY.RUNNING",
+    "entity": "task",
+    "from": "READY",
+    "to": "RUNNING",
+    "trigger": "dispatch-worker",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "startAuthorized",
+      "identityWorkspaceValid",
+      "trustPolicyValid",
+      "settingsValid",
+      "validationPlanAvailable",
+      "decisionsResolved",
+      "leaseAvailable",
+      "dependenciesCovered",
+      "phaseOrderValid",
+      "noControlOrRecoveryHold",
+      "implementationTask",
+      "taskApprovalSatisfied",
+      "attemptReserved",
+      "reservedSlotWithinLimit",
+      "dispatchIntentRecorded"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.dispatch-qualification.READY.VALIDATING",
+    "entity": "task",
+    "from": "READY",
+    "to": "VALIDATING",
+    "trigger": "dispatch-qualification",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "startAuthorized",
+      "identityWorkspaceValid",
+      "trustPolicyValid",
+      "settingsValid",
+      "validationPlanAvailable",
+      "decisionsResolved",
+      "leaseAvailable",
+      "dependenciesCovered",
+      "phaseOrderValid",
+      "noControlOrRecoveryHold",
+      "qualificationTask",
+      "taskApprovalSatisfied",
+      "renewalIntentRecorded",
+      "candidateFrozen"
+    ],
+    "contract": "R5/R1b"
+  },
+  {
+    "id": "task.worker-candidate.RUNNING.VALIDATING",
+    "entity": "task",
+    "from": "RUNNING",
+    "to": "VALIDATING",
+    "trigger": "worker-candidate",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "workerTerminated",
+      "candidateFrozen",
+      "latestAttempt",
+      "noControlOrRecoveryHold"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.settle.VALIDATING.COMPLETED",
+    "entity": "task",
+    "from": "VALIDATING",
+    "to": "COMPLETED",
+    "trigger": "settle",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "latestAttempt",
+      "candidateFrozen",
+      "allCriteriaSatisfied",
+      "currentCertificate",
+      "commitIdentityVerified",
+      "resultRefVerified",
+      "acceptedPointerInCompletionTransaction",
+      "settlementReconciled",
+      "writersTerminated",
+      "noCancellationOrRevocation",
+      "noMandatoryHold"
+    ],
+    "contract": "R1/R3"
+  },
+  {
+    "id": "task.repairable-failure.RUNNING.RETRYING",
+    "entity": "task",
+    "from": "RUNNING",
+    "to": "RETRYING",
+    "trigger": "repairable-failure",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "implementationTask",
+      "writersTerminated",
+      "settlementReconciled",
+      "diagnosticsRetained",
+      "revisedStrategy",
+      "budgetAvailable",
+      "retryIntentRecorded",
+      "noControlOrRecoveryHold"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.repairable-failure.VALIDATING.RETRYING",
+    "entity": "task",
+    "from": "VALIDATING",
+    "to": "RETRYING",
+    "trigger": "repairable-failure",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "implementationTask",
+      "writersTerminated",
+      "settlementReconciled",
+      "diagnosticsRetained",
+      "revisedStrategy",
+      "budgetAvailable",
+      "retryIntentRecorded",
+      "noControlOrRecoveryHold"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.repairable-failure.INTERRUPTED.RETRYING",
+    "entity": "task",
+    "from": "INTERRUPTED",
+    "to": "RETRYING",
+    "trigger": "repairable-failure",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "implementationTask",
+      "writersTerminated",
+      "settlementReconciled",
+      "diagnosticsRetained",
+      "revisedStrategy",
+      "budgetAvailable",
+      "retryIntentRecorded",
+      "noControlOrRecoveryHold"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.repairable-failure.WAITING_FOR_USER.RETRYING",
+    "entity": "task",
+    "from": "WAITING_FOR_USER",
+    "to": "RETRYING",
+    "trigger": "repairable-failure",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "implementationTask",
+      "writersTerminated",
+      "settlementReconciled",
+      "diagnosticsRetained",
+      "revisedStrategy",
+      "budgetAvailable",
+      "retryIntentRecorded",
+      "noControlOrRecoveryHold"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.repairable-failure.WAITING_FOR_USAGE.RETRYING",
+    "entity": "task",
+    "from": "WAITING_FOR_USAGE",
+    "to": "RETRYING",
+    "trigger": "repairable-failure",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "implementationTask",
+      "writersTerminated",
+      "settlementReconciled",
+      "diagnosticsRetained",
+      "revisedStrategy",
+      "budgetAvailable",
+      "retryIntentRecorded",
+      "noControlOrRecoveryHold"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.reset-for-retry.RETRYING.READY",
+    "entity": "task",
+    "from": "RETRYING",
+    "to": "READY",
+    "trigger": "reset-for-retry",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "originalCheckpointRestored",
+      "writersTerminated",
+      "settlementReconciled",
+      "retryIntentRecorded",
+      "budgetAvailable",
+      "noControlOrRecoveryHold"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.pause-terminated.RUNNING.INTERRUPTED",
+    "entity": "task",
+    "from": "RUNNING",
+    "to": "INTERRUPTED",
+    "trigger": "pause-terminated",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "pauseIntentRecorded",
+      "schedulingFenced",
+      "writersTerminated",
+      "settlementReconciled"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.pause-terminated.VALIDATING.INTERRUPTED",
+    "entity": "task",
+    "from": "VALIDATING",
+    "to": "INTERRUPTED",
+    "trigger": "pause-terminated",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "pauseIntentRecorded",
+      "schedulingFenced",
+      "writersTerminated",
+      "settlementReconciled"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.pause-terminated.RETRYING.INTERRUPTED",
+    "entity": "task",
+    "from": "RETRYING",
+    "to": "INTERRUPTED",
+    "trigger": "pause-terminated",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "pauseIntentRecorded",
+      "schedulingFenced",
+      "writersTerminated",
+      "settlementReconciled"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.pause-terminated.INTERRUPTED.INTERRUPTED",
+    "entity": "task",
+    "from": "INTERRUPTED",
+    "to": "INTERRUPTED",
+    "trigger": "pause-terminated",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "pauseIntentRecorded",
+      "schedulingFenced",
+      "writersTerminated",
+      "settlementReconciled"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.pause-terminated.WAITING_FOR_USER.INTERRUPTED",
+    "entity": "task",
+    "from": "WAITING_FOR_USER",
+    "to": "INTERRUPTED",
+    "trigger": "pause-terminated",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "pauseIntentRecorded",
+      "schedulingFenced",
+      "writersTerminated",
+      "settlementReconciled"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.pause-terminated.WAITING_FOR_USAGE.INTERRUPTED",
+    "entity": "task",
+    "from": "WAITING_FOR_USAGE",
+    "to": "INTERRUPTED",
+    "trigger": "pause-terminated",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "pauseIntentRecorded",
+      "schedulingFenced",
+      "writersTerminated",
+      "settlementReconciled"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.revoked-terminated.RUNNING.INTERRUPTED",
+    "entity": "task",
+    "from": "RUNNING",
+    "to": "INTERRUPTED",
+    "trigger": "revoked-terminated",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "revocationRecorded",
+      "schedulingFenced",
+      "writersTerminated",
+      "settlementReconciled",
+      "userHoldRecorded"
+    ],
+    "contract": "R3a"
+  },
+  {
+    "id": "task.revoked-terminated.VALIDATING.INTERRUPTED",
+    "entity": "task",
+    "from": "VALIDATING",
+    "to": "INTERRUPTED",
+    "trigger": "revoked-terminated",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "revocationRecorded",
+      "schedulingFenced",
+      "writersTerminated",
+      "settlementReconciled",
+      "userHoldRecorded"
+    ],
+    "contract": "R3a"
+  },
+  {
+    "id": "task.revoked-terminated.RETRYING.INTERRUPTED",
+    "entity": "task",
+    "from": "RETRYING",
+    "to": "INTERRUPTED",
+    "trigger": "revoked-terminated",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "revocationRecorded",
+      "schedulingFenced",
+      "writersTerminated",
+      "settlementReconciled",
+      "userHoldRecorded"
+    ],
+    "contract": "R3a"
+  },
+  {
+    "id": "task.revoked-terminated.INTERRUPTED.INTERRUPTED",
+    "entity": "task",
+    "from": "INTERRUPTED",
+    "to": "INTERRUPTED",
+    "trigger": "revoked-terminated",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "revocationRecorded",
+      "schedulingFenced",
+      "writersTerminated",
+      "settlementReconciled",
+      "userHoldRecorded"
+    ],
+    "contract": "R3a"
+  },
+  {
+    "id": "task.revoked-terminated.WAITING_FOR_USER.INTERRUPTED",
+    "entity": "task",
+    "from": "WAITING_FOR_USER",
+    "to": "INTERRUPTED",
+    "trigger": "revoked-terminated",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "revocationRecorded",
+      "schedulingFenced",
+      "writersTerminated",
+      "settlementReconciled",
+      "userHoldRecorded"
+    ],
+    "contract": "R3a"
+  },
+  {
+    "id": "task.revoked-terminated.WAITING_FOR_USAGE.INTERRUPTED",
+    "entity": "task",
+    "from": "WAITING_FOR_USAGE",
+    "to": "INTERRUPTED",
+    "trigger": "revoked-terminated",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "revocationRecorded",
+      "schedulingFenced",
+      "writersTerminated",
+      "settlementReconciled",
+      "userHoldRecorded"
+    ],
+    "contract": "R3a"
+  },
+  {
+    "id": "task.resume-worker.INTERRUPTED.READY",
+    "entity": "task",
+    "from": "INTERRUPTED",
+    "to": "READY",
+    "trigger": "resume-worker",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "startAuthorized",
+      "identityWorkspaceValid",
+      "trustPolicyValid",
+      "settingsValid",
+      "validationPlanAvailable",
+      "decisionsResolved",
+      "leaseAvailable",
+      "dependenciesCovered",
+      "phaseOrderValid",
+      "noControlOrRecoveryHold",
+      "resumePreflightComplete",
+      "implementationTask",
+      "interruptedWorker",
+      "budgetAvailable",
+      "originalCheckpointRestored",
+      "writersTerminated",
+      "settlementReconciled"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.resume-worker.WAITING_FOR_USER.READY",
+    "entity": "task",
+    "from": "WAITING_FOR_USER",
+    "to": "READY",
+    "trigger": "resume-worker",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "startAuthorized",
+      "identityWorkspaceValid",
+      "trustPolicyValid",
+      "settingsValid",
+      "validationPlanAvailable",
+      "decisionsResolved",
+      "leaseAvailable",
+      "dependenciesCovered",
+      "phaseOrderValid",
+      "noControlOrRecoveryHold",
+      "resumePreflightComplete",
+      "implementationTask",
+      "interruptedWorker",
+      "budgetAvailable",
+      "originalCheckpointRestored",
+      "writersTerminated",
+      "settlementReconciled"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.resume-worker.WAITING_FOR_USAGE.READY",
+    "entity": "task",
+    "from": "WAITING_FOR_USAGE",
+    "to": "READY",
+    "trigger": "resume-worker",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "startAuthorized",
+      "identityWorkspaceValid",
+      "trustPolicyValid",
+      "settingsValid",
+      "validationPlanAvailable",
+      "decisionsResolved",
+      "leaseAvailable",
+      "dependenciesCovered",
+      "phaseOrderValid",
+      "noControlOrRecoveryHold",
+      "resumePreflightComplete",
+      "implementationTask",
+      "interruptedWorker",
+      "budgetAvailable",
+      "originalCheckpointRestored",
+      "writersTerminated",
+      "settlementReconciled"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.resume-worker.BLOCKED.READY",
+    "entity": "task",
+    "from": "BLOCKED",
+    "to": "READY",
+    "trigger": "resume-worker",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "startAuthorized",
+      "identityWorkspaceValid",
+      "trustPolicyValid",
+      "settingsValid",
+      "validationPlanAvailable",
+      "decisionsResolved",
+      "leaseAvailable",
+      "dependenciesCovered",
+      "phaseOrderValid",
+      "noControlOrRecoveryHold",
+      "resumePreflightComplete",
+      "implementationTask",
+      "interruptedWorker",
+      "budgetAvailable",
+      "originalCheckpointRestored",
+      "writersTerminated",
+      "settlementReconciled"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.resume-validation.INTERRUPTED.VALIDATING",
+    "entity": "task",
+    "from": "INTERRUPTED",
+    "to": "VALIDATING",
+    "trigger": "resume-validation",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "startAuthorized",
+      "identityWorkspaceValid",
+      "trustPolicyValid",
+      "settingsValid",
+      "validationPlanAvailable",
+      "decisionsResolved",
+      "leaseAvailable",
+      "dependenciesCovered",
+      "phaseOrderValid",
+      "noControlOrRecoveryHold",
+      "resumePreflightComplete",
+      "interruptedValidation",
+      "sameCandidate",
+      "candidateFrozen",
+      "writersTerminated",
+      "dispatchIntentRecorded"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.resume-validation.WAITING_FOR_USER.VALIDATING",
+    "entity": "task",
+    "from": "WAITING_FOR_USER",
+    "to": "VALIDATING",
+    "trigger": "resume-validation",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "startAuthorized",
+      "identityWorkspaceValid",
+      "trustPolicyValid",
+      "settingsValid",
+      "validationPlanAvailable",
+      "decisionsResolved",
+      "leaseAvailable",
+      "dependenciesCovered",
+      "phaseOrderValid",
+      "noControlOrRecoveryHold",
+      "resumePreflightComplete",
+      "interruptedValidation",
+      "sameCandidate",
+      "candidateFrozen",
+      "writersTerminated",
+      "dispatchIntentRecorded"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.resume-validation.WAITING_FOR_USAGE.VALIDATING",
+    "entity": "task",
+    "from": "WAITING_FOR_USAGE",
+    "to": "VALIDATING",
+    "trigger": "resume-validation",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "startAuthorized",
+      "identityWorkspaceValid",
+      "trustPolicyValid",
+      "settingsValid",
+      "validationPlanAvailable",
+      "decisionsResolved",
+      "leaseAvailable",
+      "dependenciesCovered",
+      "phaseOrderValid",
+      "noControlOrRecoveryHold",
+      "resumePreflightComplete",
+      "interruptedValidation",
+      "sameCandidate",
+      "candidateFrozen",
+      "writersTerminated",
+      "dispatchIntentRecorded"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.resume-validation.BLOCKED.VALIDATING",
+    "entity": "task",
+    "from": "BLOCKED",
+    "to": "VALIDATING",
+    "trigger": "resume-validation",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "startAuthorized",
+      "identityWorkspaceValid",
+      "trustPolicyValid",
+      "settingsValid",
+      "validationPlanAvailable",
+      "decisionsResolved",
+      "leaseAvailable",
+      "dependenciesCovered",
+      "phaseOrderValid",
+      "noControlOrRecoveryHold",
+      "resumePreflightComplete",
+      "interruptedValidation",
+      "sameCandidate",
+      "candidateFrozen",
+      "writersTerminated",
+      "dispatchIntentRecorded"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.correct-held-role.WAITING_FOR_USER.VALIDATING",
+    "entity": "task",
+    "from": "WAITING_FOR_USER",
+    "to": "VALIDATING",
+    "trigger": "correct-held-role",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "startAuthorized",
+      "identityWorkspaceValid",
+      "trustPolicyValid",
+      "settingsValid",
+      "validationPlanAvailable",
+      "decisionsResolved",
+      "leaseAvailable",
+      "dependenciesCovered",
+      "phaseOrderValid",
+      "noControlOrRecoveryHold",
+      "heldRoleCorrectionAuthorized",
+      "sameCandidate",
+      "candidateFrozen",
+      "writersTerminated",
+      "dispatchIntentRecorded"
+    ],
+    "contract": "R5a"
+  },
+  {
+    "id": "task.correct-held-role.BLOCKED.VALIDATING",
+    "entity": "task",
+    "from": "BLOCKED",
+    "to": "VALIDATING",
+    "trigger": "correct-held-role",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "startAuthorized",
+      "identityWorkspaceValid",
+      "trustPolicyValid",
+      "settingsValid",
+      "validationPlanAvailable",
+      "decisionsResolved",
+      "leaseAvailable",
+      "dependenciesCovered",
+      "phaseOrderValid",
+      "noControlOrRecoveryHold",
+      "heldRoleCorrectionAuthorized",
+      "sameCandidate",
+      "candidateFrozen",
+      "writersTerminated",
+      "dispatchIntentRecorded"
+    ],
+    "contract": "R5a"
+  },
+  {
+    "id": "task.user-hold.RUNNING.WAITING_FOR_USER",
+    "entity": "task",
+    "from": "RUNNING",
+    "to": "WAITING_FOR_USER",
+    "trigger": "user-hold",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "userHoldRecorded",
+      "noCancellationOrRevocation"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.user-hold.VALIDATING.WAITING_FOR_USER",
+    "entity": "task",
+    "from": "VALIDATING",
+    "to": "WAITING_FOR_USER",
+    "trigger": "user-hold",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "userHoldRecorded",
+      "noCancellationOrRevocation"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.user-hold.RETRYING.WAITING_FOR_USER",
+    "entity": "task",
+    "from": "RETRYING",
+    "to": "WAITING_FOR_USER",
+    "trigger": "user-hold",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "userHoldRecorded",
+      "noCancellationOrRevocation"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.user-hold.INTERRUPTED.WAITING_FOR_USER",
+    "entity": "task",
+    "from": "INTERRUPTED",
+    "to": "WAITING_FOR_USER",
+    "trigger": "user-hold",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "userHoldRecorded",
+      "noCancellationOrRevocation"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.user-hold.WAITING_FOR_USER.WAITING_FOR_USER",
+    "entity": "task",
+    "from": "WAITING_FOR_USER",
+    "to": "WAITING_FOR_USER",
+    "trigger": "user-hold",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "userHoldRecorded",
+      "noCancellationOrRevocation"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.user-hold.WAITING_FOR_USAGE.WAITING_FOR_USER",
+    "entity": "task",
+    "from": "WAITING_FOR_USAGE",
+    "to": "WAITING_FOR_USER",
+    "trigger": "user-hold",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "userHoldRecorded",
+      "noCancellationOrRevocation"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.usage-hold.RUNNING.WAITING_FOR_USAGE",
+    "entity": "task",
+    "from": "RUNNING",
+    "to": "WAITING_FOR_USAGE",
+    "trigger": "usage-hold",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "usageReliablyLimited",
+      "roleContinuationRecorded",
+      "noMandatoryHold",
+      "noControlOrRecoveryHold"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.usage-hold.VALIDATING.WAITING_FOR_USAGE",
+    "entity": "task",
+    "from": "VALIDATING",
+    "to": "WAITING_FOR_USAGE",
+    "trigger": "usage-hold",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "usageReliablyLimited",
+      "roleContinuationRecorded",
+      "noMandatoryHold",
+      "noControlOrRecoveryHold"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.usage-hold.RETRYING.WAITING_FOR_USAGE",
+    "entity": "task",
+    "from": "RETRYING",
+    "to": "WAITING_FOR_USAGE",
+    "trigger": "usage-hold",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "usageReliablyLimited",
+      "roleContinuationRecorded",
+      "noMandatoryHold",
+      "noControlOrRecoveryHold"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.usage-hold.INTERRUPTED.WAITING_FOR_USAGE",
+    "entity": "task",
+    "from": "INTERRUPTED",
+    "to": "WAITING_FOR_USAGE",
+    "trigger": "usage-hold",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "usageReliablyLimited",
+      "roleContinuationRecorded",
+      "noMandatoryHold",
+      "noControlOrRecoveryHold"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.usage-hold.WAITING_FOR_USER.WAITING_FOR_USAGE",
+    "entity": "task",
+    "from": "WAITING_FOR_USER",
+    "to": "WAITING_FOR_USAGE",
+    "trigger": "usage-hold",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "usageReliablyLimited",
+      "roleContinuationRecorded",
+      "noMandatoryHold",
+      "noControlOrRecoveryHold"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.usage-hold.WAITING_FOR_USAGE.WAITING_FOR_USAGE",
+    "entity": "task",
+    "from": "WAITING_FOR_USAGE",
+    "to": "WAITING_FOR_USAGE",
+    "trigger": "usage-hold",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "usageReliablyLimited",
+      "roleContinuationRecorded",
+      "noMandatoryHold",
+      "noControlOrRecoveryHold"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.failure.PENDING.BLOCKED",
+    "entity": "task",
+    "from": "PENDING",
+    "to": "BLOCKED",
+    "trigger": "failure",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "diagnosticsRetained"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.failure.READY.BLOCKED",
+    "entity": "task",
+    "from": "READY",
+    "to": "BLOCKED",
+    "trigger": "failure",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "diagnosticsRetained"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.failure.RUNNING.BLOCKED",
+    "entity": "task",
+    "from": "RUNNING",
+    "to": "BLOCKED",
+    "trigger": "failure",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "diagnosticsRetained"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.failure.VALIDATING.BLOCKED",
+    "entity": "task",
+    "from": "VALIDATING",
+    "to": "BLOCKED",
+    "trigger": "failure",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "diagnosticsRetained"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.failure.RETRYING.BLOCKED",
+    "entity": "task",
+    "from": "RETRYING",
+    "to": "BLOCKED",
+    "trigger": "failure",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "diagnosticsRetained"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.failure.WAITING_FOR_USER.BLOCKED",
+    "entity": "task",
+    "from": "WAITING_FOR_USER",
+    "to": "BLOCKED",
+    "trigger": "failure",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "diagnosticsRetained"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.failure.WAITING_FOR_USAGE.BLOCKED",
+    "entity": "task",
+    "from": "WAITING_FOR_USAGE",
+    "to": "BLOCKED",
+    "trigger": "failure",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "diagnosticsRetained"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.failure.BLOCKED.BLOCKED",
+    "entity": "task",
+    "from": "BLOCKED",
+    "to": "BLOCKED",
+    "trigger": "failure",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "diagnosticsRetained"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.failure.INTERRUPTED.BLOCKED",
+    "entity": "task",
+    "from": "INTERRUPTED",
+    "to": "BLOCKED",
+    "trigger": "failure",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "diagnosticsRetained"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.dependency-cancelled.PENDING.BLOCKED",
+    "entity": "task",
+    "from": "PENDING",
+    "to": "BLOCKED",
+    "trigger": "dependency-cancelled",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "requiredDependencyCancelled"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.dependency-cancelled.READY.BLOCKED",
+    "entity": "task",
+    "from": "READY",
+    "to": "BLOCKED",
+    "trigger": "dependency-cancelled",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "requiredDependencyCancelled"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.dependency-cancelled.RUNNING.BLOCKED",
+    "entity": "task",
+    "from": "RUNNING",
+    "to": "BLOCKED",
+    "trigger": "dependency-cancelled",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "requiredDependencyCancelled"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.dependency-cancelled.VALIDATING.BLOCKED",
+    "entity": "task",
+    "from": "VALIDATING",
+    "to": "BLOCKED",
+    "trigger": "dependency-cancelled",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "requiredDependencyCancelled"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.dependency-cancelled.RETRYING.BLOCKED",
+    "entity": "task",
+    "from": "RETRYING",
+    "to": "BLOCKED",
+    "trigger": "dependency-cancelled",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "requiredDependencyCancelled"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.dependency-cancelled.WAITING_FOR_USER.BLOCKED",
+    "entity": "task",
+    "from": "WAITING_FOR_USER",
+    "to": "BLOCKED",
+    "trigger": "dependency-cancelled",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "requiredDependencyCancelled"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.dependency-cancelled.WAITING_FOR_USAGE.BLOCKED",
+    "entity": "task",
+    "from": "WAITING_FOR_USAGE",
+    "to": "BLOCKED",
+    "trigger": "dependency-cancelled",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "requiredDependencyCancelled"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.dependency-cancelled.BLOCKED.BLOCKED",
+    "entity": "task",
+    "from": "BLOCKED",
+    "to": "BLOCKED",
+    "trigger": "dependency-cancelled",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "requiredDependencyCancelled"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.dependency-cancelled.INTERRUPTED.BLOCKED",
+    "entity": "task",
+    "from": "INTERRUPTED",
+    "to": "BLOCKED",
+    "trigger": "dependency-cancelled",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "requiredDependencyCancelled"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.deny.PENDING.BLOCKED",
+    "entity": "task",
+    "from": "PENDING",
+    "to": "BLOCKED",
+    "trigger": "deny",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "denialRecorded"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.deny.READY.BLOCKED",
+    "entity": "task",
+    "from": "READY",
+    "to": "BLOCKED",
+    "trigger": "deny",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "denialRecorded"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.deny.RUNNING.BLOCKED",
+    "entity": "task",
+    "from": "RUNNING",
+    "to": "BLOCKED",
+    "trigger": "deny",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "denialRecorded"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.deny.VALIDATING.BLOCKED",
+    "entity": "task",
+    "from": "VALIDATING",
+    "to": "BLOCKED",
+    "trigger": "deny",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "denialRecorded"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.deny.RETRYING.BLOCKED",
+    "entity": "task",
+    "from": "RETRYING",
+    "to": "BLOCKED",
+    "trigger": "deny",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "denialRecorded"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.deny.WAITING_FOR_USER.BLOCKED",
+    "entity": "task",
+    "from": "WAITING_FOR_USER",
+    "to": "BLOCKED",
+    "trigger": "deny",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "denialRecorded"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.deny.WAITING_FOR_USAGE.BLOCKED",
+    "entity": "task",
+    "from": "WAITING_FOR_USAGE",
+    "to": "BLOCKED",
+    "trigger": "deny",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "denialRecorded"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.deny.BLOCKED.BLOCKED",
+    "entity": "task",
+    "from": "BLOCKED",
+    "to": "BLOCKED",
+    "trigger": "deny",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "denialRecorded"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.deny.INTERRUPTED.BLOCKED",
+    "entity": "task",
+    "from": "INTERRUPTED",
+    "to": "BLOCKED",
+    "trigger": "deny",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "denialRecorded"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.attempts-exhausted.PENDING.BLOCKED",
+    "entity": "task",
+    "from": "PENDING",
+    "to": "BLOCKED",
+    "trigger": "attempts-exhausted",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "fourAttemptsExhausted",
+      "diagnosticsRetained"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.attempts-exhausted.READY.BLOCKED",
+    "entity": "task",
+    "from": "READY",
+    "to": "BLOCKED",
+    "trigger": "attempts-exhausted",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "fourAttemptsExhausted",
+      "diagnosticsRetained"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.attempts-exhausted.RUNNING.BLOCKED",
+    "entity": "task",
+    "from": "RUNNING",
+    "to": "BLOCKED",
+    "trigger": "attempts-exhausted",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "fourAttemptsExhausted",
+      "diagnosticsRetained"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.attempts-exhausted.VALIDATING.BLOCKED",
+    "entity": "task",
+    "from": "VALIDATING",
+    "to": "BLOCKED",
+    "trigger": "attempts-exhausted",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "fourAttemptsExhausted",
+      "diagnosticsRetained"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.attempts-exhausted.RETRYING.BLOCKED",
+    "entity": "task",
+    "from": "RETRYING",
+    "to": "BLOCKED",
+    "trigger": "attempts-exhausted",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "fourAttemptsExhausted",
+      "diagnosticsRetained"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.attempts-exhausted.WAITING_FOR_USER.BLOCKED",
+    "entity": "task",
+    "from": "WAITING_FOR_USER",
+    "to": "BLOCKED",
+    "trigger": "attempts-exhausted",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "fourAttemptsExhausted",
+      "diagnosticsRetained"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.attempts-exhausted.WAITING_FOR_USAGE.BLOCKED",
+    "entity": "task",
+    "from": "WAITING_FOR_USAGE",
+    "to": "BLOCKED",
+    "trigger": "attempts-exhausted",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "fourAttemptsExhausted",
+      "diagnosticsRetained"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.attempts-exhausted.BLOCKED.BLOCKED",
+    "entity": "task",
+    "from": "BLOCKED",
+    "to": "BLOCKED",
+    "trigger": "attempts-exhausted",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "fourAttemptsExhausted",
+      "diagnosticsRetained"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.attempts-exhausted.INTERRUPTED.BLOCKED",
+    "entity": "task",
+    "from": "INTERRUPTED",
+    "to": "BLOCKED",
+    "trigger": "attempts-exhausted",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "fourAttemptsExhausted",
+      "diagnosticsRetained"
+    ],
+    "contract": "R1"
+  },
+  {
+    "id": "task.cancel-reconciled.PENDING.CANCELLED",
+    "entity": "task",
+    "from": "PENDING",
+    "to": "CANCELLED",
+    "trigger": "cancel-reconciled",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "cancelIntentRecorded",
+      "schedulingFenced",
+      "writersTerminated",
+      "settlementReconciled"
+    ],
+    "contract": "R1/R3a"
+  },
+  {
+    "id": "task.cancel-reconciled.READY.CANCELLED",
+    "entity": "task",
+    "from": "READY",
+    "to": "CANCELLED",
+    "trigger": "cancel-reconciled",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "cancelIntentRecorded",
+      "schedulingFenced",
+      "writersTerminated",
+      "settlementReconciled"
+    ],
+    "contract": "R1/R3a"
+  },
+  {
+    "id": "task.cancel-reconciled.RUNNING.CANCELLED",
+    "entity": "task",
+    "from": "RUNNING",
+    "to": "CANCELLED",
+    "trigger": "cancel-reconciled",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "cancelIntentRecorded",
+      "schedulingFenced",
+      "writersTerminated",
+      "settlementReconciled"
+    ],
+    "contract": "R1/R3a"
+  },
+  {
+    "id": "task.cancel-reconciled.VALIDATING.CANCELLED",
+    "entity": "task",
+    "from": "VALIDATING",
+    "to": "CANCELLED",
+    "trigger": "cancel-reconciled",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "cancelIntentRecorded",
+      "schedulingFenced",
+      "writersTerminated",
+      "settlementReconciled"
+    ],
+    "contract": "R1/R3a"
+  },
+  {
+    "id": "task.cancel-reconciled.RETRYING.CANCELLED",
+    "entity": "task",
+    "from": "RETRYING",
+    "to": "CANCELLED",
+    "trigger": "cancel-reconciled",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "cancelIntentRecorded",
+      "schedulingFenced",
+      "writersTerminated",
+      "settlementReconciled"
+    ],
+    "contract": "R1/R3a"
+  },
+  {
+    "id": "task.cancel-reconciled.WAITING_FOR_USER.CANCELLED",
+    "entity": "task",
+    "from": "WAITING_FOR_USER",
+    "to": "CANCELLED",
+    "trigger": "cancel-reconciled",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "cancelIntentRecorded",
+      "schedulingFenced",
+      "writersTerminated",
+      "settlementReconciled"
+    ],
+    "contract": "R1/R3a"
+  },
+  {
+    "id": "task.cancel-reconciled.WAITING_FOR_USAGE.CANCELLED",
+    "entity": "task",
+    "from": "WAITING_FOR_USAGE",
+    "to": "CANCELLED",
+    "trigger": "cancel-reconciled",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "cancelIntentRecorded",
+      "schedulingFenced",
+      "writersTerminated",
+      "settlementReconciled"
+    ],
+    "contract": "R1/R3a"
+  },
+  {
+    "id": "task.cancel-reconciled.BLOCKED.CANCELLED",
+    "entity": "task",
+    "from": "BLOCKED",
+    "to": "CANCELLED",
+    "trigger": "cancel-reconciled",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "cancelIntentRecorded",
+      "schedulingFenced",
+      "writersTerminated",
+      "settlementReconciled"
+    ],
+    "contract": "R1/R3a"
+  },
+  {
+    "id": "task.cancel-reconciled.INTERRUPTED.CANCELLED",
+    "entity": "task",
+    "from": "INTERRUPTED",
+    "to": "CANCELLED",
+    "trigger": "cancel-reconciled",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "cancelIntentRecorded",
+      "schedulingFenced",
+      "writersTerminated",
+      "settlementReconciled"
+    ],
+    "contract": "R1/R3a"
+  },
+  {
+    "id": "task.supersede.PENDING.CANCELLED",
+    "entity": "task",
+    "from": "PENDING",
+    "to": "CANCELLED",
+    "trigger": "supersede",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "supersessionApproved",
+      "successorLinksRecorded",
+      "writersTerminated",
+      "settlementReconciled"
+    ],
+    "contract": "R5"
+  },
+  {
+    "id": "task.supersede.READY.CANCELLED",
+    "entity": "task",
+    "from": "READY",
+    "to": "CANCELLED",
+    "trigger": "supersede",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "supersessionApproved",
+      "successorLinksRecorded",
+      "writersTerminated",
+      "settlementReconciled"
+    ],
+    "contract": "R5"
+  },
+  {
+    "id": "task.supersede.RUNNING.CANCELLED",
+    "entity": "task",
+    "from": "RUNNING",
+    "to": "CANCELLED",
+    "trigger": "supersede",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "supersessionApproved",
+      "successorLinksRecorded",
+      "writersTerminated",
+      "settlementReconciled"
+    ],
+    "contract": "R5"
+  },
+  {
+    "id": "task.supersede.VALIDATING.CANCELLED",
+    "entity": "task",
+    "from": "VALIDATING",
+    "to": "CANCELLED",
+    "trigger": "supersede",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "supersessionApproved",
+      "successorLinksRecorded",
+      "writersTerminated",
+      "settlementReconciled"
+    ],
+    "contract": "R5"
+  },
+  {
+    "id": "task.supersede.RETRYING.CANCELLED",
+    "entity": "task",
+    "from": "RETRYING",
+    "to": "CANCELLED",
+    "trigger": "supersede",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "supersessionApproved",
+      "successorLinksRecorded",
+      "writersTerminated",
+      "settlementReconciled"
+    ],
+    "contract": "R5"
+  },
+  {
+    "id": "task.supersede.WAITING_FOR_USER.CANCELLED",
+    "entity": "task",
+    "from": "WAITING_FOR_USER",
+    "to": "CANCELLED",
+    "trigger": "supersede",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "supersessionApproved",
+      "successorLinksRecorded",
+      "writersTerminated",
+      "settlementReconciled"
+    ],
+    "contract": "R5"
+  },
+  {
+    "id": "task.supersede.WAITING_FOR_USAGE.CANCELLED",
+    "entity": "task",
+    "from": "WAITING_FOR_USAGE",
+    "to": "CANCELLED",
+    "trigger": "supersede",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "supersessionApproved",
+      "successorLinksRecorded",
+      "writersTerminated",
+      "settlementReconciled"
+    ],
+    "contract": "R5"
+  },
+  {
+    "id": "task.supersede.BLOCKED.CANCELLED",
+    "entity": "task",
+    "from": "BLOCKED",
+    "to": "CANCELLED",
+    "trigger": "supersede",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "supersessionApproved",
+      "successorLinksRecorded",
+      "writersTerminated",
+      "settlementReconciled"
+    ],
+    "contract": "R5"
+  },
+  {
+    "id": "task.supersede.INTERRUPTED.CANCELLED",
+    "entity": "task",
+    "from": "INTERRUPTED",
+    "to": "CANCELLED",
+    "trigger": "supersede",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "supersessionApproved",
+      "successorLinksRecorded",
+      "writersTerminated",
+      "settlementReconciled"
+    ],
+    "contract": "R5"
+  },
+  {
+    "id": "task.late-cancel.COMPLETED.COMPLETED",
+    "entity": "task",
+    "from": "COMPLETED",
+    "to": "COMPLETED",
+    "trigger": "late-cancel",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "completionAlreadyCommitted"
+    ],
+    "contract": "R3a"
+  },
+  {
+    "id": "task.repeat-cancel.CANCELLED.CANCELLED",
+    "entity": "task",
+    "from": "CANCELLED",
+    "to": "CANCELLED",
+    "trigger": "repeat-cancel",
+    "requires": [
+      "currentRevision",
+      "sameExecution",
+      "cancelAlreadyCommitted"
+    ],
+    "contract": "R1"
+  }
+]

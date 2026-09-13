@@ -1,0 +1,49 @@
+# P0M2 — COMPLETE
+
+Implemented lifecycle and planning decision contracts. This is P0M2 unit acceptance through implementation self-verification. Phase 0, independent review and product gates are not complete.
+
+| Section | Result |
+| --- | --- |
+| Implementation | Six new contract modules plus shared exports; 208 guarded rules over all 270 project/phase/task pairs; four-attempt and three-call accounting; 112 role/result cells; graph readiness, split/supersession and mutation rules; cancellation seams, renewal/repair, sponsorship/Quit and reopen initialization. Added 21 P0M2 tests and contract/scenario notes. |
+| Verification | Build, typecheck, lint, all 47 tests, standalone contracts compilation, table generation, prerequisite hash verification and diff checks pass. Every one of the nineteen R1 rows and both milestone acceptance criteria maps to named evidence in the acceptance record. All failure/control/recovery scenarios here are pure U fixtures. Final documentation and digest checks are retained alongside the record. |
+| Scope | Pure proposals only. No persistence, scheduling loop, worker/provider/OS/Git execution, UI, new dependency, commit, push, tag or later milestone. The small shared boolean validator prevents malformed facts from becoming evidence; documentation/table generation supports this milestone's required deliverables. |
+| Evidence freshness | Initial and final R7a assessments traverse the 88-milestone producer/consumer cone and recorded behavior edges. Affected P0M1 root/standalone-compilation/document observations were marked STALE and replaced by P0M2 evidence. Prior observations remain intact. Unchanged lockfile/toolchain preserves P0M0 clean-install applicability. All later gates A–H and their production/recovery/security/IDE/packaged obligations remain pending. |
+| Specification status | Specification gaps: None identified. Deviations: None. GPT-6 Astra / Max was explicitly authorized by the user for P0M2 under MODEL_POLICY's override clause; the policy file is unchanged. Internal choices: finite rule arrays, JSON-safe Core-derived facts, stable-ID ordering and separate pure decision functions. |
+| Repository | Base commit `18a0791f9508a4c5c2a371f15c0e8ebbda1112c2`; base tree `27791eed2b3981959091971ad3d050abc9883527`. All P0M2 work is uncommitted. The index and pre-existing untracked audit/ were preserved. Actual final status appears below. |
+| Handoff | P0M0/P0M1 producer snapshots and retained artifacts verify. P0M2 supplies the pure decision prerequisites for P0M3, subject to its fresh-chat preflight and candidate freshness check. P0M3 was not started. P0M4 and later services still own detailed authority/evidence/configuration records and real execution proof. |
+
+## Acceptance and artifacts
+
+[Acceptance record](runs/P0M2-001/acceptance.json) maps every R1 row and required milestone behavior to the exact checks and test prefixes. [Guard definitions and scenario specification](../lifecycle.md) explain producer responsibilities and expected outcomes. [Pairwise cells](runs/P0M2-001/pairwise.json), [complete rules](runs/P0M2-001/transition-rules.json), and [role-result matrix](runs/P0M2-001/role-results.json) are the full machine-readable deliverables.
+
+[Candidate manifest](runs/P0M2-001/candidate.json), [artifact digests](runs/P0M2-001/artifacts.json), [preflight/model/tool provenance](runs/P0M2-001/preflight.json), and [development evidence ledger](ledger.json) retain R7/R7a binding. `P0M2-INDEPENDENT` names standalone compilation only; it is not an independent audit.
+
+Roadmap SHA-256: `8053f010bf1ebf52fabc954961b7b50773533ed22e35029a147078a20c335b07`.
+Uncommitted candidate manifest SHA-256: `2348fada5904c32f0e1454a4e73362ea5d00acf19f7424bd7a057799168b4913`.
+
+The manifest excludes generated dependencies/builds, pre-existing audit prompts, separately hashed run artifacts and derived/historical reports to avoid recursive hashes. Every source/config/test file was unchanged after the final cumulative checks; final evidence-only additions receive documentation/ledger and digest verification. No required P0M2 check failed or was unavailable. Earlier passing logs are retained; self-review corrections and their replacement proof are listed in the acceptance record.
+
+The inputs asserting process termination, ref identity, coverage or authority are unit fixtures. They are not actual restart, enforcement, settlement or independent validation evidence. Future Core services must establish their truth and preserve R0/R3 transactions/fences; no public command is advertised as implemented.
+
+## Actual repository state
+
+```text
+ M docs/architecture.md
+ M docs/contracts.md
+ M docs/evidence/ledger.json
+ M packages/contracts/src/index.ts
+?? audit/
+?? docs/evidence/P0M2-report.md
+?? docs/evidence/runs/P0M2-001/
+?? docs/lifecycle.md
+?? packages/contracts/src/attempts.ts
+?? packages/contracts/src/continuity.ts
+?? packages/contracts/src/decision-facts.ts
+?? packages/contracts/src/lifecycle.ts
+?? packages/contracts/src/planning.ts
+?? packages/contracts/src/role-results.ts
+?? tests/lifecycle.test.mjs
+?? tests/planning-continuity.test.mjs
+```
+
+Pre-existing: audit/. Every other entry is P0M2 work. No files were staged and no commit was created.

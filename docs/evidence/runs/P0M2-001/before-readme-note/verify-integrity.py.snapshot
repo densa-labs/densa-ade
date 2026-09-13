@@ -1,0 +1,72 @@
+"""Verify final candidate/artifact binding without rewriting existing observations."""
+import datetime
+import hashlib
+import json
+import pathlib
+import subprocess
+
+root = pathlib.Path.cwd()
+run = root / 'docs/evidence/runs/P0M2-001'
+sha = lambda file: hashlib.sha256(file.read_bytes()).hexdigest()
+acceptance = json.loads((run / 'acceptance.json').read_text())
+assert acceptance['result'] == 'PASS'
+for path, expected in acceptance['authorityHashes'].items():
+    assert sha(root / path) == expected, path
+assert sha(run / 'candidate.json') == acceptance['candidateManifestSha256']
+candidate = json.loads((run / 'candidate.json').read_text())
+for entry in candidate:
+    file = root / entry['path']
+    assert not file.is_symlink() and sha(file) == entry['sha256'], entry['path']
+    mode = '100755' if file.stat().st_mode & 0o111 else '100644'
+    assert mode == entry['mode'], entry['path']
+    if file.suffix in ['.ts', '.mjs', '.py', '.md', '.json']:
+        lines = file.read_text().splitlines()
+        assert not any(line.rstrip(' \t') != line for line in lines), ('trailing whitespace', entry['path'])
+artifacts = json.loads((run / 'artifacts.json').read_text())
+for name, expected in artifacts.items():
+    assert sha(run / name) == expected, name
+for check in acceptance['checks']:
+    assert check['result'] == 'PASS' and check['exitStatus'] == 0
+    assert sha(root / check['artifact']) == check['artifactSha256']
+archive = run / 'before-selected-role-holds'
+historical_artifacts = json.loads((archive / 'artifacts.json').read_text())
+for name, expected in historical_artifacts.items():
+    alternatives = [archive / name, archive / (name + '.snapshot'), run / name]
+    if name == '../../P0M2-report.md':
+        alternatives = [archive / 'report.md.snapshot']
+    assert any(path.is_file() and sha(path) == expected for path in alternatives), ('historical artifact', name)
+historical_candidate = json.loads((archive / 'candidate.json').read_text())
+for entry in historical_candidate:
+    name = entry['path']
+    alternatives = [archive / 'inputs' / (name + '.snapshot'), archive / (name + '.snapshot'), root / name]
+    matched = any(path.is_file() and sha(path) == entry['sha256'] for path in alternatives)
+    if not matched and name == '.gitignore':
+        data = subprocess.check_output(['git', 'show', acceptance['baseCommit'] + ':' + name])
+        matched = hashlib.sha256(data).hexdigest() == entry['sha256']
+    assert matched, ('historical candidate', name)
+assert subprocess.check_output(['git', 'status', '--short'], text=True).rstrip() == acceptance['repositoryStatus']
+subprocess.run(['git', 'diff', '--cached', '--quiet'], check=True)
+subprocess.run(['git', 'diff', '--check'], check=True)
+old = json.loads(subprocess.check_output(['git', 'show', acceptance['baseCommit'] + ':docs/evidence/ledger.json'], text=True))
+new = json.loads((root / 'docs/evidence/ledger.json').read_text())
+for field in ['contracts', 'milestones', 'ownership', 'staged', 'observations']:
+    assert new[field] == old[field], field
+for field in ['impactAssessments', 'freshnessObservations']:
+    assert new[field][:len(old[field])] == old[field], field
+validation = subprocess.run(['node', 'scripts/checks.mjs'], check=True, capture_output=True, text=True)
+record = {
+    'id': 'P0M2-INTEGRITY-HOLDS', 'milestone': 'P0M2', 'class': 'U', 'result': 'PASS', 'exitStatus': 0,
+    'observedAt': datetime.datetime.now(datetime.timezone.utc).isoformat(),
+    'command': ['python3', 'docs/evidence/runs/P0M2-001/verify-integrity.py'],
+    'candidateManifestSha256': sha(run / 'candidate.json'), 'artifactManifestSha256': sha(run / 'artifacts.json'),
+    'acceptanceRecordSha256': sha(run / 'acceptance.json'), 'authorityHashes': acceptance['authorityHashes'],
+    'prerequisiteEvidenceIds': acceptance['prerequisiteEvidenceIds'], 'versions': acceptance['versions'],
+    'candidateFilesVerified': len(candidate), 'artifactHashesVerified': len(artifacts), 'ledgerHistoryPreserved': True,
+    'supersededCandidateFilesVerified': len(historical_candidate), 'supersededArtifactHashesVerified': len(historical_artifacts),
+    'developmentCheckOutput': validation.stdout, 'developmentCheckOutputSha256': hashlib.sha256(validation.stdout.encode()).hexdigest(),
+    'limitations': ['Development file/digest/ledger verification only; no runtime or independent audit claim.'],
+}
+output = root / acceptance['finalIntegrityRecord']
+if not output.exists():
+    output.write_text(json.dumps(record, indent=2) + '\n')
+print(json.dumps(record, indent=2))

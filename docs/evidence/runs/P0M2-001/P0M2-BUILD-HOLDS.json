@@ -1,0 +1,16 @@
+{
+  "id": "P0M2-BUILD-HOLDS",
+  "class": "U",
+  "command": [
+    "npm",
+    "run",
+    "build"
+  ],
+  "cwd": "/Users/ivanuy/Library/Mobile Documents/com~apple~CloudDocs/Projects/densa-ade",
+  "startedAt": "2026-09-13T05:15:54.499631+00:00",
+  "completedAt": "2026-09-13T05:15:55.252436+00:00",
+  "exitStatus": 0,
+  "result": "PASS",
+  "artifact": "/Users/ivanuy/Library/Mobile Documents/com~apple~CloudDocs/Projects/densa-ade/docs/evidence/runs/P0M2-001/P0M2-BUILD-HOLDS.log",
+  "artifactSha256": "34de30110862cf3fb2d5b8a971cd10d6e988f53d1e9b4eba1652ad075ceb1f2e"
+}

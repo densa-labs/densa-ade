@@ -1,0 +1,44 @@
+{
+  "id": "P0M2-INTEGRITY-HOLDS",
+  "milestone": "P0M2",
+  "class": "U",
+  "result": "PASS",
+  "exitStatus": 0,
+  "observedAt": "2026-09-13T05:28:21.141446+00:00",
+  "command": [
+    "python3",
+    "docs/evidence/runs/P0M2-001/verify-integrity.py"
+  ],
+  "candidateManifestSha256": "be4decdafaa640427a0fdbe05059b73939966170ab5d16e42554151d1ce93948",
+  "artifactManifestSha256": "af6ea3bfc1c8a9c7e1662370fe86f8e6641df296afaf811520be4f7090b62a45",
+  "acceptanceRecordSha256": "01f5d37c85d4cff093820a5608573399acb93548e2196f3297d5900f2531005f",
+  "authorityHashes": {
+    "MASTER_ROADMAP.md": "8053f010bf1ebf52fabc954961b7b50773533ed22e35029a147078a20c335b07",
+    "MODEL_POLICY.md": "cdae0c0511dc569e76b8c94ef74965972e652be28362f16a7bae1c7b823f0255",
+    "AGENTS.md": "370241f67ff0c23ef5612cc9a2564aa773cdee78c11f640bcf2fa61fbd89e859"
+  },
+  "prerequisiteEvidenceIds": [
+    "P0M0-ACCEPTANCE-001",
+    "P0M1-ACCEPTANCE-001",
+    "P0M0-CLEAN-INSTALL"
+  ],
+  "versions": {
+    "node": "v24.14.0",
+    "npm": "11.9.0",
+    "git": "git version 2.54.0 (Apple Git-157)",
+    "python": "Python 3.14.3",
+    "typescript": "5.9.3",
+    "eslint": "10.9.1",
+    "typescript-eslint": "8.68.0"
+  },
+  "candidateFilesVerified": 57,
+  "artifactHashesVerified": 77,
+  "ledgerHistoryPreserved": true,
+  "supersededCandidateFilesVerified": 57,
+  "supersededArtifactHashesVerified": 35,
+  "developmentCheckOutput": "architecture: PASS\nlinks: PASS\nledger: PASS\n",
+  "developmentCheckOutputSha256": "8567aa2b551cf7b7993ff0cb66b000ca2daa12cb7b022fefafc099e28d49931a",
+  "limitations": [
+    "Development file/digest/ledger verification only; no runtime or independent audit claim."
+  ]
+}

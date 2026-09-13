@@ -1,0 +1,16 @@
+{
+  "id": "P0M2-FINAL-DOCS",
+  "class": "U",
+  "command": [
+    "npm",
+    "run",
+    "lint"
+  ],
+  "cwd": "/Users/ivanuy/Library/Mobile Documents/com~apple~CloudDocs/Projects/densa-ade",
+  "startedAt": "2026-09-10T04:54:07.175550+00:00",
+  "completedAt": "2026-09-10T04:54:07.920972+00:00",
+  "exitStatus": 0,
+  "result": "PASS",
+  "artifact": "docs/evidence/runs/P0M2-001/P0M2-FINAL-DOCS.log",
+  "artifactSha256": "6a4ba9e2ec0895b3f8f007274dd7047fa5ca9b504f97071873ddc53529e43763"
+}

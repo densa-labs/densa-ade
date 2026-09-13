@@ -1,0 +1,15 @@
+{
+  "id": "P0M2-TABLES",
+  "class": "U",
+  "command": [
+    "node",
+    "docs/evidence/runs/P0M2-001/generate-tables.mjs"
+  ],
+  "cwd": "/Users/ivanuy/Library/Mobile Documents/com~apple~CloudDocs/Projects/densa-ade",
+  "startedAt": "2026-09-10T04:46:23.259592+00:00",
+  "completedAt": "2026-09-10T04:46:23.288627+00:00",
+  "exitStatus": 0,
+  "result": "PASS",
+  "artifact": "docs/evidence/runs/P0M2-001/P0M2-TABLES.log",
+  "artifactSha256": "af194bd1f1fe9ca877abf501364acea87dce1269481cef30c3f7656b23135519"
+}

@@ -1,0 +1,25 @@
+{
+  "result": "PASS",
+  "prerequisites": [
+    {
+      "id": "P0M0-ACCEPTANCE-001",
+      "commit": "bad38bdafa0c6c1024b8a2033cce5675808cbfd0",
+      "candidateManifestSha256": "c90caa9b0aaa9e29d9bcae491269472d956b7cc350a736948a545e82db9c219f",
+      "candidateFilesVerified": 42,
+      "artifactHashesVerified": 10
+    },
+    {
+      "id": "P0M1-ACCEPTANCE-001",
+      "commit": "18a0791f9508a4c5c2a371f15c0e8ebbda1112c2",
+      "candidateManifestSha256": "435dfb68a0353d736090899244c403f2b0fa2134793a2325e0014ddd0cf4a686",
+      "candidateFilesVerified": 48,
+      "artifactHashesVerified": 11
+    }
+  ],
+  "currentAuthorityHashes": {
+    "MASTER_ROADMAP.md": "8053f010bf1ebf52fabc954961b7b50773533ed22e35029a147078a20c335b07",
+    "MODEL_POLICY.md": "cdae0c0511dc569e76b8c94ef74965972e652be28362f16a7bae1c7b823f0255",
+    "AGENTS.md": "370241f67ff0c23ef5612cc9a2564aa773cdee78c11f640bcf2fa61fbd89e859"
+  },
+  "note": "Producer commit snapshots and exact original authority snapshots verified; current authority changes are assessed in authority-history.json and R7a."
+}

@@ -1,0 +1,52 @@
+"""Verify final candidate/artifact binding without rewriting existing observations."""
+import datetime
+import hashlib
+import json
+import pathlib
+import subprocess
+
+root = pathlib.Path.cwd()
+run = root / 'docs/evidence/runs/P0M2-001'
+sha = lambda file: hashlib.sha256(file.read_bytes()).hexdigest()
+acceptance = json.loads((run / 'acceptance.json').read_text())
+assert sha(run / 'candidate.json') == acceptance['candidateManifestSha256']
+candidate = json.loads((run / 'candidate.json').read_text())
+for entry in candidate:
+    file = root / entry['path']
+    assert not file.is_symlink() and sha(file) == entry['sha256'], entry['path']
+    mode = '100755' if file.stat().st_mode & 0o111 else '100644'
+    assert mode == entry['mode'], entry['path']
+    if file.suffix in ['.ts', '.mjs', '.py', '.md', '.json']:
+        lines = file.read_text().splitlines()
+        assert not any(line.rstrip(' \t') != line for line in lines), ('trailing whitespace', entry['path'])
+artifacts = json.loads((run / 'artifacts.json').read_text())
+for name, expected in artifacts.items():
+    assert sha(run / name) == expected, name
+for check in acceptance['checks']:
+    assert check['result'] == 'PASS' and check['exitStatus'] == 0
+    assert sha(root / check['artifact']) == check['artifactSha256']
+assert subprocess.check_output(['git', 'status', '--short'], text=True).rstrip() == acceptance['repositoryStatus']
+subprocess.run(['git', 'diff', '--cached', '--quiet'], check=True)
+subprocess.run(['git', 'diff', '--check'], check=True)
+old = json.loads(subprocess.check_output(['git', 'show', acceptance['baseCommit'] + ':docs/evidence/ledger.json'], text=True))
+new = json.loads((root / 'docs/evidence/ledger.json').read_text())
+for field in ['contracts', 'milestones', 'ownership', 'staged', 'observations']:
+    assert new[field] == old[field], field
+for field in ['impactAssessments', 'freshnessObservations']:
+    assert new[field][:len(old[field])] == old[field], field
+validation = subprocess.run(['node', 'scripts/checks.mjs'], check=True, capture_output=True, text=True)
+record = {
+    'id': 'P0M2-INTEGRITY', 'milestone': 'P0M2', 'class': 'U', 'result': 'PASS', 'exitStatus': 0,
+    'observedAt': datetime.datetime.now(datetime.timezone.utc).isoformat(),
+    'command': ['python3', 'docs/evidence/runs/P0M2-001/verify-integrity.py'],
+    'candidateManifestSha256': sha(run / 'candidate.json'), 'artifactManifestSha256': sha(run / 'artifacts.json'),
+    'acceptanceRecordSha256': sha(run / 'acceptance.json'), 'authorityHashes': acceptance['authorityHashes'],
+    'prerequisiteEvidenceIds': acceptance['prerequisiteEvidenceIds'], 'versions': acceptance['versions'],
+    'candidateFilesVerified': len(candidate), 'artifactHashesVerified': len(artifacts), 'ledgerHistoryPreserved': True,
+    'developmentCheckOutput': validation.stdout, 'developmentCheckOutputSha256': hashlib.sha256(validation.stdout.encode()).hexdigest(),
+    'limitations': ['Development file/digest/ledger verification only; no runtime or independent audit claim.'],
+}
+output = run / 'integrity.json'
+if not output.exists():
+    output.write_text(json.dumps(record, indent=2) + '\n')
+print(json.dumps(record, indent=2))

@@ -1,0 +1,65 @@
+
+> densa-ade@0.0.0 test
+> npm run build && node --test tests/*.test.mjs
+
+
+> densa-ade@0.0.0 build
+> node scripts/toolchain.mjs && tsc -p tsconfig.json
+
+Toolchain: Node 24.14.0; npm 11.9.0
+✔ all identity kinds round trip and reject kind confusion, paths, nil and malformed IDs (5.651208ms)
+✔ JSON rejects lossy values, getters, cycles, sparse arrays, prototype keys and non-JSON objects (0.456167ms)
+✔ depth, node, string, wire byte and page limits fail before dispatch (6.95125ms)
+✔ canonical wire round trips and refuses duplicate keys, noncanonical numbers and trailing junk (0.31225ms)
+✔ serialized timestamps and revisions are exact and bounded (1.078459ms)
+✔ request version/partition matrix is fail closed and no declared action is implemented (2.195375ms)
+✔ project references and authenticated scope cannot be crossed, including revision targets (0.698458ms)
+✔ digest matches independent SHA-256 material and ignores only transport correlation/command ID (6.055959ms)
+✔ same-ID replay preserves committed warning/in-progress/unknown outcome before stale check (4.875333ms)
+✔ operation journal exposes ambiguity and requires verification to assert an external outcome (0.886833ms)
+✔ snapshot/event replay has explicit archive response, contiguous bounded pages and project checks (0.752458ms)
+✔ contracts compile independently and catalog has roadmap owners and explicit client boundaries (595.111667ms)
+✔ handshake advertises independent supported versions and rejects reserved or forged operations (0.943042ms)
+✔ response binding rejects mismatched action, correlation, command identity and query/command outcome (0.940792ms)
+✔ every H action has a valid JSON round trip fixture, with internal operations inaccessible to clients (16.258208ms)
+✔ revision set order is digest-neutral; distinct command IDs never imply a recorded replay (1.621708ms)
+✔ planner callback can explicitly lack a task attempt; worker-shaped callbacks retain scope (0.278458ms)
+✔ current repository boundaries, documents and authoritative ledger agree (42.700542ms)
+✔ neutral contract imports work while inward and editor imports fail (8.571709ms)
+✔ contracts reject platform modules and dependency declarations cannot hide forbidden edges (4.972416ms)
+✔ unknown packages and source symlinks are not silently skipped (4.415584ms)
+✔ local links resolve relative to docs and reject missing paths, headings and references (4.363167ms)
+✔ ledger rejects lost contracts, stale ownership, absent impact and later prerequisites (20.084791ms)
+✔ wrong npm configuration stops with actionable setup diagnostic (injected environment) (27.542416ms)
+✔ normal architecture CLI returns failure for forbidden imports (149.104209ms)
+✔ strict TypeScript build rejects an invalid assignment in a disposable workspace (367.861666ms)
+✔ P0M2 pairs: all 270 state pairs match independent legal/illegal expectations and canonical vocabulary (13.740666ms)
+✔ P0M2 guards: every declared rule rejects each individually missing guard; proposals do not mutate facts (13.691667ms)
+✔ P0M2 R1 rows: deterministic planning, dispatch, failure, control, dependency and completion scenarios (1.315833ms)
+✔ P0M2 control precedence: simultaneous holds, cancellation/pause/late success and ambiguous effects (0.59025ms)
+✔ P0M2 modes: every mode, final/non-final, approval/denial/staleness and callback pending continuation (0.406042ms)
+✔ P0M2 attempt reservation: four total, idempotency, ambiguous dispatch, crash/cancel counts and proven release (0.691417ms)
+✔ P0M2 R4: all 112 role/result cells match independent role-specific expected outcomes (0.984125ms)
+✔ P0M2 R4 budgets: third timeout/transient blocks; one schema repair shares cap; holds preserve counters (1.058292ms)
+✔ P0M2 boundary regressions: fourth reserved dispatch, unknown failures and optional-only context trimming (0.227792ms)
+✔ P0M2 selected-role holds: pre-dispatch auth/usage spends no attempt; blocked validation can request correction (0.716417ms)
+✔ P0M2 facts: malformed or absent boolean evidence rejects; accessors are never executed (1.586459ms)
+✔ P0M2 R3a: every cancellation seam preserves B until accepted transaction and retains N as evidence (0.291916ms)
+✔ P0M2 R3a: normal settlement proposals never manufacture acceptance; no-change follows transaction ordering (0.239042ms)
+✔ P0M2 R5 graph: schedulable serial graph, stable-ID tie break, criteria/coverage and all structural failures (13.935209ms)
+✔ P0M2 readiness: cancelled/superseded dependencies are unsatisfied; phase gates, every hold and mode approval (5.685875ms)
+✔ P0M2 R3b A/B/C: renewal runs before dependent readiness; admitted repair bypasses only named failed coverage (2.918375ms)
+✔ P0M2 R5 split: exact acceptance union, transitive incoming/outgoing obligations and immutable completed work (2.012583ms)
+✔ P0M2 mutation classification and admission: scope/security floors, quiescence, staleness and exact approval (0.187125ms)
+✔ P0M2 R3b renewal decisions: deduplication, stale callbacks, control barriers and zero worker attempts (0.37875ms)
+✔ P0M2 R3b historical repair: new recovery phase, explicit approval, renewed original coverage and gate before release (0.199209ms)
+✔ P0M2 R1b reopen: new DRAFT execution, accepted unapplied result, renewed approval and qualification; never terminal reversal (0.259416ms)
+✔ P0M2 R1a departure: exact observed current sponsorship, transfer race, CLI, crash/disconnect and recovery (0.48725ms)
+ℹ tests 48
+ℹ suites 0
+ℹ pass 48
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 788.589583

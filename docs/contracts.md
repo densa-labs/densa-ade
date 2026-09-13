@@ -1,5 +1,7 @@
 # P0M1 wire contracts
 
+[P0M2 lifecycle and planning contracts](lifecycle.md) now provide pure domain decisions on top of these wire boundaries. The P0M1 catalog and wire formats remain unchanged; no action is advertised as implemented.
+
 These are executable schema contracts, not a daemon, authority service or persistent journal. Import [the contracts entry point](../packages/contracts/src/index.ts). The package has no dependencies, editor imports or Node-specific imports. Its independent [TypeScript configuration](../packages/contracts/tsconfig.json) compiles without Core, adapters or clients.
 
 ## Identity and scope

@@ -1,0 +1,218 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import test from 'node:test';
+import * as c from '../dist/contracts/src/index.js';
+
+const ident = (kind, n = 1) => `${kind}_12345678-1234-4234-8234-${String(n).padStart(12, '0')}`;
+const rejects = (fn, code = 'INVALID_TRANSITION') => assert.throws(fn, { code });
+const allFacts = Object.fromEntries(c.lifecycleGuards.map(g => [g, true]));
+const proposed = (entity, from, to, trigger, patch = {}) => c.proposeTransition(entity, from, to, trigger, { ...allFacts, ...patch });
+
+// Independent expected adjacency, transcribed from the R1 triggers and subcontracts.
+const legal = {
+  project: {
+    DRAFT: 'PLANNING WAITING_FOR_USER WAITING_FOR_USAGE BLOCKED FAILED',
+    PLANNING: 'DRAFT PLANNING READY WAITING_FOR_USER WAITING_FOR_USAGE BLOCKED FAILED',
+    READY: 'RUNNING PAUSED WAITING_FOR_USER WAITING_FOR_USAGE BLOCKED FAILED',
+    RUNNING: 'RUNNING PAUSED WAITING_FOR_USER WAITING_FOR_USAGE BLOCKED COMPLETED FAILED',
+    PAUSED: 'RUNNING PAUSED WAITING_FOR_USER WAITING_FOR_USAGE BLOCKED FAILED',
+    WAITING_FOR_USER: 'DRAFT PLANNING RUNNING PAUSED WAITING_FOR_USER WAITING_FOR_USAGE BLOCKED COMPLETED FAILED',
+    WAITING_FOR_USAGE: 'DRAFT PLANNING RUNNING PAUSED WAITING_FOR_USER WAITING_FOR_USAGE BLOCKED FAILED',
+    BLOCKED: 'DRAFT PLANNING RUNNING PAUSED WAITING_FOR_USER WAITING_FOR_USAGE BLOCKED FAILED', COMPLETED: '', FAILED: '',
+  },
+  phase: { PENDING: 'READY BLOCKED', READY: 'RUNNING BLOCKED', RUNNING: 'RUNNING VALIDATING BLOCKED', VALIDATING: 'VALIDATING AWAITING_APPROVAL COMPLETED BLOCKED', AWAITING_APPROVAL: 'COMPLETED BLOCKED', COMPLETED: '', BLOCKED: 'BLOCKED READY RUNNING VALIDATING' },
+  task: {
+    PENDING: 'READY BLOCKED CANCELLED', READY: 'RUNNING VALIDATING BLOCKED CANCELLED',
+    RUNNING: 'VALIDATING RETRYING INTERRUPTED WAITING_FOR_USER WAITING_FOR_USAGE BLOCKED CANCELLED',
+    VALIDATING: 'COMPLETED RETRYING INTERRUPTED WAITING_FOR_USER WAITING_FOR_USAGE BLOCKED CANCELLED',
+    RETRYING: 'READY INTERRUPTED WAITING_FOR_USER WAITING_FOR_USAGE BLOCKED CANCELLED',
+    WAITING_FOR_USER: 'RETRYING INTERRUPTED READY VALIDATING WAITING_FOR_USER WAITING_FOR_USAGE BLOCKED CANCELLED',
+    WAITING_FOR_USAGE: 'RETRYING INTERRUPTED READY VALIDATING WAITING_FOR_USER WAITING_FOR_USAGE BLOCKED CANCELLED',
+    BLOCKED: 'READY VALIDATING BLOCKED CANCELLED',
+    INTERRUPTED: 'RETRYING INTERRUPTED READY VALIDATING WAITING_FOR_USER WAITING_FOR_USAGE BLOCKED CANCELLED', COMPLETED: 'COMPLETED', CANCELLED: 'CANCELLED',
+  },
+};
+test('P0M2 pairs: all 270 state pairs match independent legal/illegal expectations and canonical vocabulary', () => {
+  const agents = fs.readFileSync('AGENTS.md', 'utf8');
+  let total = 0;
+  for (const [entity, expected] of Object.entries(legal)) {
+    assert.deepEqual(Object.keys(expected).sort(), [...c.states[entity]].sort());
+    const vocabulary = agents.match(new RegExp(`- ${entity[0].toUpperCase() + entity.slice(1)}: ([^\\n]+)`))[1];
+    assert.deepEqual([...vocabulary.matchAll(/`([^`]+)`/g)].map(m => m[1]), [...c.states[entity]]);
+    const pairs = c.transitionPairs(entity);
+    assert.equal(pairs.length, c.states[entity].length ** 2);
+    for (const cell of pairs) {
+      total++;
+      assert.equal(cell.rules.length > 0, expected[cell.from].split(' ').includes(cell.to), `${entity} ${cell.from} -> ${cell.to}`);
+      rejects(() => c.proposeTransition(entity, cell.from, cell.to, 'unlisted-trigger', allFacts));
+    }
+  }
+  assert.equal(total, 270);
+});
+test('P0M2 guards: every declared rule rejects each individually missing guard; proposals do not mutate facts', () => {
+  const ids = new Set();
+  for (const r of c.transitionRules) {
+    assert.ok(!ids.has(r.id)); ids.add(r.id);
+    const facts = Object.freeze(Object.fromEntries(r.requires.map(g => [g, true])));
+    assert.equal(c.proposeTransition(r.entity, r.from, r.to, r.trigger, facts).kind, 'proposed', r.id);
+    for (const g of r.requires) {
+      const result = c.proposeTransition(r.entity, r.from, r.to, r.trigger, { ...facts, [g]: false });
+      assert.equal(result.kind, 'rejected', `${r.id}: ${g}`); assert.ok(result.missing.includes(g));
+    }
+  }
+  rejects(() => proposed('project', 'COMPLETED', 'DRAFT', 'reopen'));
+  rejects(() => proposed('task', 'RUNNING', 'COMPLETED', 'worker-prose'));
+  rejects(() => proposed('task', 'CANCELLED', 'READY', 'resume-worker'));
+  rejects(() => c.proposeTransition('task', 'READY', 'RUNNING', 'dispatch-worker', { injected: true }), 'MALFORMED_MESSAGE');
+});
+
+const r1Scenarios = [
+  ['create/begin interview', 'project', 'DRAFT', 'PLANNING', 'begin-planning'],
+  ['approve complete schedulable plan', 'project', 'PLANNING', 'READY', 'approve-plan'],
+  ['abandon retains draft', 'project', 'PLANNING', 'DRAFT', 'abandon-planning'],
+  ['restart records new revision', 'project', 'PLANNING', 'PLANNING', 'restart-planning'],
+  ['start project', 'project', 'READY', 'RUNNING', 'start'], ['phase eligibility', 'phase', 'PENDING', 'READY', 'eligible'],
+  ['start phase', 'phase', 'READY', 'RUNNING', 'start'], ['task eligibility', 'task', 'PENDING', 'READY', 'eligible'],
+  ['reserved worker dispatch', 'task', 'READY', 'RUNNING', 'dispatch-worker'], ['usable worker candidate', 'task', 'RUNNING', 'VALIDATING', 'worker-candidate'],
+  ['verified completion transaction', 'task', 'VALIDATING', 'COMPLETED', 'settle'], ['repairable failure', 'task', 'RUNNING', 'RETRYING', 'repairable-failure'],
+  ['safe isolated reset', 'task', 'RETRYING', 'READY', 'reset-for-retry'], ['four attempts block task', 'task', 'RUNNING', 'BLOCKED', 'attempts-exhausted'],
+  ['four attempts block phase', 'phase', 'RUNNING', 'BLOCKED', 'failure'], ['four attempts block project', 'project', 'RUNNING', 'BLOCKED', 'attempts-exhausted'],
+  ['pause after termination', 'task', 'RUNNING', 'INTERRUPTED', 'pause-terminated'], ['quiescent project pause', 'project', 'RUNNING', 'PAUSED', 'pause-quiescent'],
+  ['new attempt after interruption', 'task', 'INTERRUPTED', 'READY', 'resume-worker'], ['same candidate validation resume', 'task', 'INTERRUPTED', 'VALIDATING', 'resume-validation'],
+  ['cancel task', 'task', 'RUNNING', 'CANCELLED', 'cancel-reconciled'], ['stop fails project', 'project', 'RUNNING', 'FAILED', 'stop-reconciled'],
+  ['dependent cancellation blocks', 'task', 'PENDING', 'BLOCKED', 'dependency-cancelled'], ['supersession records replacement', 'task', 'READY', 'CANCELLED', 'supersede'],
+  ['required user decision', 'task', 'VALIDATING', 'WAITING_FOR_USER', 'user-hold'], ['denial blocks', 'project', 'WAITING_FOR_USER', 'BLOCKED', 'deny'],
+  ['reliable usage retains role', 'task', 'VALIDATING', 'WAITING_FOR_USAGE', 'usage-hold'], ['phase cumulative validation', 'phase', 'RUNNING', 'VALIDATING', 'tasks-settled'],
+  ['Guided/Phase boundary', 'phase', 'VALIDATING', 'AWAITING_APPROVAL', 'report'], ['Continuous boundary', 'phase', 'VALIDATING', 'COMPLETED', 'continuous-complete'],
+  ['phase approval', 'phase', 'AWAITING_APPROVAL', 'COMPLETED', 'approve'], ['report rejection', 'phase', 'AWAITING_APPROVAL', 'BLOCKED', 'reject-report'],
+  ['project complete after final gate', 'project', 'WAITING_FOR_USER', 'COMPLETED', 'complete'], ['late cancel preserves completion', 'task', 'COMPLETED', 'COMPLETED', 'late-cancel'],
+  ['idempotent cancel', 'task', 'CANCELLED', 'CANCELLED', 'repeat-cancel'], ['qualification has no worker', 'task', 'READY', 'VALIDATING', 'dispatch-qualification'],
+];
+test('P0M2 R1 rows: deterministic planning, dispatch, failure, control, dependency and completion scenarios', () => {
+  for (const [name, ...args] of r1Scenarios) assert.equal(proposed(...args).kind, 'proposed', name);
+  assert.equal(proposed('task', 'VALIDATING', 'COMPLETED', 'settle', { resultRefVerified: false }).kind, 'rejected');
+  assert.equal(proposed('task', 'READY', 'RUNNING', 'dispatch-worker', { attemptReserved: false }).kind, 'rejected');
+  assert.equal(proposed('task', 'RETRYING', 'READY', 'reset-for-retry', { retryIntentRecorded: false }).kind, 'rejected');
+  assert.equal(proposed('project', 'WAITING_FOR_USER', 'RUNNING', 'resume-validation', { budgetAvailable: false }).kind, 'proposed');
+  assert.equal(proposed('project', 'BLOCKED', 'RUNNING', 'resume-renewal', { allCurrentCoverageValid: false, dependenciesCovered: false }).kind, 'proposed');
+  assert.equal(proposed('task', 'WAITING_FOR_USER', 'VALIDATING', 'correct-held-role', { budgetAvailable: false }).kind, 'proposed');
+});
+const holds = { completionCommitted: false, cancel: false, revoke: false, externalEffectUnknown: false, liveWriter: false, pause: false, mandatory: [], usage: [], blocked: [], retryPending: true };
+test('P0M2 control precedence: simultaneous holds, cancellation/pause/late success and ambiguous effects', () => {
+  const all = { ...holds, cancel: true, revoke: true, pause: true, mandatory: ['auth', 'decision'], usage: ['reviewer-limit'], blocked: ['stale-coverage'] };
+  assert.equal(c.decidePrecedence(all).action, 'cancel');
+  assert.equal(c.decidePrecedence({ ...all, liveWriter: true }).action, 'terminate-for-cancel');
+  assert.equal(c.decidePrecedence({ ...all, externalEffectUnknown: true }).action, 'reconcile');
+  assert.equal(c.decidePrecedence({ ...all, completionCommitted: true }).action, 'preserve-completion');
+  assert.deepEqual(c.decidePrecedence(all).reasons, ['cancel', 'revocation', 'pause', 'auth', 'decision', 'reviewer-limit', 'stale-coverage', 'retry']);
+  for (const [patch, expected] of [[{ revoke: true }, 'interrupt-and-request-user'], [{ pause: true, mandatory: ['auth'] }, 'pause'], [{ mandatory: ['auth'], usage: ['limit'] }, 'wait-user'], [{ usage: ['limit'] }, 'wait-usage'], [{ blocked: ['stale-coverage'] }, 'block'], [{}, 'retry']]) assert.equal(c.decidePrecedence({ ...holds, ...patch }).action, expected);
+});
+test('P0M2 modes: every mode, final/non-final, approval/denial/staleness and callback pending continuation', () => {
+  const base = { phaseStage: 'VALIDATING', acceptancePassed: true, freshReviewPassed: true, coverageCurrent: true, approval: 'pending', approvalBound: true, mandatoryHold: false, callbackActive: false, pauseOrRecovery: false };
+  for (const mode of ['Guided', 'Phase', 'Continuous']) for (const finalPhase of [false, true]) {
+    const f = { ...base, mode, finalPhase };
+    const waiting = c.decidePhaseBoundary(f);
+    assert.equal(waiting.phase, mode === 'Continuous' ? 'COMPLETED' : 'AWAITING_APPROVAL');
+    const approved = c.decidePhaseBoundary({ ...f, approval: 'approved' });
+    assert.equal(approved.project, finalPhase ? 'COMPLETED' : 'RUNNING');
+    assert.equal(c.decidePhaseBoundary({ ...f, approval: 'denied' }).phase, mode === 'Continuous' ? 'COMPLETED' : 'BLOCKED');
+    assert.equal(c.decidePhaseBoundary({ ...f, approval: 'approved', approvalBound: false }).phase, mode === 'Continuous' ? 'COMPLETED' : 'AWAITING_APPROVAL');
+    assert.equal(c.decidePhaseBoundary({ ...f, approval: 'approved', callbackActive: true }).continuation, 'record-pending-continuation');
+    assert.equal(c.decidePhaseBoundary({ ...f, approval: 'approved', callbackActive: true }).project, 'retain-execution-state');
+    assert.equal(c.decidePhaseBoundary({ ...f, approval: 'approved', pauseOrRecovery: true }).project, 'retain-control-state');
+    assert.equal(c.decidePhaseBoundary({ ...f, approval: 'approved', pauseOrRecovery: true }).phase, 'VALIDATING');
+    for (const field of ['acceptancePassed', 'freshReviewPassed', 'coverageCurrent']) assert.equal(c.decidePhaseBoundary({ ...f, [field]: false }).phase, 'BLOCKED');
+    assert.equal(c.decidePhaseBoundary({ ...f, mandatoryHold: true }).project, 'WAITING_FOR_USER');
+  }
+});
+
+test('P0M2 attempt reservation: four total, idempotency, ambiguous dispatch, crash/cancel counts and proven release', () => {
+  let b = { slots: [] };
+  for (let n = 1; n <= 4; n++) {
+    const attemptId = ident('attempt', n);
+    b = c.proposeAttempt(b, { type: 'reserve', attemptId });
+    assert.deepEqual(c.proposeAttempt(b, { type: 'reserve', attemptId }), b);
+    assert.equal(c.inspectAttemptBudget(b).used, n);
+    rejects(() => c.proposeAttempt(b, { type: 'dispatch', attemptId, intentRecorded: false }));
+    b = c.proposeAttempt(b, { type: 'dispatch-unknown', attemptId, intentRecorded: true });
+    rejects(() => c.proposeAttempt(b, { type: 'terminate', attemptId, terminationProven: false }), 'RECOVERY_REQUIRED');
+    b = c.proposeAttempt(b, { type: 'terminate', attemptId, terminationProven: true });
+    assert.equal(c.inspectAttemptBudget(JSON.parse(JSON.stringify(b))).used, n); // persisted-value round trip, not restart proof
+  }
+  rejects(() => c.proposeAttempt(b, { type: 'reserve', attemptId: ident('attempt', 5) }), 'RETRY_EXHAUSTED');
+  rejects(() => c.proposeAttempt(b, { type: 'verify-never-dispatched', attemptId: ident('attempt'), nonDispatchProven: true, noLiveWriter: true }));
+  let released = c.proposeAttempt({ slots: [] }, { type: 'reserve', attemptId: ident('attempt') });
+  released = c.proposeAttempt(released, { type: 'dispatch-unknown', attemptId: ident('attempt'), intentRecorded: true });
+  rejects(() => c.proposeAttempt(released, { type: 'verify-never-dispatched', attemptId: ident('attempt'), nonDispatchProven: false, noLiveWriter: true }), 'RECOVERY_REQUIRED');
+  released = c.proposeAttempt(released, { type: 'verify-never-dispatched', attemptId: ident('attempt'), nonDispatchProven: true, noLiveWriter: true });
+  assert.equal(c.inspectAttemptBudget(released).used, 0);
+  rejects(() => c.proposeAttempt(released, { type: 'reserve', attemptId: ident('attempt') }));
+  const f = { budget: b, terminationProven: true, settlementReconciled: true, checkpointRestored: true, diagnosticsRetained: true, revisedStrategy: true, pendingIntentRecorded: true, holds: [] };
+  assert.equal(c.decideWorkerRetry(f).action, 'block');
+  assert.equal(c.decideWorkerRetry({ ...f, budget: released }).action, 'ready-for-new-reservation');
+  for (const field of ['diagnosticsRetained', 'revisedStrategy']) assert.equal(c.decideWorkerRetry({ ...f, budget: released, [field]: false }).action, 'block');
+  assert.equal(c.decideWorkerRetry({ ...f, budget: released, pendingIntentRecorded: false }).action, 'record-retry-intent');
+  assert.equal(c.decideWorkerRetry({ ...f, budget: released, checkpointRestored: false }).action, 'reset-original-checkpoint');
+  assert.equal(c.decideWorkerRetry({ ...f, budget: released, holds: ['pause'] }).action, 'held');
+});
+
+const roleFacts = (role, result, patch = {}) => ({ role, result, signalSource: role.endsWith('validator') ? 'trusted-runner' : 'provider', scope: role === 'Master' ? 'optional-request' : ['interview', 'planner', 'scope-planner'].includes(role) ? 'planning' : 'task', budget: { calls: role === 'worker' ? 0 : 1, schemaRepairs: 0 }, terminationProven: true, dispatched: true, workerRetryEligible: true, usageReliable: true, mandatoryMaterialFits: false, responseSemanticallyValid: true, ...patch });
+const outcomes = ['success', 'refusal', 'malformed', 'known-timeout', 'ambiguous-termination', 'authentication', 'usage-limit', 'transient', 'exhausted', 'unsupported', 'context-overflow', 'cancelled', 'acceptance-failed', 'unknown-failure'];
+const roleExpected = {
+  planner: 'proposal user repair-schema retry-input recovery user usage retry-input block user user user invalid block',
+  worker: 'candidate user retry-worker retry-worker recovery user usage retry-worker block user user cancel-task invalid block',
+  reviewer: 'observations user repair-schema retry-candidate recovery user usage retry-candidate block user user user retry-worker block',
+  'command-validator': 'observations invalid block retry-candidate recovery user usage retry-candidate block user user user retry-worker block',
+  Master: 'answer user repair-schema retry-input recovery user usage retry-input block user user cancel-request invalid block',
+};
+test('P0M2 R4: all 112 role/result cells match independent role-specific expected outcomes', () => {
+  let count = 0;
+  for (const role of c.decisionRoles) {
+    const expected = roleExpected[role] ?? roleExpected[role === 'browser-validator' ? 'command-validator' : 'planner'];
+    for (const [i, result] of outcomes.entries()) {
+      count++; const f = roleFacts(role, result), action = expected.split(' ')[i];
+      if (action === 'invalid') { rejects(() => c.decideRoleResult(f), 'MALFORMED_MESSAGE'); continue; }
+      const actual = c.decideRoleResult(f);
+      assert.equal(actual.action, action, `${role}:${result}`);
+      assert.equal(actual.directCompletion, false); assert.equal(actual.automaticModelFallback, false);
+      assert.equal(actual.implementationAttemptsConsumed, role === 'worker' ? 1 : 0);
+      if (role === 'Master') assert.equal(actual.projectHold, false);
+    }
+  }
+  assert.equal(count, 112);
+});
+test('P0M2 R4 budgets: third timeout/transient blocks; one schema repair shares cap; holds preserve counters', () => {
+  let budget = { calls: 0, schemaRepairs: 0 };
+  const authorized = { repair: false, previousCallTerminated: true, authorized: true, backoffElapsed: true, holdsClear: true };
+  for (let n = 1; n <= 3; n++) {
+    budget = c.proposeRoleCall(budget, authorized);
+    const result = c.decideRoleResult(roleFacts('reviewer', 'known-timeout', { budget }));
+    assert.equal(result.action, n === 3 ? 'block' : 'retry-candidate');
+    assert.equal(result.delaySeconds, [30, 120, null][n - 1]);
+    assert.equal(c.decideRoleResult(roleFacts('planner', 'transient', { budget })).action, n === 3 ? 'block' : 'retry-input');
+    assert.equal(c.decideRoleResult(roleFacts('reviewer', 'usage-limit', { budget })).action, 'usage');
+  }
+  rejects(() => c.proposeRoleCall(JSON.parse(JSON.stringify(budget)), authorized), 'RETRY_EXHAUSTED');
+  const repaired = c.proposeRoleCall({ calls: 1, schemaRepairs: 0 }, { ...authorized, repair: true });
+  assert.equal(c.decideRoleResult(roleFacts('reviewer', 'malformed', { budget: repaired })).action, 'block');
+  rejects(() => c.proposeRoleCall(repaired, { ...authorized, repair: true }), 'RETRY_EXHAUSTED');
+  rejects(() => c.proposeRoleCall(repaired, { ...authorized, previousCallTerminated: false }), 'RECOVERY_REQUIRED');
+  rejects(() => c.proposeRoleCall(repaired, { ...authorized, backoffElapsed: false }));
+  assert.equal(c.decideRoleResult(roleFacts('worker', 'authentication', { dispatched: false })).implementationAttemptsConsumed, 0);
+  assert.equal(c.decideRoleResult(roleFacts('reviewer', 'known-timeout', { terminationProven: false })).action, 'recovery');
+  assert.equal(c.decideRoleResult(roleFacts('planner', 'usage-limit', { usageReliable: false })).action, 'block');
+  assert.equal(c.decideRoleResult(roleFacts('reviewer', 'acceptance-failed', { scope: 'coverage' })).followUp, 'deduplicated-repair-proposal');
+  rejects(() => c.decideRoleResult(roleFacts('command-validator', 'success', { signalSource: 'provider' })), 'UNAUTHORIZED');
+  assert.equal(c.decideRoleResult(roleFacts('worker', 'refusal')).action, 'user');
+  assert.equal(c.decideRoleResult(roleFacts('reviewer', 'unsupported', { dispatched: false, budget: { calls: 0, schemaRepairs: 0 } })).action, 'user');
+});
+test('P0M2 boundary regressions: fourth reserved dispatch, unknown failures and optional-only context trimming', () => {
+  assert.equal(proposed('task', 'READY', 'RUNNING', 'dispatch-worker', { budgetAvailable: false, reservedSlotWithinLimit: true }).kind, 'proposed');
+  assert.equal(c.decideRoleResult(roleFacts('reviewer', 'unknown-failure')).action, 'block');
+  for (const role of c.decisionRoles) {
+    const f = roleFacts(role, 'context-overflow', { mandatoryMaterialFits: true, dispatched: false, budget: { calls: 0, schemaRepairs: 0 } });
+    assert.equal(c.decideRoleResult(f).action, 'prepare-without-optional-history');
+    assert.equal(c.decideRoleResult({ ...f, mandatoryMaterialFits: false }).action, 'user');
+  }
+  assert.equal(c.decideRoleResult(roleFacts('planner', 'context-overflow', { mandatoryMaterialFits: true, dispatched: false, budget: { calls: 3, schemaRepairs: 0 } })).action, 'block');
+});

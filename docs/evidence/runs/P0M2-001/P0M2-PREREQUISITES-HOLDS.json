@@ -1,0 +1,15 @@
+{
+  "id": "P0M2-PREREQUISITES-HOLDS",
+  "class": "U",
+  "command": [
+    "python3",
+    "docs/evidence/runs/P0M2-001/verify-prerequisites.py"
+  ],
+  "cwd": "/Users/ivanuy/Library/Mobile Documents/com~apple~CloudDocs/Projects/densa-ade",
+  "startedAt": "2026-09-13T05:26:11.269664+00:00",
+  "completedAt": "2026-09-13T05:26:12.185586+00:00",
+  "exitStatus": 0,
+  "result": "PASS",
+  "artifact": "/Users/ivanuy/Library/Mobile Documents/com~apple~CloudDocs/Projects/densa-ade/docs/evidence/runs/P0M2-001/P0M2-PREREQUISITES-HOLDS.log",
+  "artifactSha256": "3001c8635cec04477733910dad274fc30b55d98dc51a1f23e689b14ef7964102"
+}

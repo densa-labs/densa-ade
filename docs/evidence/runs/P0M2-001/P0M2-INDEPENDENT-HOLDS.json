@@ -1,0 +1,18 @@
+{
+  "id": "P0M2-INDEPENDENT-HOLDS",
+  "class": "U",
+  "command": [
+    "node",
+    "node_modules/typescript/bin/tsc",
+    "-p",
+    "packages/contracts/tsconfig.json",
+    "--noEmit"
+  ],
+  "cwd": "/Users/ivanuy/Library/Mobile Documents/com~apple~CloudDocs/Projects/densa-ade",
+  "startedAt": "2026-09-13T05:18:42.935470+00:00",
+  "completedAt": "2026-09-13T05:18:43.609607+00:00",
+  "exitStatus": 0,
+  "result": "PASS",
+  "artifact": "/Users/ivanuy/Library/Mobile Documents/com~apple~CloudDocs/Projects/densa-ade/docs/evidence/runs/P0M2-001/P0M2-INDEPENDENT-HOLDS.log",
+  "artifactSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

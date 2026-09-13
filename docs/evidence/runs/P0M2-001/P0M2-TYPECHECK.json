@@ -1,0 +1,16 @@
+{
+  "id": "P0M2-TYPECHECK",
+  "class": "U",
+  "command": [
+    "npm",
+    "run",
+    "typecheck"
+  ],
+  "cwd": "/Users/ivanuy/Library/Mobile Documents/com~apple~CloudDocs/Projects/densa-ade",
+  "startedAt": "2026-09-10T04:46:39.552132+00:00",
+  "completedAt": "2026-09-10T04:46:40.269605+00:00",
+  "exitStatus": 0,
+  "result": "PASS",
+  "artifact": "docs/evidence/runs/P0M2-001/P0M2-TYPECHECK.log",
+  "artifactSha256": "5b017e85e63f2edb50afc191acc9a310b04f1f6a4b4caf626dcb44d2f8bfe74a"
+}

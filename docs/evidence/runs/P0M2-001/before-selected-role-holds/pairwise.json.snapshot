@@ -1,0 +1,1696 @@
+{
+  "project": [
+    {
+      "from": "DRAFT",
+      "to": "DRAFT",
+      "rules": []
+    },
+    {
+      "from": "DRAFT",
+      "to": "PLANNING",
+      "rules": [
+        "project.begin-planning.DRAFT.PLANNING"
+      ]
+    },
+    {
+      "from": "DRAFT",
+      "to": "READY",
+      "rules": []
+    },
+    {
+      "from": "DRAFT",
+      "to": "RUNNING",
+      "rules": []
+    },
+    {
+      "from": "DRAFT",
+      "to": "PAUSED",
+      "rules": []
+    },
+    {
+      "from": "DRAFT",
+      "to": "WAITING_FOR_USER",
+      "rules": [
+        "project.user-hold.DRAFT.WAITING_FOR_USER",
+        "project.revocation-hold.DRAFT.WAITING_FOR_USER"
+      ]
+    },
+    {
+      "from": "DRAFT",
+      "to": "WAITING_FOR_USAGE",
+      "rules": [
+        "project.usage-hold.DRAFT.WAITING_FOR_USAGE"
+      ]
+    },
+    {
+      "from": "DRAFT",
+      "to": "BLOCKED",
+      "rules": [
+        "project.deny.DRAFT.BLOCKED",
+        "project.failure.DRAFT.BLOCKED"
+      ]
+    },
+    {
+      "from": "DRAFT",
+      "to": "COMPLETED",
+      "rules": []
+    },
+    {
+      "from": "DRAFT",
+      "to": "FAILED",
+      "rules": [
+        "project.stop-reconciled.DRAFT.FAILED"
+      ]
+    },
+    {
+      "from": "PLANNING",
+      "to": "DRAFT",
+      "rules": [
+        "project.abandon-planning.PLANNING.DRAFT"
+      ]
+    },
+    {
+      "from": "PLANNING",
+      "to": "PLANNING",
+      "rules": [
+        "project.restart-planning.PLANNING.PLANNING"
+      ]
+    },
+    {
+      "from": "PLANNING",
+      "to": "READY",
+      "rules": [
+        "project.approve-plan.PLANNING.READY"
+      ]
+    },
+    {
+      "from": "PLANNING",
+      "to": "RUNNING",
+      "rules": []
+    },
+    {
+      "from": "PLANNING",
+      "to": "PAUSED",
+      "rules": []
+    },
+    {
+      "from": "PLANNING",
+      "to": "WAITING_FOR_USER",
+      "rules": [
+        "project.user-hold.PLANNING.WAITING_FOR_USER",
+        "project.revocation-hold.PLANNING.WAITING_FOR_USER"
+      ]
+    },
+    {
+      "from": "PLANNING",
+      "to": "WAITING_FOR_USAGE",
+      "rules": [
+        "project.usage-hold.PLANNING.WAITING_FOR_USAGE"
+      ]
+    },
+    {
+      "from": "PLANNING",
+      "to": "BLOCKED",
+      "rules": [
+        "project.deny.PLANNING.BLOCKED",
+        "project.failure.PLANNING.BLOCKED"
+      ]
+    },
+    {
+      "from": "PLANNING",
+      "to": "COMPLETED",
+      "rules": []
+    },
+    {
+      "from": "PLANNING",
+      "to": "FAILED",
+      "rules": [
+        "project.stop-reconciled.PLANNING.FAILED"
+      ]
+    },
+    {
+      "from": "READY",
+      "to": "DRAFT",
+      "rules": []
+    },
+    {
+      "from": "READY",
+      "to": "PLANNING",
+      "rules": []
+    },
+    {
+      "from": "READY",
+      "to": "READY",
+      "rules": []
+    },
+    {
+      "from": "READY",
+      "to": "RUNNING",
+      "rules": [
+        "project.start.READY.RUNNING"
+      ]
+    },
+    {
+      "from": "READY",
+      "to": "PAUSED",
+      "rules": [
+        "project.pause-quiescent.READY.PAUSED"
+      ]
+    },
+    {
+      "from": "READY",
+      "to": "WAITING_FOR_USER",
+      "rules": [
+        "project.user-hold.READY.WAITING_FOR_USER",
+        "project.revocation-hold.READY.WAITING_FOR_USER"
+      ]
+    },
+    {
+      "from": "READY",
+      "to": "WAITING_FOR_USAGE",
+      "rules": [
+        "project.usage-hold.READY.WAITING_FOR_USAGE"
+      ]
+    },
+    {
+      "from": "READY",
+      "to": "BLOCKED",
+      "rules": [
+        "project.deny.READY.BLOCKED",
+        "project.failure.READY.BLOCKED"
+      ]
+    },
+    {
+      "from": "READY",
+      "to": "COMPLETED",
+      "rules": []
+    },
+    {
+      "from": "READY",
+      "to": "FAILED",
+      "rules": [
+        "project.stop-reconciled.READY.FAILED"
+      ]
+    },
+    {
+      "from": "RUNNING",
+      "to": "DRAFT",
+      "rules": []
+    },
+    {
+      "from": "RUNNING",
+      "to": "PLANNING",
+      "rules": []
+    },
+    {
+      "from": "RUNNING",
+      "to": "READY",
+      "rules": []
+    },
+    {
+      "from": "RUNNING",
+      "to": "RUNNING",
+      "rules": [
+        "project.admit-repair.RUNNING.RUNNING"
+      ]
+    },
+    {
+      "from": "RUNNING",
+      "to": "PAUSED",
+      "rules": [
+        "project.pause-quiescent.RUNNING.PAUSED"
+      ]
+    },
+    {
+      "from": "RUNNING",
+      "to": "WAITING_FOR_USER",
+      "rules": [
+        "project.user-hold.RUNNING.WAITING_FOR_USER",
+        "project.revocation-hold.RUNNING.WAITING_FOR_USER"
+      ]
+    },
+    {
+      "from": "RUNNING",
+      "to": "WAITING_FOR_USAGE",
+      "rules": [
+        "project.usage-hold.RUNNING.WAITING_FOR_USAGE"
+      ]
+    },
+    {
+      "from": "RUNNING",
+      "to": "BLOCKED",
+      "rules": [
+        "project.deny.RUNNING.BLOCKED",
+        "project.attempts-exhausted.RUNNING.BLOCKED",
+        "project.failure.RUNNING.BLOCKED"
+      ]
+    },
+    {
+      "from": "RUNNING",
+      "to": "COMPLETED",
+      "rules": [
+        "project.complete.RUNNING.COMPLETED"
+      ]
+    },
+    {
+      "from": "RUNNING",
+      "to": "FAILED",
+      "rules": [
+        "project.stop-reconciled.RUNNING.FAILED"
+      ]
+    },
+    {
+      "from": "PAUSED",
+      "to": "DRAFT",
+      "rules": []
+    },
+    {
+      "from": "PAUSED",
+      "to": "PLANNING",
+      "rules": []
+    },
+    {
+      "from": "PAUSED",
+      "to": "READY",
+      "rules": []
+    },
+    {
+      "from": "PAUSED",
+      "to": "RUNNING",
+      "rules": [
+        "project.resume.PAUSED.RUNNING",
+        "project.resume-validation.PAUSED.RUNNING",
+        "project.resume-renewal.PAUSED.RUNNING"
+      ]
+    },
+    {
+      "from": "PAUSED",
+      "to": "PAUSED",
+      "rules": [
+        "project.pause-quiescent.PAUSED.PAUSED"
+      ]
+    },
+    {
+      "from": "PAUSED",
+      "to": "WAITING_FOR_USER",
+      "rules": [
+        "project.user-hold.PAUSED.WAITING_FOR_USER",
+        "project.revocation-hold.PAUSED.WAITING_FOR_USER"
+      ]
+    },
+    {
+      "from": "PAUSED",
+      "to": "WAITING_FOR_USAGE",
+      "rules": [
+        "project.usage-hold.PAUSED.WAITING_FOR_USAGE"
+      ]
+    },
+    {
+      "from": "PAUSED",
+      "to": "BLOCKED",
+      "rules": [
+        "project.deny.PAUSED.BLOCKED",
+        "project.failure.PAUSED.BLOCKED"
+      ]
+    },
+    {
+      "from": "PAUSED",
+      "to": "COMPLETED",
+      "rules": []
+    },
+    {
+      "from": "PAUSED",
+      "to": "FAILED",
+      "rules": [
+        "project.stop-reconciled.PAUSED.FAILED"
+      ]
+    },
+    {
+      "from": "WAITING_FOR_USER",
+      "to": "DRAFT",
+      "rules": [
+        "project.abandon-planning.WAITING_FOR_USER.DRAFT"
+      ]
+    },
+    {
+      "from": "WAITING_FOR_USER",
+      "to": "PLANNING",
+      "rules": [
+        "project.restart-planning.WAITING_FOR_USER.PLANNING",
+        "project.resume-planning.WAITING_FOR_USER.PLANNING"
+      ]
+    },
+    {
+      "from": "WAITING_FOR_USER",
+      "to": "READY",
+      "rules": []
+    },
+    {
+      "from": "WAITING_FOR_USER",
+      "to": "RUNNING",
+      "rules": [
+        "project.resume.WAITING_FOR_USER.RUNNING",
+        "project.resume-validation.WAITING_FOR_USER.RUNNING",
+        "project.resume-renewal.WAITING_FOR_USER.RUNNING",
+        "project.admit-repair.WAITING_FOR_USER.RUNNING"
+      ]
+    },
+    {
+      "from": "WAITING_FOR_USER",
+      "to": "PAUSED",
+      "rules": [
+        "project.pause-quiescent.WAITING_FOR_USER.PAUSED"
+      ]
+    },
+    {
+      "from": "WAITING_FOR_USER",
+      "to": "WAITING_FOR_USER",
+      "rules": [
+        "project.user-hold.WAITING_FOR_USER.WAITING_FOR_USER",
+        "project.revocation-hold.WAITING_FOR_USER.WAITING_FOR_USER"
+      ]
+    },
+    {
+      "from": "WAITING_FOR_USER",
+      "to": "WAITING_FOR_USAGE",
+      "rules": [
+        "project.usage-hold.WAITING_FOR_USER.WAITING_FOR_USAGE"
+      ]
+    },
+    {
+      "from": "WAITING_FOR_USER",
+      "to": "BLOCKED",
+      "rules": [
+        "project.deny.WAITING_FOR_USER.BLOCKED",
+        "project.attempts-exhausted.WAITING_FOR_USER.BLOCKED",
+        "project.failure.WAITING_FOR_USER.BLOCKED"
+      ]
+    },
+    {
+      "from": "WAITING_FOR_USER",
+      "to": "COMPLETED",
+      "rules": [
+        "project.complete.WAITING_FOR_USER.COMPLETED"
+      ]
+    },
+    {
+      "from": "WAITING_FOR_USER",
+      "to": "FAILED",
+      "rules": [
+        "project.stop-reconciled.WAITING_FOR_USER.FAILED"
+      ]
+    },
+    {
+      "from": "WAITING_FOR_USAGE",
+      "to": "DRAFT",
+      "rules": [
+        "project.abandon-planning.WAITING_FOR_USAGE.DRAFT"
+      ]
+    },
+    {
+      "from": "WAITING_FOR_USAGE",
+      "to": "PLANNING",
+      "rules": [
+        "project.restart-planning.WAITING_FOR_USAGE.PLANNING",
+        "project.resume-planning.WAITING_FOR_USAGE.PLANNING"
+      ]
+    },
+    {
+      "from": "WAITING_FOR_USAGE",
+      "to": "READY",
+      "rules": []
+    },
+    {
+      "from": "WAITING_FOR_USAGE",
+      "to": "RUNNING",
+      "rules": [
+        "project.resume.WAITING_FOR_USAGE.RUNNING",
+        "project.resume-validation.WAITING_FOR_USAGE.RUNNING",
+        "project.resume-renewal.WAITING_FOR_USAGE.RUNNING"
+      ]
+    },
+    {
+      "from": "WAITING_FOR_USAGE",
+      "to": "PAUSED",
+      "rules": [
+        "project.pause-quiescent.WAITING_FOR_USAGE.PAUSED"
+      ]
+    },
+    {
+      "from": "WAITING_FOR_USAGE",
+      "to": "WAITING_FOR_USER",
+      "rules": [
+        "project.user-hold.WAITING_FOR_USAGE.WAITING_FOR_USER",
+        "project.revocation-hold.WAITING_FOR_USAGE.WAITING_FOR_USER"
+      ]
+    },
+    {
+      "from": "WAITING_FOR_USAGE",
+      "to": "WAITING_FOR_USAGE",
+      "rules": [
+        "project.usage-hold.WAITING_FOR_USAGE.WAITING_FOR_USAGE"
+      ]
+    },
+    {
+      "from": "WAITING_FOR_USAGE",
+      "to": "BLOCKED",
+      "rules": [
+        "project.deny.WAITING_FOR_USAGE.BLOCKED",
+        "project.attempts-exhausted.WAITING_FOR_USAGE.BLOCKED",
+        "project.failure.WAITING_FOR_USAGE.BLOCKED"
+      ]
+    },
+    {
+      "from": "WAITING_FOR_USAGE",
+      "to": "COMPLETED",
+      "rules": []
+    },
+    {
+      "from": "WAITING_FOR_USAGE",
+      "to": "FAILED",
+      "rules": [
+        "project.stop-reconciled.WAITING_FOR_USAGE.FAILED"
+      ]
+    },
+    {
+      "from": "BLOCKED",
+      "to": "DRAFT",
+      "rules": [
+        "project.abandon-planning.BLOCKED.DRAFT"
+      ]
+    },
+    {
+      "from": "BLOCKED",
+      "to": "PLANNING",
+      "rules": [
+        "project.restart-planning.BLOCKED.PLANNING",
+        "project.resume-planning.BLOCKED.PLANNING"
+      ]
+    },
+    {
+      "from": "BLOCKED",
+      "to": "READY",
+      "rules": []
+    },
+    {
+      "from": "BLOCKED",
+      "to": "RUNNING",
+      "rules": [
+        "project.resume.BLOCKED.RUNNING",
+        "project.resume-validation.BLOCKED.RUNNING",
+        "project.resume-renewal.BLOCKED.RUNNING",
+        "project.admit-repair.BLOCKED.RUNNING"
+      ]
+    },
+    {
+      "from": "BLOCKED",
+      "to": "PAUSED",
+      "rules": [
+        "project.pause-quiescent.BLOCKED.PAUSED"
+      ]
+    },
+    {
+      "from": "BLOCKED",
+      "to": "WAITING_FOR_USER",
+      "rules": [
+        "project.user-hold.BLOCKED.WAITING_FOR_USER",
+        "project.revocation-hold.BLOCKED.WAITING_FOR_USER"
+      ]
+    },
+    {
+      "from": "BLOCKED",
+      "to": "WAITING_FOR_USAGE",
+      "rules": [
+        "project.usage-hold.BLOCKED.WAITING_FOR_USAGE"
+      ]
+    },
+    {
+      "from": "BLOCKED",
+      "to": "BLOCKED",
+      "rules": [
+        "project.deny.BLOCKED.BLOCKED",
+        "project.attempts-exhausted.BLOCKED.BLOCKED",
+        "project.failure.BLOCKED.BLOCKED"
+      ]
+    },
+    {
+      "from": "BLOCKED",
+      "to": "COMPLETED",
+      "rules": []
+    },
+    {
+      "from": "BLOCKED",
+      "to": "FAILED",
+      "rules": [
+        "project.stop-reconciled.BLOCKED.FAILED"
+      ]
+    },
+    {
+      "from": "COMPLETED",
+      "to": "DRAFT",
+      "rules": []
+    },
+    {
+      "from": "COMPLETED",
+      "to": "PLANNING",
+      "rules": []
+    },
+    {
+      "from": "COMPLETED",
+      "to": "READY",
+      "rules": []
+    },
+    {
+      "from": "COMPLETED",
+      "to": "RUNNING",
+      "rules": []
+    },
+    {
+      "from": "COMPLETED",
+      "to": "PAUSED",
+      "rules": []
+    },
+    {
+      "from": "COMPLETED",
+      "to": "WAITING_FOR_USER",
+      "rules": []
+    },
+    {
+      "from": "COMPLETED",
+      "to": "WAITING_FOR_USAGE",
+      "rules": []
+    },
+    {
+      "from": "COMPLETED",
+      "to": "BLOCKED",
+      "rules": []
+    },
+    {
+      "from": "COMPLETED",
+      "to": "COMPLETED",
+      "rules": []
+    },
+    {
+      "from": "COMPLETED",
+      "to": "FAILED",
+      "rules": []
+    },
+    {
+      "from": "FAILED",
+      "to": "DRAFT",
+      "rules": []
+    },
+    {
+      "from": "FAILED",
+      "to": "PLANNING",
+      "rules": []
+    },
+    {
+      "from": "FAILED",
+      "to": "READY",
+      "rules": []
+    },
+    {
+      "from": "FAILED",
+      "to": "RUNNING",
+      "rules": []
+    },
+    {
+      "from": "FAILED",
+      "to": "PAUSED",
+      "rules": []
+    },
+    {
+      "from": "FAILED",
+      "to": "WAITING_FOR_USER",
+      "rules": []
+    },
+    {
+      "from": "FAILED",
+      "to": "WAITING_FOR_USAGE",
+      "rules": []
+    },
+    {
+      "from": "FAILED",
+      "to": "BLOCKED",
+      "rules": []
+    },
+    {
+      "from": "FAILED",
+      "to": "COMPLETED",
+      "rules": []
+    },
+    {
+      "from": "FAILED",
+      "to": "FAILED",
+      "rules": []
+    }
+  ],
+  "phase": [
+    {
+      "from": "PENDING",
+      "to": "PENDING",
+      "rules": []
+    },
+    {
+      "from": "PENDING",
+      "to": "READY",
+      "rules": [
+        "phase.eligible.PENDING.READY"
+      ]
+    },
+    {
+      "from": "PENDING",
+      "to": "RUNNING",
+      "rules": []
+    },
+    {
+      "from": "PENDING",
+      "to": "VALIDATING",
+      "rules": []
+    },
+    {
+      "from": "PENDING",
+      "to": "AWAITING_APPROVAL",
+      "rules": []
+    },
+    {
+      "from": "PENDING",
+      "to": "COMPLETED",
+      "rules": []
+    },
+    {
+      "from": "PENDING",
+      "to": "BLOCKED",
+      "rules": [
+        "phase.failure.PENDING.BLOCKED"
+      ]
+    },
+    {
+      "from": "READY",
+      "to": "PENDING",
+      "rules": []
+    },
+    {
+      "from": "READY",
+      "to": "READY",
+      "rules": []
+    },
+    {
+      "from": "READY",
+      "to": "RUNNING",
+      "rules": [
+        "phase.start.READY.RUNNING"
+      ]
+    },
+    {
+      "from": "READY",
+      "to": "VALIDATING",
+      "rules": []
+    },
+    {
+      "from": "READY",
+      "to": "AWAITING_APPROVAL",
+      "rules": []
+    },
+    {
+      "from": "READY",
+      "to": "COMPLETED",
+      "rules": []
+    },
+    {
+      "from": "READY",
+      "to": "BLOCKED",
+      "rules": [
+        "phase.failure.READY.BLOCKED"
+      ]
+    },
+    {
+      "from": "RUNNING",
+      "to": "PENDING",
+      "rules": []
+    },
+    {
+      "from": "RUNNING",
+      "to": "READY",
+      "rules": []
+    },
+    {
+      "from": "RUNNING",
+      "to": "RUNNING",
+      "rules": [
+        "phase.retain-stage-hold.RUNNING.RUNNING"
+      ]
+    },
+    {
+      "from": "RUNNING",
+      "to": "VALIDATING",
+      "rules": [
+        "phase.tasks-settled.RUNNING.VALIDATING"
+      ]
+    },
+    {
+      "from": "RUNNING",
+      "to": "AWAITING_APPROVAL",
+      "rules": []
+    },
+    {
+      "from": "RUNNING",
+      "to": "COMPLETED",
+      "rules": []
+    },
+    {
+      "from": "RUNNING",
+      "to": "BLOCKED",
+      "rules": [
+        "phase.failure.RUNNING.BLOCKED"
+      ]
+    },
+    {
+      "from": "VALIDATING",
+      "to": "PENDING",
+      "rules": []
+    },
+    {
+      "from": "VALIDATING",
+      "to": "READY",
+      "rules": []
+    },
+    {
+      "from": "VALIDATING",
+      "to": "RUNNING",
+      "rules": []
+    },
+    {
+      "from": "VALIDATING",
+      "to": "VALIDATING",
+      "rules": [
+        "phase.retain-stage-hold.VALIDATING.VALIDATING"
+      ]
+    },
+    {
+      "from": "VALIDATING",
+      "to": "AWAITING_APPROVAL",
+      "rules": [
+        "phase.report.VALIDATING.AWAITING_APPROVAL"
+      ]
+    },
+    {
+      "from": "VALIDATING",
+      "to": "COMPLETED",
+      "rules": [
+        "phase.continuous-complete.VALIDATING.COMPLETED"
+      ]
+    },
+    {
+      "from": "VALIDATING",
+      "to": "BLOCKED",
+      "rules": [
+        "phase.failure.VALIDATING.BLOCKED"
+      ]
+    },
+    {
+      "from": "AWAITING_APPROVAL",
+      "to": "PENDING",
+      "rules": []
+    },
+    {
+      "from": "AWAITING_APPROVAL",
+      "to": "READY",
+      "rules": []
+    },
+    {
+      "from": "AWAITING_APPROVAL",
+      "to": "RUNNING",
+      "rules": []
+    },
+    {
+      "from": "AWAITING_APPROVAL",
+      "to": "VALIDATING",
+      "rules": []
+    },
+    {
+      "from": "AWAITING_APPROVAL",
+      "to": "AWAITING_APPROVAL",
+      "rules": []
+    },
+    {
+      "from": "AWAITING_APPROVAL",
+      "to": "COMPLETED",
+      "rules": [
+        "phase.approve.AWAITING_APPROVAL.COMPLETED"
+      ]
+    },
+    {
+      "from": "AWAITING_APPROVAL",
+      "to": "BLOCKED",
+      "rules": [
+        "phase.reject-report.AWAITING_APPROVAL.BLOCKED",
+        "phase.failure.AWAITING_APPROVAL.BLOCKED"
+      ]
+    },
+    {
+      "from": "COMPLETED",
+      "to": "PENDING",
+      "rules": []
+    },
+    {
+      "from": "COMPLETED",
+      "to": "READY",
+      "rules": []
+    },
+    {
+      "from": "COMPLETED",
+      "to": "RUNNING",
+      "rules": []
+    },
+    {
+      "from": "COMPLETED",
+      "to": "VALIDATING",
+      "rules": []
+    },
+    {
+      "from": "COMPLETED",
+      "to": "AWAITING_APPROVAL",
+      "rules": []
+    },
+    {
+      "from": "COMPLETED",
+      "to": "COMPLETED",
+      "rules": []
+    },
+    {
+      "from": "COMPLETED",
+      "to": "BLOCKED",
+      "rules": []
+    },
+    {
+      "from": "BLOCKED",
+      "to": "PENDING",
+      "rules": []
+    },
+    {
+      "from": "BLOCKED",
+      "to": "READY",
+      "rules": [
+        "phase.repair-pending-phase.BLOCKED.READY"
+      ]
+    },
+    {
+      "from": "BLOCKED",
+      "to": "RUNNING",
+      "rules": [
+        "phase.release-suspended-phase.BLOCKED.RUNNING"
+      ]
+    },
+    {
+      "from": "BLOCKED",
+      "to": "VALIDATING",
+      "rules": [
+        "phase.release-suspended-validation.BLOCKED.VALIDATING"
+      ]
+    },
+    {
+      "from": "BLOCKED",
+      "to": "AWAITING_APPROVAL",
+      "rules": []
+    },
+    {
+      "from": "BLOCKED",
+      "to": "COMPLETED",
+      "rules": []
+    },
+    {
+      "from": "BLOCKED",
+      "to": "BLOCKED",
+      "rules": [
+        "phase.failure.BLOCKED.BLOCKED"
+      ]
+    }
+  ],
+  "task": [
+    {
+      "from": "PENDING",
+      "to": "PENDING",
+      "rules": []
+    },
+    {
+      "from": "PENDING",
+      "to": "READY",
+      "rules": [
+        "task.eligible.PENDING.READY"
+      ]
+    },
+    {
+      "from": "PENDING",
+      "to": "RUNNING",
+      "rules": []
+    },
+    {
+      "from": "PENDING",
+      "to": "VALIDATING",
+      "rules": []
+    },
+    {
+      "from": "PENDING",
+      "to": "RETRYING",
+      "rules": []
+    },
+    {
+      "from": "PENDING",
+      "to": "WAITING_FOR_USER",
+      "rules": []
+    },
+    {
+      "from": "PENDING",
+      "to": "WAITING_FOR_USAGE",
+      "rules": []
+    },
+    {
+      "from": "PENDING",
+      "to": "BLOCKED",
+      "rules": [
+        "task.failure.PENDING.BLOCKED",
+        "task.dependency-cancelled.PENDING.BLOCKED",
+        "task.deny.PENDING.BLOCKED",
+        "task.attempts-exhausted.PENDING.BLOCKED"
+      ]
+    },
+    {
+      "from": "PENDING",
+      "to": "INTERRUPTED",
+      "rules": []
+    },
+    {
+      "from": "PENDING",
+      "to": "COMPLETED",
+      "rules": []
+    },
+    {
+      "from": "PENDING",
+      "to": "CANCELLED",
+      "rules": [
+        "task.cancel-reconciled.PENDING.CANCELLED",
+        "task.supersede.PENDING.CANCELLED"
+      ]
+    },
+    {
+      "from": "READY",
+      "to": "PENDING",
+      "rules": []
+    },
+    {
+      "from": "READY",
+      "to": "READY",
+      "rules": []
+    },
+    {
+      "from": "READY",
+      "to": "RUNNING",
+      "rules": [
+        "task.dispatch-worker.READY.RUNNING"
+      ]
+    },
+    {
+      "from": "READY",
+      "to": "VALIDATING",
+      "rules": [
+        "task.dispatch-qualification.READY.VALIDATING"
+      ]
+    },
+    {
+      "from": "READY",
+      "to": "RETRYING",
+      "rules": []
+    },
+    {
+      "from": "READY",
+      "to": "WAITING_FOR_USER",
+      "rules": []
+    },
+    {
+      "from": "READY",
+      "to": "WAITING_FOR_USAGE",
+      "rules": []
+    },
+    {
+      "from": "READY",
+      "to": "BLOCKED",
+      "rules": [
+        "task.failure.READY.BLOCKED",
+        "task.dependency-cancelled.READY.BLOCKED",
+        "task.deny.READY.BLOCKED",
+        "task.attempts-exhausted.READY.BLOCKED"
+      ]
+    },
+    {
+      "from": "READY",
+      "to": "INTERRUPTED",
+      "rules": []
+    },
+    {
+      "from": "READY",
+      "to": "COMPLETED",
+      "rules": []
+    },
+    {
+      "from": "READY",
+      "to": "CANCELLED",
+      "rules": [
+        "task.cancel-reconciled.READY.CANCELLED",
+        "task.supersede.READY.CANCELLED"
+      ]
+    },
+    {
+      "from": "RUNNING",
+      "to": "PENDING",
+      "rules": []
+    },
+    {
+      "from": "RUNNING",
+      "to": "READY",
+      "rules": []
+    },
+    {
+      "from": "RUNNING",
+      "to": "RUNNING",
+      "rules": []
+    },
+    {
+      "from": "RUNNING",
+      "to": "VALIDATING",
+      "rules": [
+        "task.worker-candidate.RUNNING.VALIDATING"
+      ]
+    },
+    {
+      "from": "RUNNING",
+      "to": "RETRYING",
+      "rules": [
+        "task.repairable-failure.RUNNING.RETRYING"
+      ]
+    },
+    {
+      "from": "RUNNING",
+      "to": "WAITING_FOR_USER",
+      "rules": [
+        "task.user-hold.RUNNING.WAITING_FOR_USER"
+      ]
+    },
+    {
+      "from": "RUNNING",
+      "to": "WAITING_FOR_USAGE",
+      "rules": [
+        "task.usage-hold.RUNNING.WAITING_FOR_USAGE"
+      ]
+    },
+    {
+      "from": "RUNNING",
+      "to": "BLOCKED",
+      "rules": [
+        "task.failure.RUNNING.BLOCKED",
+        "task.dependency-cancelled.RUNNING.BLOCKED",
+        "task.deny.RUNNING.BLOCKED",
+        "task.attempts-exhausted.RUNNING.BLOCKED"
+      ]
+    },
+    {
+      "from": "RUNNING",
+      "to": "INTERRUPTED",
+      "rules": [
+        "task.pause-terminated.RUNNING.INTERRUPTED",
+        "task.revoked-terminated.RUNNING.INTERRUPTED"
+      ]
+    },
+    {
+      "from": "RUNNING",
+      "to": "COMPLETED",
+      "rules": []
+    },
+    {
+      "from": "RUNNING",
+      "to": "CANCELLED",
+      "rules": [
+        "task.cancel-reconciled.RUNNING.CANCELLED",
+        "task.supersede.RUNNING.CANCELLED"
+      ]
+    },
+    {
+      "from": "VALIDATING",
+      "to": "PENDING",
+      "rules": []
+    },
+    {
+      "from": "VALIDATING",
+      "to": "READY",
+      "rules": []
+    },
+    {
+      "from": "VALIDATING",
+      "to": "RUNNING",
+      "rules": []
+    },
+    {
+      "from": "VALIDATING",
+      "to": "VALIDATING",
+      "rules": []
+    },
+    {
+      "from": "VALIDATING",
+      "to": "RETRYING",
+      "rules": [
+        "task.repairable-failure.VALIDATING.RETRYING"
+      ]
+    },
+    {
+      "from": "VALIDATING",
+      "to": "WAITING_FOR_USER",
+      "rules": [
+        "task.user-hold.VALIDATING.WAITING_FOR_USER"
+      ]
+    },
+    {
+      "from": "VALIDATING",
+      "to": "WAITING_FOR_USAGE",
+      "rules": [
+        "task.usage-hold.VALIDATING.WAITING_FOR_USAGE"
+      ]
+    },
+    {
+      "from": "VALIDATING",
+      "to": "BLOCKED",
+      "rules": [
+        "task.failure.VALIDATING.BLOCKED",
+        "task.dependency-cancelled.VALIDATING.BLOCKED",
+        "task.deny.VALIDATING.BLOCKED",
+        "task.attempts-exhausted.VALIDATING.BLOCKED"
+      ]
+    },
+    {
+      "from": "VALIDATING",
+      "to": "INTERRUPTED",
+      "rules": [
+        "task.pause-terminated.VALIDATING.INTERRUPTED",
+        "task.revoked-terminated.VALIDATING.INTERRUPTED"
+      ]
+    },
+    {
+      "from": "VALIDATING",
+      "to": "COMPLETED",
+      "rules": [
+        "task.settle.VALIDATING.COMPLETED"
+      ]
+    },
+    {
+      "from": "VALIDATING",
+      "to": "CANCELLED",
+      "rules": [
+        "task.cancel-reconciled.VALIDATING.CANCELLED",
+        "task.supersede.VALIDATING.CANCELLED"
+      ]
+    },
+    {
+      "from": "RETRYING",
+      "to": "PENDING",
+      "rules": []
+    },
+    {
+      "from": "RETRYING",
+      "to": "READY",
+      "rules": [
+        "task.reset-for-retry.RETRYING.READY"
+      ]
+    },
+    {
+      "from": "RETRYING",
+      "to": "RUNNING",
+      "rules": []
+    },
+    {
+      "from": "RETRYING",
+      "to": "VALIDATING",
+      "rules": []
+    },
+    {
+      "from": "RETRYING",
+      "to": "RETRYING",
+      "rules": []
+    },
+    {
+      "from": "RETRYING",
+      "to": "WAITING_FOR_USER",
+      "rules": [
+        "task.user-hold.RETRYING.WAITING_FOR_USER"
+      ]
+    },
+    {
+      "from": "RETRYING",
+      "to": "WAITING_FOR_USAGE",
+      "rules": [
+        "task.usage-hold.RETRYING.WAITING_FOR_USAGE"
+      ]
+    },
+    {
+      "from": "RETRYING",
+      "to": "BLOCKED",
+      "rules": [
+        "task.failure.RETRYING.BLOCKED",
+        "task.dependency-cancelled.RETRYING.BLOCKED",
+        "task.deny.RETRYING.BLOCKED",
+        "task.attempts-exhausted.RETRYING.BLOCKED"
+      ]
+    },
+    {
+      "from": "RETRYING",
+      "to": "INTERRUPTED",
+      "rules": [
+        "task.pause-terminated.RETRYING.INTERRUPTED",
+        "task.revoked-terminated.RETRYING.INTERRUPTED"
+      ]
+    },
+    {
+      "from": "RETRYING",
+      "to": "COMPLETED",
+      "rules": []
+    },
+    {
+      "from": "RETRYING",
+      "to": "CANCELLED",
+      "rules": [
+        "task.cancel-reconciled.RETRYING.CANCELLED",
+        "task.supersede.RETRYING.CANCELLED"
+      ]
+    },
+    {
+      "from": "WAITING_FOR_USER",
+      "to": "PENDING",
+      "rules": []
+    },
+    {
+      "from": "WAITING_FOR_USER",
+      "to": "READY",
+      "rules": [
+        "task.resume-worker.WAITING_FOR_USER.READY"
+      ]
+    },
+    {
+      "from": "WAITING_FOR_USER",
+      "to": "RUNNING",
+      "rules": []
+    },
+    {
+      "from": "WAITING_FOR_USER",
+      "to": "VALIDATING",
+      "rules": [
+        "task.resume-validation.WAITING_FOR_USER.VALIDATING",
+        "task.correct-held-role.WAITING_FOR_USER.VALIDATING"
+      ]
+    },
+    {
+      "from": "WAITING_FOR_USER",
+      "to": "RETRYING",
+      "rules": [
+        "task.repairable-failure.WAITING_FOR_USER.RETRYING"
+      ]
+    },
+    {
+      "from": "WAITING_FOR_USER",
+      "to": "WAITING_FOR_USER",
+      "rules": [
+        "task.user-hold.WAITING_FOR_USER.WAITING_FOR_USER"
+      ]
+    },
+    {
+      "from": "WAITING_FOR_USER",
+      "to": "WAITING_FOR_USAGE",
+      "rules": [
+        "task.usage-hold.WAITING_FOR_USER.WAITING_FOR_USAGE"
+      ]
+    },
+    {
+      "from": "WAITING_FOR_USER",
+      "to": "BLOCKED",
+      "rules": [
+        "task.failure.WAITING_FOR_USER.BLOCKED",
+        "task.dependency-cancelled.WAITING_FOR_USER.BLOCKED",
+        "task.deny.WAITING_FOR_USER.BLOCKED",
+        "task.attempts-exhausted.WAITING_FOR_USER.BLOCKED"
+      ]
+    },
+    {
+      "from": "WAITING_FOR_USER",
+      "to": "INTERRUPTED",
+      "rules": [
+        "task.pause-terminated.WAITING_FOR_USER.INTERRUPTED",
+        "task.revoked-terminated.WAITING_FOR_USER.INTERRUPTED"
+      ]
+    },
+    {
+      "from": "WAITING_FOR_USER",
+      "to": "COMPLETED",
+      "rules": []
+    },
+    {
+      "from": "WAITING_FOR_USER",
+      "to": "CANCELLED",
+      "rules": [
+        "task.cancel-reconciled.WAITING_FOR_USER.CANCELLED",
+        "task.supersede.WAITING_FOR_USER.CANCELLED"
+      ]
+    },
+    {
+      "from": "WAITING_FOR_USAGE",
+      "to": "PENDING",
+      "rules": []
+    },
+    {
+      "from": "WAITING_FOR_USAGE",
+      "to": "READY",
+      "rules": [
+        "task.resume-worker.WAITING_FOR_USAGE.READY"
+      ]
+    },
+    {
+      "from": "WAITING_FOR_USAGE",
+      "to": "RUNNING",
+      "rules": []
+    },
+    {
+      "from": "WAITING_FOR_USAGE",
+      "to": "VALIDATING",
+      "rules": [
+        "task.resume-validation.WAITING_FOR_USAGE.VALIDATING"
+      ]
+    },
+    {
+      "from": "WAITING_FOR_USAGE",
+      "to": "RETRYING",
+      "rules": [
+        "task.repairable-failure.WAITING_FOR_USAGE.RETRYING"
+      ]
+    },
+    {
+      "from": "WAITING_FOR_USAGE",
+      "to": "WAITING_FOR_USER",
+      "rules": [
+        "task.user-hold.WAITING_FOR_USAGE.WAITING_FOR_USER"
+      ]
+    },
+    {
+      "from": "WAITING_FOR_USAGE",
+      "to": "WAITING_FOR_USAGE",
+      "rules": [
+        "task.usage-hold.WAITING_FOR_USAGE.WAITING_FOR_USAGE"
+      ]
+    },
+    {
+      "from": "WAITING_FOR_USAGE",
+      "to": "BLOCKED",
+      "rules": [
+        "task.failure.WAITING_FOR_USAGE.BLOCKED",
+        "task.dependency-cancelled.WAITING_FOR_USAGE.BLOCKED",
+        "task.deny.WAITING_FOR_USAGE.BLOCKED",
+        "task.attempts-exhausted.WAITING_FOR_USAGE.BLOCKED"
+      ]
+    },
+    {
+      "from": "WAITING_FOR_USAGE",
+      "to": "INTERRUPTED",
+      "rules": [
+        "task.pause-terminated.WAITING_FOR_USAGE.INTERRUPTED",
+        "task.revoked-terminated.WAITING_FOR_USAGE.INTERRUPTED"
+      ]
+    },
+    {
+      "from": "WAITING_FOR_USAGE",
+      "to": "COMPLETED",
+      "rules": []
+    },
+    {
+      "from": "WAITING_FOR_USAGE",
+      "to": "CANCELLED",
+      "rules": [
+        "task.cancel-reconciled.WAITING_FOR_USAGE.CANCELLED",
+        "task.supersede.WAITING_FOR_USAGE.CANCELLED"
+      ]
+    },
+    {
+      "from": "BLOCKED",
+      "to": "PENDING",
+      "rules": []
+    },
+    {
+      "from": "BLOCKED",
+      "to": "READY",
+      "rules": [
+        "task.resume-worker.BLOCKED.READY"
+      ]
+    },
+    {
+      "from": "BLOCKED",
+      "to": "RUNNING",
+      "rules": []
+    },
+    {
+      "from": "BLOCKED",
+      "to": "VALIDATING",
+      "rules": [
+        "task.resume-validation.BLOCKED.VALIDATING",
+        "task.correct-held-role.BLOCKED.VALIDATING"
+      ]
+    },
+    {
+      "from": "BLOCKED",
+      "to": "RETRYING",
+      "rules": []
+    },
+    {
+      "from": "BLOCKED",
+      "to": "WAITING_FOR_USER",
+      "rules": []
+    },
+    {
+      "from": "BLOCKED",
+      "to": "WAITING_FOR_USAGE",
+      "rules": []
+    },
+    {
+      "from": "BLOCKED",
+      "to": "BLOCKED",
+      "rules": [
+        "task.failure.BLOCKED.BLOCKED",
+        "task.dependency-cancelled.BLOCKED.BLOCKED",
+        "task.deny.BLOCKED.BLOCKED",
+        "task.attempts-exhausted.BLOCKED.BLOCKED"
+      ]
+    },
+    {
+      "from": "BLOCKED",
+      "to": "INTERRUPTED",
+      "rules": []
+    },
+    {
+      "from": "BLOCKED",
+      "to": "COMPLETED",
+      "rules": []
+    },
+    {
+      "from": "BLOCKED",
+      "to": "CANCELLED",
+      "rules": [
+        "task.cancel-reconciled.BLOCKED.CANCELLED",
+        "task.supersede.BLOCKED.CANCELLED"
+      ]
+    },
+    {
+      "from": "INTERRUPTED",
+      "to": "PENDING",
+      "rules": []
+    },
+    {
+      "from": "INTERRUPTED",
+      "to": "READY",
+      "rules": [
+        "task.resume-worker.INTERRUPTED.READY"
+      ]
+    },
+    {
+      "from": "INTERRUPTED",
+      "to": "RUNNING",
+      "rules": []
+    },
+    {
+      "from": "INTERRUPTED",
+      "to": "VALIDATING",
+      "rules": [
+        "task.resume-validation.INTERRUPTED.VALIDATING"
+      ]
+    },
+    {
+      "from": "INTERRUPTED",
+      "to": "RETRYING",
+      "rules": [
+        "task.repairable-failure.INTERRUPTED.RETRYING"
+      ]
+    },
+    {
+      "from": "INTERRUPTED",
+      "to": "WAITING_FOR_USER",
+      "rules": [
+        "task.user-hold.INTERRUPTED.WAITING_FOR_USER"
+      ]
+    },
+    {
+      "from": "INTERRUPTED",
+      "to": "WAITING_FOR_USAGE",
+      "rules": [
+        "task.usage-hold.INTERRUPTED.WAITING_FOR_USAGE"
+      ]
+    },
+    {
+      "from": "INTERRUPTED",
+      "to": "BLOCKED",
+      "rules": [
+        "task.failure.INTERRUPTED.BLOCKED",
+        "task.dependency-cancelled.INTERRUPTED.BLOCKED",
+        "task.deny.INTERRUPTED.BLOCKED",
+        "task.attempts-exhausted.INTERRUPTED.BLOCKED"
+      ]
+    },
+    {
+      "from": "INTERRUPTED",
+      "to": "INTERRUPTED",
+      "rules": [
+        "task.pause-terminated.INTERRUPTED.INTERRUPTED",
+        "task.revoked-terminated.INTERRUPTED.INTERRUPTED"
+      ]
+    },
+    {
+      "from": "INTERRUPTED",
+      "to": "COMPLETED",
+      "rules": []
+    },
+    {
+      "from": "INTERRUPTED",
+      "to": "CANCELLED",
+      "rules": [
+        "task.cancel-reconciled.INTERRUPTED.CANCELLED",
+        "task.supersede.INTERRUPTED.CANCELLED"
+      ]
+    },
+    {
+      "from": "COMPLETED",
+      "to": "PENDING",
+      "rules": []
+    },
+    {
+      "from": "COMPLETED",
+      "to": "READY",
+      "rules": []
+    },
+    {
+      "from": "COMPLETED",
+      "to": "RUNNING",
+      "rules": []
+    },
+    {
+      "from": "COMPLETED",
+      "to": "VALIDATING",
+      "rules": []
+    },
+    {
+      "from": "COMPLETED",
+      "to": "RETRYING",
+      "rules": []
+    },
+    {
+      "from": "COMPLETED",
+      "to": "WAITING_FOR_USER",
+      "rules": []
+    },
+    {
+      "from": "COMPLETED",
+      "to": "WAITING_FOR_USAGE",
+      "rules": []
+    },
+    {
+      "from": "COMPLETED",
+      "to": "BLOCKED",
+      "rules": []
+    },
+    {
+      "from": "COMPLETED",
+      "to": "INTERRUPTED",
+      "rules": []
+    },
+    {
+      "from": "COMPLETED",
+      "to": "COMPLETED",
+      "rules": [
+        "task.late-cancel.COMPLETED.COMPLETED"
+      ]
+    },
+    {
+      "from": "COMPLETED",
+      "to": "CANCELLED",
+      "rules": []
+    },
+    {
+      "from": "CANCELLED",
+      "to": "PENDING",
+      "rules": []
+    },
+    {
+      "from": "CANCELLED",
+      "to": "READY",
+      "rules": []
+    },
+    {
+      "from": "CANCELLED",
+      "to": "RUNNING",
+      "rules": []
+    },
+    {
+      "from": "CANCELLED",
+      "to": "VALIDATING",
+      "rules": []
+    },
+    {
+      "from": "CANCELLED",
+      "to": "RETRYING",
+      "rules": []
+    },
+    {
+      "from": "CANCELLED",
+      "to": "WAITING_FOR_USER",
+      "rules": []
+    },
+    {
+      "from": "CANCELLED",
+      "to": "WAITING_FOR_USAGE",
+      "rules": []
+    },
+    {
+      "from": "CANCELLED",
+      "to": "BLOCKED",
+      "rules": []
+    },
+    {
+      "from": "CANCELLED",
+      "to": "INTERRUPTED",
+      "rules": []
+    },
+    {
+      "from": "CANCELLED",
+      "to": "COMPLETED",
+      "rules": []
+    },
+    {
+      "from": "CANCELLED",
+      "to": "CANCELLED",
+      "rules": [
+        "task.repeat-cancel.CANCELLED.CANCELLED"
+      ]
+    }
+  ]
+}

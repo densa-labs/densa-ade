@@ -1,0 +1,15 @@
+{
+  "id": "P0M2-FINALIZE-AUTHORITY-CHANGED",
+  "class": "U",
+  "result": "FAIL",
+  "exitStatus": 1,
+  "command": [
+    "python3",
+    "docs/evidence/runs/P0M2-001/finalize-evidence.py"
+  ],
+  "observedAt": "2026-09-13T05:26:11.090415+00:00",
+  "artifact": "docs/evidence/runs/P0M2-001/failed-finalization/authority-mismatch.log",
+  "artifactSha256": "be549f586d7c6bd05816604712a6932aebbecba3652e6dd5d9f1c42d182ff9b3",
+  "diagnostic": "Authority binding detected external MODEL_POLICY.md change; follow-up inspection also found AGENTS.md README ownership addition.",
+  "resolution": "Read current authority files; preserve hash-verified originals; record semantic no-impact assessment and current compliant model; refresh provenance and prerequisite verification."
+}
